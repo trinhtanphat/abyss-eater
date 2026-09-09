@@ -83,7 +83,7 @@ test('Cloudflare deployment is account-pinned and Wrangler is version-pinned', (
   assert.match(pkg.scripts?.['deploy:gateway'] ?? '', /wrangler@4\.129\.1/);
 });
 
-test('PWA exposes an offline shell plus 192 and 512 maskable install icons', () => {
+test('PWA exposes a modular offline shell plus 192 and 512 maskable install icons', () => {
   assert.equal(existsSync('public/sw.js'), true, 'public/sw.js must exist');
   assert.equal(existsSync('public/icon-192.svg'), true, '192 icon must exist');
   assert.equal(existsSync('public/icon-512.svg'), true, '512 icon must exist');
@@ -94,4 +94,12 @@ test('PWA exposes an offline shell plus 192 and 512 maskable install icons', () 
   assert.ok((manifest.icons ?? []).some((icon) => String(icon.purpose ?? '').includes('maskable')));
   const client = readFileSync('public/app.js', 'utf8');
   assert.ok(client.includes("navigator.serviceWorker.register('/sw.js')"));
+  const serviceWorker = readFileSync('public/sw.js', 'utf8');
+  for (const route of [
+    "'/themes.css'",
+    "'/game/themes.js'",
+    "'/game/state.js'",
+    "'/ui/hud.js'",
+    "'/ui/lobby.js'",
+  ]) assert.ok(serviceWorker.includes(route), `offline shell must cache ${route}`);
 });
