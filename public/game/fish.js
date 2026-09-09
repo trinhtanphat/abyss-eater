@@ -1,11 +1,16 @@
 import * as THREE from 'https://cdn.jsdelivr.net/npm/three@0.185.1/build/three.module.js';
+import { silhouetteForMass } from './fish-evolution.mjs';
 
 const BODY_GEOMETRY = new THREE.SphereGeometry(1, 26, 18);
 const TAIL_GEOMETRY = new THREE.ConeGeometry(0.92, 1.35, 3);
 const FIN_GEOMETRY = new THREE.ConeGeometry(0.62, 1.25, 3);
+const SNOUT_GEOMETRY = new THREE.SphereGeometry(0.58, 18, 12);
+const SPINE_GEOMETRY = new THREE.ConeGeometry(0.24, 0.82, 5);
 const EYE_GEOMETRY = new THREE.SphereGeometry(0.14, 12, 9);
 const PUPIL_GEOMETRY = new THREE.SphereGeometry(0.066, 10, 8);
 const MOUTH_GEOMETRY = new THREE.TorusGeometry(0.16, 0.025, 6, 16, Math.PI);
+const GILL_GEOMETRY = new THREE.TorusGeometry(0.28, 0.022, 6, 18, Math.PI * 1.2);
+const LATERAL_LINE_GEOMETRY = new THREE.BoxGeometry(1.45, 0.028, 0.028);
 const FOOD_GEOMETRY = new THREE.IcosahedronGeometry(0.34, 1);
 const X_AXIS = new THREE.Vector3(1, 0, 0);
 const MOVE = new THREE.Vector3();
@@ -34,6 +39,33 @@ function makeBodyMaterial(id, isLocal, theme) {
   });
 }
 
+function applyEvolutionSilhouette(rig, mass) {
+  const data = rig.userData;
+  const profile = silhouetteForMass(mass);
+  if (data.appliedEvolutionTier === profile.id) return;
+
+  data.body.scale.set(...profile.body);
+  data.tail.scale.set(...profile.tail);
+  data.dorsal.scale.set(...profile.fin);
+  data.ventral.scale.set(profile.fin[0] * 0.66, profile.fin[1] * 0.62, profile.fin[2] * 0.78);
+  for (const pivot of data.pectoralPivots) {
+    pivot.children[0]?.scale.set(profile.fin[0] * 0.48, profile.fin[1] * 0.72, profile.fin[2] * 0.74);
+  }
+
+  data.snout.scale.set(profile.snoutScale, profile.snoutScale * 0.82, profile.snoutScale * 0.9);
+  data.mouth.scale.setScalar(profile.mouthScale);
+  for (const eye of data.eyes) eye.scale.setScalar(profile.eyeScale);
+  for (const pupil of data.pupils) pupil.scale.setScalar(profile.eyeScale);
+
+  for (let index = 0; index < data.spines.length; index += 1) {
+    const spine = data.spines[index];
+    spine.visible = index < profile.spineCount;
+    spine.scale.set(0.72 + index * 0.08, 0.72 + profile.spineCount * 0.09, 0.52);
+  }
+
+  data.appliedEvolutionTier = profile.id;
+}
+
 export function createFishRig({ id, isLocal = false, theme }) {
   const group = new THREE.Group();
   group.name = `fish-${id}`;
@@ -44,6 +76,11 @@ export function createFishRig({ id, isLocal = false, theme }) {
   const body = new THREE.Mesh(BODY_GEOMETRY, bodyMaterial);
   body.scale.set(1.82, 0.82, 0.76);
   group.add(body);
+
+  const snout = new THREE.Mesh(SNOUT_GEOMETRY, bodyMaterial);
+  snout.position.set(1.47, -0.02, 0);
+  snout.scale.set(0.86, 0.72, 0.78);
+  group.add(snout);
 
   const tailPivot = new THREE.Group();
   tailPivot.position.x = -1.72;
@@ -78,14 +115,28 @@ export function createFishRig({ id, isLocal = false, theme }) {
     pectoralPivots.push(pivot);
   }
 
+  const spines = [];
+  for (let index = 0; index < 4; index += 1) {
+    const spine = new THREE.Mesh(SPINE_GEOMETRY, finMaterial);
+    spine.position.set(0.45 - index * 0.52, 0.78 - index * 0.035, 0);
+    spine.rotation.z = Math.PI;
+    spine.visible = false;
+    group.add(spine);
+    spines.push(spine);
+  }
+
   const eyeMaterial = new THREE.MeshStandardMaterial({ color: theme.fish.eye, roughness: 0.22, emissive: theme.fish.eye, emissiveIntensity: 0.08 });
   const pupilMaterial = new THREE.MeshBasicMaterial({ color: theme.fish.pupil });
+  const eyes = [];
+  const pupils = [];
   for (const side of [-1, 1]) {
     const eye = new THREE.Mesh(EYE_GEOMETRY, eyeMaterial);
     eye.position.set(1.43, 0.25, side * 0.53);
     const pupil = new THREE.Mesh(PUPIL_GEOMETRY, pupilMaterial);
     pupil.position.set(1.51, 0.25, side * 0.548);
     group.add(eye, pupil);
+    eyes.push(eye);
+    pupils.push(pupil);
   }
 
   const mouthMaterial = new THREE.MeshBasicMaterial({ color: theme.fish.pupil, transparent: true, opacity: 0.8 });
@@ -95,10 +146,33 @@ export function createFishRig({ id, isLocal = false, theme }) {
   mouth.rotation.z = -Math.PI / 2;
   group.add(mouth);
 
+  const biolumeMaterial = new THREE.MeshBasicMaterial({
+    color: theme.fish.local,
+    transparent: true,
+    opacity: isLocal ? 0.28 : 0,
+    depthWrite: false,
+    blending: THREE.AdditiveBlending,
+  });
+  const gillAccents = [];
+  const lateralLines = [];
+  for (const side of [-1, 1]) {
+    const gill = new THREE.Mesh(GILL_GEOMETRY, biolumeMaterial);
+    gill.position.set(1.02, 0.02, side * 0.61);
+    gill.rotation.y = side * Math.PI / 2;
+    gill.rotation.z = Math.PI / 2;
+    group.add(gill);
+    gillAccents.push(gill);
+
+    const lateral = new THREE.Mesh(LATERAL_LINE_GEOMETRY, biolumeMaterial);
+    lateral.position.set(-0.05, -0.04, side * 0.72);
+    group.add(lateral);
+    lateralLines.push(lateral);
+  }
+
   const glowGeometry = new THREE.SphereGeometry(1.05, 16, 10);
   const glow = new THREE.Mesh(
     glowGeometry,
-    new THREE.MeshBasicMaterial({ color: theme.fish.local, transparent: true, opacity: isLocal ? 0.055 : 0, side: THREE.BackSide, depthWrite: false, blending: THREE.AdditiveBlending }),
+    new THREE.MeshBasicMaterial({ color: theme.fish.local, transparent: true, opacity: isLocal ? 0.018 : 0, side: THREE.BackSide, depthWrite: false, blending: THREE.AdditiveBlending }),
   );
   glow.scale.copy(body.scale).multiplyScalar(1.18);
   group.add(glow);
@@ -107,17 +181,28 @@ export function createFishRig({ id, isLocal = false, theme }) {
     ...group.userData,
     id,
     isLocal,
+    body,
+    snout,
+    tail,
     bodyMaterial,
     finMaterial,
     eyeMaterial,
     pupilMaterial,
     mouthMaterial,
+    biolumeMaterial,
     glowGeometry,
     glowMaterial: glow.material,
     tailPivot,
     pectoralPivots,
     dorsal,
     ventral,
+    spines,
+    eyes,
+    pupils,
+    mouth,
+    gillAccents,
+    lateralLines,
+    appliedEvolutionTier: null,
     target: new THREE.Vector3(),
     previousTarget: new THREE.Vector3(),
     mass: 1,
@@ -125,6 +210,7 @@ export function createFishRig({ id, isLocal = false, theme }) {
     deaths: 0,
     lastSpeed: 0,
   };
+  applyEvolutionSilhouette(group, 1);
   return group;
 }
 
@@ -136,6 +222,7 @@ export function applyFishSnapshot(rig, player) {
   data.mass = Math.max(1, Number(player.mass) || 1);
   data.score = Math.max(0, Number(player.score) || 0);
   data.deaths = Math.max(0, Number(player.deaths) || 0);
+  applyEvolutionSilhouette(rig, data.mass);
 }
 
 export function animateFishRig(rig, time, local = false) {
@@ -162,7 +249,8 @@ export function animateFishRig(rig, time, local = false) {
   data.pectoralPivots[1].rotation.x = -Math.sin(seconds * swim * 0.58) * 0.18 + 0.15;
   data.dorsal.rotation.x = Math.sin(seconds * 1.4) * 0.035;
   data.ventral.rotation.x = -Math.sin(seconds * 1.1) * 0.03;
-  data.glowMaterial.opacity = data.isLocal ? 0.045 + Math.sin(seconds * 2.2) * 0.012 : 0;
+  data.biolumeMaterial.opacity = data.isLocal ? 0.25 + Math.sin(seconds * 2.35) * 0.065 : 0;
+  data.glowMaterial.opacity = data.isLocal ? 0.014 + Math.sin(seconds * 2.2) * 0.004 : 0;
 }
 
 export function applyFishTheme(rig, theme) {
@@ -180,6 +268,7 @@ export function applyFishTheme(rig, theme) {
   data.eyeMaterial.emissive.setHex(theme.fish.eye);
   data.pupilMaterial.color.setHex(theme.fish.pupil);
   data.mouthMaterial.color.setHex(theme.fish.pupil);
+  data.biolumeMaterial.color.setHex(theme.fish.local);
   data.glowMaterial.color.setHex(theme.fish.local);
 }
 
@@ -195,6 +284,7 @@ export function disposeFishRig(rig) {
     data.glowMaterial,
   ]);
   for (const material of materials) material?.dispose?.();
+  data.biolumeMaterial?.dispose?.();
   data.glowGeometry?.dispose?.();
 }
 
