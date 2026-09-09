@@ -24,3 +24,16 @@ test('CI records scale and exact-build evidence and probes live only after main 
     assert.equal(ci.includes(forbidden), false, `qualification must not mutate production: ${forbidden}`);
   }
 });
+
+test('GitHub actions use the current Node 24 action runtime generation', async () => {
+  const workflows = await Promise.all([
+    readFile('.github/workflows/ci.yml', 'utf8'),
+    readFile('.github/workflows/production-smoke.yml', 'utf8'),
+    readFile('.github/workflows/visual-review.yml', 'utf8'),
+  ]);
+  const combined = workflows.join('\n');
+  assert.equal(combined.includes('actions/checkout@v4'), false, 'checkout v4 still targets deprecated Node 20');
+  assert.equal(combined.includes('actions/setup-node@v4'), false, 'setup-node v4 still targets deprecated Node 20');
+  assert.ok(combined.includes('actions/checkout@v7'), 'checkout should use current Node 24 generation');
+  assert.ok(combined.includes('actions/setup-node@v7'), 'setup-node should use current Node 24 generation');
+});
