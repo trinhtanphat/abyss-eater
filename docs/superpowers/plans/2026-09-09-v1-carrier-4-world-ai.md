@@ -1,0 +1,3 @@
+# Abyss Eater V1 Carrier 4 World and AI Dependency Boundary
+
+Carrier 4 is implemented after the multiplayer/progression foundations are merged. Scope is limited to server-owned biome classification, bounded AI wildlife state machines, spatially-budgeted AI updates, hazards, pickups and richer procedural world presentation. It must reuse the authoritative collision/spatial interfaces from Carrier 1 and must not introduce unbounded Durable Object timers or paid inference/services.
