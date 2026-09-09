@@ -12,15 +12,24 @@ for (const [route, [file, contentType]] of Object.entries(assetFiles)) {
   assets[route] = { body: await readFile(file, 'utf8'), contentType };
 }
 
-let gameLogic = await readFile('src/game-logic.mjs', 'utf8');
-gameLogic = gameLogic
-  .replace(/^export\s+const\s+/gm, 'const ')
-  .replace(/^export\s+function\s+/gm, 'function ');
+function stripExports(source) {
+  return source
+    .replace(/^export\s+const\s+/gm, 'const ')
+    .replace(/^export\s+function\s+/gm, 'function ');
+}
+
+function replaceRequired(source, marker, replacement) {
+  if (!source.includes(marker)) throw new Error(`Missing build marker ${marker}`);
+  return source.replace(marker, replacement);
+}
+
+const gameLogic = stripExports(await readFile('src/game-logic.mjs', 'utf8'));
+const protocol = stripExports(await readFile('src/protocol.mjs', 'utf8'));
 
 let template = await readFile('src/worker.template.mjs', 'utf8');
-template = template
-  .replace('/*__GAME_LOGIC__*/', gameLogic)
-  .replace('/*__ASSETS__*/', JSON.stringify(assets));
+template = replaceRequired(template, '/*__GAME_LOGIC__*/', gameLogic);
+template = replaceRequired(template, '/*__PROTOCOL__*/', protocol);
+template = replaceRequired(template, '/*__ASSETS__*/', JSON.stringify(assets));
 
 await mkdir('dist', { recursive: true });
 await writeFile('dist/worker.mjs', template);
