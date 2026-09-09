@@ -1,4 +1,4 @@
-const CACHE_NAME = 'abyss-eater-shell-v5';
+const CACHE_NAME = 'abyss-eater-shell-v6';
 const SHELL = [
   '/',
   '/styles.css',
@@ -16,6 +16,7 @@ const SHELL = [
   '/game/effects.js',
   '/game/environment.js',
   '/game/fish.js',
+  '/game/fish-evolution.mjs',
   '/game/input.js',
   '/game/network.js',
   '/game/presentation.js',
