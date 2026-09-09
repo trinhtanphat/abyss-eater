@@ -48,6 +48,7 @@ function createInstancedDecor(geometry, material, count, radius, y, scaleRange, 
 }
 
 export function createOceanEnvironment(scene, { theme, profile }) {
+  let activeTheme = theme;
   const root = new THREE.Group();
   root.name = 'ocean-environment';
   scene.add(root);
@@ -64,10 +65,14 @@ export function createOceanEnvironment(scene, { theme, profile }) {
   floor.position.y = -29.5;
   root.add(floor);
 
-  const ring = new THREE.Mesh(
-    new THREE.RingGeometry(92, 140, 72),
-    new THREE.MeshBasicMaterial({ color: theme.water.shaft, transparent: true, opacity: 0.035, side: THREE.DoubleSide, depthWrite: false }),
-  );
+  const ringMaterial = new THREE.MeshBasicMaterial({
+    color: theme.water.shaft,
+    transparent: true,
+    opacity: theme.atmosphere.ringOpacity,
+    side: THREE.DoubleSide,
+    depthWrite: false,
+  });
+  const ring = new THREE.Mesh(new THREE.RingGeometry(92, 140, 72), ringMaterial);
   ring.rotation.x = -Math.PI / 2;
   ring.position.y = -29.35;
   root.add(ring);
@@ -90,48 +95,67 @@ export function createOceanEnvironment(scene, { theme, profile }) {
   const coralAlt = createInstancedDecor(new THREE.OctahedronGeometry(0.72, 0), coralAltMaterial, Math.floor(profile.coral * 0.45), WORLD_VISUAL_RADIUS * 0.9, -27.9, [0.55, 1.3], 23);
   root.add(coral, coralAlt);
 
-  const bubbles = createPointCloud(profile.bubbles, WORLD_VISUAL_RADIUS, -27, 29, theme.water.bubble, 0.16, 0.34);
-  const plankton = createPointCloud(profile.plankton, WORLD_VISUAL_RADIUS, -27, 29, theme.water.plankton, 0.09, 0.42);
+  const bubbles = createPointCloud(profile.bubbles, WORLD_VISUAL_RADIUS, -27, 29, theme.water.bubble, theme.atmosphere.bubbleSize, theme.atmosphere.bubbleOpacity);
+  const plankton = createPointCloud(profile.plankton, WORLD_VISUAL_RADIUS, -27, 29, theme.water.plankton, theme.atmosphere.planktonSize, theme.atmosphere.planktonOpacity);
   root.add(bubbles, plankton);
 
   const shafts = new THREE.Group();
   const shaftGeometry = new THREE.ConeGeometry(4.6, 58, 18, 1, true);
-  const shaftMaterial = new THREE.MeshBasicMaterial({ color: theme.water.shaft, transparent: true, opacity: 0.035, side: THREE.DoubleSide, depthWrite: false, blending: THREE.AdditiveBlending });
+  const shaftMaterial = new THREE.MeshBasicMaterial({
+    color: theme.water.shaft,
+    transparent: true,
+    opacity: theme.atmosphere.shaftOpacity,
+    side: THREE.DoubleSide,
+    depthWrite: false,
+    blending: THREE.AdditiveBlending,
+  });
   for (let i = 0; i < profile.shafts; i += 1) {
     const shaft = new THREE.Mesh(shaftGeometry, shaftMaterial);
     const [x, z] = scatterXZ(i, 68, 53);
     shaft.position.set(x, 17, z);
     shaft.rotation.z = (seeded(i, 54) - 0.5) * 0.16;
-    shaft.scale.x = 0.55 + seeded(i, 55) * 0.7;
+    shaft.userData.baseScaleX = 0.55 + seeded(i, 55) * 0.7;
+    shaft.scale.x = shaft.userData.baseScaleX * theme.atmosphere.shaftWidth;
     shafts.add(shaft);
   }
   root.add(shafts);
 
   function applyTheme(nextTheme) {
+    activeTheme = nextTheme;
     floorMaterial.color.setHex(nextTheme.floor.color);
     floorMaterial.roughness = nextTheme.floor.roughness;
     floorMaterial.emissive.setHex(nextTheme.floor.emissive);
     floorMaterial.emissiveIntensity = nextTheme.floor.emissiveIntensity;
-    ring.material.color.setHex(nextTheme.water.shaft);
+    ringMaterial.color.setHex(nextTheme.water.shaft);
+    ringMaterial.opacity = nextTheme.atmosphere.ringOpacity;
     rockMaterial.color.setHex(nextTheme.decor.rock);
     kelpMaterial.color.setHex(nextTheme.decor.kelp);
     coralMaterial.color.setHex(nextTheme.decor.coral);
     coralMaterial.emissive.setHex(nextTheme.decor.coral);
+    coralMaterial.emissiveIntensity = nextTheme.id === 'deep-sea' ? 0.015 : 0.08;
     coralAltMaterial.color.setHex(nextTheme.decor.coralAlt);
     coralAltMaterial.emissive.setHex(nextTheme.decor.coralAlt);
+    coralAltMaterial.emissiveIntensity = nextTheme.id === 'deep-sea' ? 0.012 : 0.06;
     bubbles.material.color.setHex(nextTheme.water.bubble);
+    bubbles.material.size = nextTheme.atmosphere.bubbleSize;
+    bubbles.material.opacity = nextTheme.atmosphere.bubbleOpacity;
     plankton.material.color.setHex(nextTheme.water.plankton);
+    plankton.material.size = nextTheme.atmosphere.planktonSize;
+    plankton.material.opacity = nextTheme.atmosphere.planktonOpacity;
     shaftMaterial.color.setHex(nextTheme.water.shaft);
+    shaftMaterial.opacity = nextTheme.atmosphere.shaftOpacity;
+    for (const shaft of shafts.children) shaft.scale.x = shaft.userData.baseScaleX * nextTheme.atmosphere.shaftWidth;
   }
 
   function update(time) {
     const seconds = time * 0.001;
-    bubbles.rotation.y = seconds * 0.018;
-    bubbles.position.y = Math.sin(seconds * 0.45) * 0.65;
-    plankton.rotation.y = -seconds * 0.009;
-    plankton.rotation.z = Math.sin(seconds * 0.08) * 0.02;
-    shafts.rotation.y = Math.sin(seconds * 0.05) * 0.08;
-    kelp.rotation.y = Math.sin(seconds * 0.22) * 0.006;
+    const atmosphere = activeTheme.atmosphere;
+    bubbles.rotation.y = seconds * atmosphere.drift;
+    bubbles.position.y = Math.sin(seconds * 0.45) * 0.65 * atmosphere.sway;
+    plankton.rotation.y = -seconds * atmosphere.drift * 0.5;
+    plankton.rotation.z = Math.sin(seconds * 0.08) * 0.02 * atmosphere.sway;
+    shafts.rotation.y = Math.sin(seconds * 0.05) * 0.08 * atmosphere.sway;
+    kelp.rotation.y = Math.sin(seconds * 0.22) * 0.006 * atmosphere.sway;
   }
 
   function dispose() {

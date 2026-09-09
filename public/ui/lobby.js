@@ -20,12 +20,21 @@ export function createLobby({ onPlay = () => {}, onTheme = () => {}, onQuality =
   const settingsButton = document.querySelector('#settings-button');
   const settingsPanel = document.querySelector('#settings-panel');
   const settingsClose = document.querySelector('#settings-close');
+  const settingsThemeSelect = document.querySelector('#settings-theme-select');
+  const settingsQualitySelect = document.querySelector('#settings-quality-select');
+  const settingsPointerToggle = document.querySelector('#settings-pointer-steering');
 
   nameInput.value = localStorage.getItem(STORAGE.name) || nameInput.value;
   roomInput.value = localStorage.getItem(STORAGE.room) || roomInput.value;
-  themeSelect.value = normalizeTheme(localStorage.getItem(STORAGE.theme) || themeSelect.value);
-  qualitySelect.value = normalizeQuality(localStorage.getItem(STORAGE.quality) || qualitySelect.value);
-  pointerToggle.checked = localStorage.getItem(STORAGE.pointer) !== 'false';
+  const storedTheme = normalizeTheme(localStorage.getItem(STORAGE.theme) || themeSelect.value);
+  const storedQuality = normalizeQuality(localStorage.getItem(STORAGE.quality) || qualitySelect.value);
+  const storedPointer = localStorage.getItem(STORAGE.pointer) !== 'false';
+  themeSelect.value = storedTheme;
+  qualitySelect.value = storedQuality;
+  pointerToggle.checked = storedPointer;
+  if (settingsThemeSelect) settingsThemeSelect.value = storedTheme;
+  if (settingsQualitySelect) settingsQualitySelect.value = storedQuality;
+  if (settingsPointerToggle) settingsPointerToggle.checked = storedPointer;
 
   function preferences() {
     return {
@@ -62,6 +71,31 @@ export function createLobby({ onPlay = () => {}, onTheme = () => {}, onQuality =
     settingsButton?.setAttribute('aria-expanded', 'false');
   }
 
+  function applyThemeSelection(rawValue) {
+    const value = normalizeTheme(rawValue);
+    themeSelect.value = value;
+    if (settingsThemeSelect) settingsThemeSelect.value = value;
+    localStorage.setItem(STORAGE.theme, value);
+    applyDocumentTheme(value);
+    onTheme(value);
+  }
+
+  function applyQualitySelection(rawValue) {
+    const value = normalizeQuality(rawValue);
+    qualitySelect.value = value;
+    if (settingsQualitySelect) settingsQualitySelect.value = value;
+    localStorage.setItem(STORAGE.quality, value);
+    onQuality(value);
+  }
+
+  function applyPointerSelection(rawValue) {
+    const value = Boolean(rawValue);
+    pointerToggle.checked = value;
+    if (settingsPointerToggle) settingsPointerToggle.checked = value;
+    localStorage.setItem(STORAGE.pointer, String(value));
+    onPointer(value);
+  }
+
   playButton.addEventListener('click', () => {
     const value = persist();
     hide();
@@ -69,23 +103,12 @@ export function createLobby({ onPlay = () => {}, onTheme = () => {}, onQuality =
     onPlay(value);
   });
 
-  themeSelect.addEventListener('change', () => {
-    const id = normalizeTheme(themeSelect.value);
-    localStorage.setItem(STORAGE.theme, id);
-    applyDocumentTheme(id);
-    onTheme(id);
-  });
-
-  qualitySelect.addEventListener('change', () => {
-    const value = normalizeQuality(qualitySelect.value);
-    localStorage.setItem(STORAGE.quality, value);
-    onQuality(value);
-  });
-
-  pointerToggle.addEventListener('change', () => {
-    localStorage.setItem(STORAGE.pointer, String(pointerToggle.checked));
-    onPointer(Boolean(pointerToggle.checked));
-  });
+  themeSelect.addEventListener('change', () => applyThemeSelection(themeSelect.value));
+  settingsThemeSelect?.addEventListener('change', () => applyThemeSelection(settingsThemeSelect.value));
+  qualitySelect.addEventListener('change', () => applyQualitySelection(qualitySelect.value));
+  settingsQualitySelect?.addEventListener('change', () => applyQualitySelection(settingsQualitySelect.value));
+  pointerToggle.addEventListener('change', () => applyPointerSelection(pointerToggle.checked));
+  settingsPointerToggle?.addEventListener('change', () => applyPointerSelection(settingsPointerToggle.checked));
 
   settingsButton?.addEventListener('click', () => {
     const next = !settingsPanel?.classList.contains('open');
@@ -96,6 +119,16 @@ export function createLobby({ onPlay = () => {}, onTheme = () => {}, onQuality =
 
   applyDocumentTheme(themeSelect.value);
 
+  function optionsFor(ids) {
+    const labels = { stylized: 'Stylized', 'deep-sea': 'Deep Sea' };
+    return ids.map((id) => {
+      const option = document.createElement('option');
+      option.value = id;
+      option.textContent = labels[id] || id;
+      return option;
+    });
+  }
+
   return {
     preferences,
     persist,
@@ -103,15 +136,12 @@ export function createLobby({ onPlay = () => {}, onTheme = () => {}, onQuality =
     show,
     closeSettings,
     setThemeOptions(ids) {
-      const labels = { stylized: 'Stylized', 'deep-sea': 'Deep Sea' };
       const current = normalizeTheme(themeSelect.value);
-      themeSelect.replaceChildren(...ids.map((id) => {
-        const option = document.createElement('option');
-        option.value = id;
-        option.textContent = labels[id] || id;
-        return option;
-      }));
-      themeSelect.value = ids.includes(current) ? current : ids[0];
+      themeSelect.replaceChildren(...optionsFor(ids));
+      settingsThemeSelect?.replaceChildren(...optionsFor(ids));
+      const selected = ids.includes(current) ? current : ids[0];
+      themeSelect.value = selected;
+      if (settingsThemeSelect) settingsThemeSelect.value = selected;
     },
   };
 }
