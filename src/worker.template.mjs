@@ -4,12 +4,15 @@ import { DurableObject } from 'cloudflare:workers';
 /*__WORLD__*/
 /*__WORLD_ACTORS__*/
 /*__WILDLIFE__*/
+/*__CHAT__*/
 /*__PROTOCOL__*/
 /*__SPATIAL_GRID__*/
 /*__ROOM_STATE__*/
 /*__PROGRESSION__*/
 /*__SESSION_TOKEN__*/
 /*__PROFILE_STORE__*/
+/*__MATCHMAKING__*/
+/*__PARTY__*/
 
 const ASSETS = /*__ASSETS__*/;
 const WORLD_BOUNDS = { x: 80, y: 28, z: 80 };
@@ -307,6 +310,241 @@ async function handleSelectSkinApi(request, env) {
   }
 }
 
+const MAX_MATCHMAKER_RECORDS = 128;
+const PARTY_CODE_ALPHABET = 'ABCDEFGHJKLMNPQRSTUVWXYZ23456789';
+
+function makePartyInviteCode() {
+  const bytes = new Uint8Array(6);
+  crypto.getRandomValues(bytes);
+  return [...bytes].map((value) => PARTY_CODE_ALPHABET[value % PARTY_CODE_ALPHABET.length]).join('');
+}
+
+async function internalJson(request) {
+  try {
+    const value = await request.json();
+    return value && typeof value === 'object' && !Array.isArray(value) ? value : {};
+  } catch {
+    return {};
+  }
+}
+
+export class Matchmaker extends DurableObject {
+  constructor(ctx, env) {
+    super(ctx, env);
+    this.ctx = ctx;
+    this.env = env;
+  }
+
+  async records(now) {
+    const stored = await this.ctx.storage.get('rooms');
+    const source = Array.isArray(stored) ? stored : [];
+    return source.filter((item) => Number.isFinite(item?.updatedAt) && now - item.updatedAt <= PUBLIC_ROOM_TTL_MS);
+  }
+  async fetch(request) {
+    const url = new URL(request.url);
+    if (request.method !== 'POST') return jsonApi({ ok: false, code: 'method_not_allowed' }, 405);
+    const body = await internalJson(request);
+    const now = Number.isFinite(body.now) ? body.now : Date.now();
+    let records = await this.records(now);
+
+    if (url.pathname === '/quick') {
+      const size = Math.floor(Number(body.partySize) || 1);
+      if (size < 1 || size > MAX_PARTY_SIZE) return jsonApi({ ok: false, code: 'party_size_invalid' }, 400);
+      const region = canonicalRegion(body.region);
+      let selected = choosePublicRoom(records, region, size, now);
+      if (!selected) {
+        const sequence = Math.max(0, Number(await this.ctx.storage.get('sequence')) || 0) + 1;
+        selected = { room: publicRoomLabel(region, sequence), region, players: 0, updatedAt: now };
+        await this.ctx.storage.put('sequence', sequence);
+        records.push(selected);
+      }
+      records = records.map((item) => item.room === selected.room
+        ? { ...item, players: Math.min(PUBLIC_ROOM_CAPACITY, Math.max(0, Number(item.players) || 0) + size), updatedAt: now }
+        : item);
+      records = records.sort((a, b) => b.updatedAt - a.updatedAt).slice(0, MAX_MATCHMAKER_RECORDS);
+      await this.ctx.storage.put('rooms', records);
+      return jsonApi({ ok: true, room: selected.room, region });
+    }
+    if (url.pathname === '/heartbeat') {
+      const room = String(body.room || '').slice(0, 24);
+      const region = regionFromRoomLabel(room);
+      if (!region) return jsonApi({ ok: false, code: 'room_invalid' }, 400);
+      const players = Math.min(PUBLIC_ROOM_CAPACITY, Math.max(0, Math.floor(Number(body.players) || 0)));
+      const next = { room, region, players, updatedAt: now };
+      const index = records.findIndex((item) => item.room === room);
+      if (index >= 0) records[index] = next;
+      else records.push(next);
+      records = records.sort((a, b) => b.updatedAt - a.updatedAt).slice(0, MAX_MATCHMAKER_RECORDS);
+      await this.ctx.storage.put('rooms', records);
+      return jsonApi({ ok: true, room, region, players });
+    }
+
+    return jsonApi({ ok: false, code: 'not_found' }, 404);
+  }
+}
+
+export class Party extends DurableObject {
+  constructor(ctx, env) {
+    super(ctx, env);
+    this.ctx = ctx;
+    this.env = env;
+  }
+
+  async fetch(request) {
+    const url = new URL(request.url);
+    const body = await internalJson(request);
+    const now = Number.isFinite(body.now) ? body.now : Date.now();
+    const state = await this.ctx.storage.get('state');
+    if (url.pathname === '/create') {
+      if (state) return jsonApi({ ok: false, code: 'party_exists' }, 409);
+      try {
+        const next = createPartyState(body.code, body.member, now);
+        await this.ctx.storage.put('state', next);
+        return jsonApi({ ok: true, party: next });
+      } catch {
+        return jsonApi({ ok: false, code: 'party_invalid' }, 400);
+      }
+    }
+
+    if (!state) return jsonApi({ ok: false, code: 'party_not_found' }, 404);
+    if (url.pathname === '/join') {
+      const result = joinPartyState(state, body.member, now);
+      if (!result.ok) return jsonApi({ ok: false, code: result.code }, result.code === 'party_full' ? 409 : 400);
+      await this.ctx.storage.put('state', result.state);
+      return jsonApi({ ok: true, party: result.state });
+    }
+    if (url.pathname === '/status') {
+      const profileId = String(body.profileId || '');
+      if (!state.members.some((member) => member.profileId === profileId)) return jsonApi({ ok: false, code: 'not_member' }, 403);
+      return jsonApi({ ok: true, party: state });
+    }
+    if (url.pathname === '/leave') {
+      const result = leavePartyState(state, body.profileId, now);
+      if (!result.ok) return jsonApi({ ok: false, code: result.code }, 403);
+      if (result.state) await this.ctx.storage.put('state', result.state);
+      else await this.ctx.storage.delete('state');
+      return jsonApi({ ok: true, party: result.state });
+    }
+    if (url.pathname === '/room') {
+      const result = setPartyRoom(state, body.profileId, body.room, now);
+      if (!result.ok) return jsonApi({ ok: false, code: result.code }, 403);
+      await this.ctx.storage.put('state', result.state);
+      return jsonApi({ ok: true, party: result.state });
+    }
+    return jsonApi({ ok: false, code: 'not_found' }, 404);
+  }
+}
+
+function matchmakerStub(env) {
+  return env?.MATCHMAKER?.getByName?.('global') || null;
+}
+
+function partyStub(env, code) {
+  const normalized = canonicalInviteCode(code);
+  return normalized && env?.PARTY?.getByName ? env.PARTY.getByName(normalized) : null;
+}
+
+async function socialDoJson(stub, path, body) {
+  if (!stub) return null;
+  const response = await stub.fetch(new Request(`https://social.internal${path}`, {
+    method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify(body),
+  }));
+  const value = await response.json().catch(() => null);
+  return { response, value };
+}
+async function handleReportApi(request, env) {
+  if (request.method !== 'POST') return jsonApi({ ok: false, code: 'method_not_allowed' }, 405);
+  const auth = await authenticatedProfile(request, env);
+  if (auth.response) return auth.response;
+  const body = await readSmallJson(request);
+  if (!body) return jsonApi({ ok: false, code: 'invalid_request' }, 400);
+  try {
+    const result = await createModerationReport(env.PROFILE_DB, auth.profile.id, {
+      targetPlayerId: body.targetPlayerId, room: body.room, reason: body.reason,
+    }, Date.now(), crypto.randomUUID());
+    return jsonApi(result, 201);
+  } catch (error) {
+    const code = String(error?.message || 'report_failed');
+    if (code.startsWith('report-')) return jsonApi({ ok: false, code }, 400);
+    return persistenceUnavailable();
+  }
+}
+
+async function handleQuickDiveApi(request, env) {
+  if (request.method !== 'POST') return jsonApi({ ok: false, code: 'method_not_allowed' }, 405);
+  const stub = matchmakerStub(env);
+  if (!stub) return jsonApi({ ok: false, code: 'matchmaker_unavailable' }, 503);
+  const region = regionForCountry(request.cf?.country);
+  const result = await socialDoJson(stub, '/quick', { region, partySize: 1, now: Date.now() });
+  return result?.response || jsonApi({ ok: false, code: 'matchmaker_unavailable' }, 503);
+}
+
+async function partyAuth(request, env) {
+  const auth = await authenticatedProfile(request, env);
+  if (auth.response) return auth;
+  return { auth, member: { profileId: auth.profile.id, displayName: auth.profile.displayName } };
+}
+
+async function handlePartyCreateApi(request, env) {
+  if (request.method !== 'POST') return jsonApi({ ok: false, code: 'method_not_allowed' }, 405);
+  const resolved = await partyAuth(request, env);
+  if (resolved.response) return resolved.response;
+  for (let attempt = 0; attempt < 4; attempt += 1) {
+    const code = makePartyInviteCode();
+    const result = await socialDoJson(partyStub(env, code), '/create', { code, member: resolved.member, now: Date.now() });
+    if (!result) return jsonApi({ ok: false, code: 'party_unavailable' }, 503);
+    if (result.response.status !== 409) return result.response;
+  }
+  return jsonApi({ ok: false, code: 'party_code_collision' }, 503);
+}
+async function handlePartyMemberApi(request, env, url) {
+  const resolved = await partyAuth(request, env);
+  if (resolved.response) return resolved.response;
+  let code = '';
+  if (request.method === 'GET') code = canonicalInviteCode(url.searchParams.get('code'));
+  else {
+    const body = await readSmallJson(request);
+    if (!body) return jsonApi({ ok: false, code: 'invalid_request' }, 400);
+    code = canonicalInviteCode(body.code);
+  }
+  if (!code) return jsonApi({ ok: false, code: 'party_code_invalid' }, 400);
+  const stub = partyStub(env, code);
+  if (!stub) return jsonApi({ ok: false, code: 'party_unavailable' }, 503);
+
+  if (url.pathname === '/api/party/join' && request.method === 'POST') {
+    const result = await socialDoJson(stub, '/join', { member: resolved.member, now: Date.now() });
+    return result?.response || jsonApi({ ok: false, code: 'party_unavailable' }, 503);
+  }
+  if (url.pathname === '/api/party/status' && request.method === 'GET') {
+    const result = await socialDoJson(stub, '/status', { profileId: resolved.auth.profile.id, now: Date.now() });
+    return result?.response || jsonApi({ ok: false, code: 'party_unavailable' }, 503);
+  }
+  if (url.pathname === '/api/party/leave' && request.method === 'POST') {
+    const result = await socialDoJson(stub, '/leave', { profileId: resolved.auth.profile.id, now: Date.now() });
+    return result?.response || jsonApi({ ok: false, code: 'party_unavailable' }, 503);
+  }
+  if (url.pathname === '/api/party/quick' && request.method === 'POST') {
+    const status = await socialDoJson(stub, '/status', { profileId: resolved.auth.profile.id, now: Date.now() });
+    if (!status?.value?.ok) return status?.response || jsonApi({ ok: false, code: 'party_unavailable' }, 503);
+    const party = status.value.party;
+    if (party.leaderId !== resolved.auth.profile.id) return jsonApi({ ok: false, code: 'leader_required' }, 403);
+    const matchmaker = matchmakerStub(env);
+    if (!matchmaker) return jsonApi({ ok: false, code: 'matchmaker_unavailable' }, 503);
+    const region = regionForCountry(request.cf?.country);
+    const placement = await socialDoJson(matchmaker, '/quick', {
+      region, partySize: party.members.length, now: Date.now(),
+    });
+    if (!placement?.value?.ok) return placement?.response || jsonApi({ ok: false, code: 'matchmaker_unavailable' }, 503);
+    const assigned = await socialDoJson(stub, '/room', {
+      profileId: resolved.auth.profile.id, room: placement.value.room, now: Date.now(),
+    });
+    if (!assigned?.value?.ok) return assigned?.response || jsonApi({ ok: false, code: 'party_unavailable' }, 503);
+    return jsonApi({ ok: true, room: placement.value.room, region, party: assigned.value.party });
+  }
+
+  return jsonApi({ ok: false, code: 'method_not_allowed' }, 405);
+}
+
 export class GameRoom extends DurableObject {
   constructor(ctx, env) {
     super(ctx, env);
@@ -321,6 +559,7 @@ export class GameRoom extends DurableObject {
     this.foodDirty = true;
     this.wildlifeDirty = true;
     this.worldDirty = true;
+    this.chatState = new Map();
     this.ctx.blockConcurrencyWhile(async () => {
       const stored = await this.ctx.storage.get('food');
       this.food = Array.isArray(stored) && stored.length ? stored : makeFood();
@@ -332,6 +571,25 @@ export class GameRoom extends DurableObject {
     return this.ctx.getWebSockets()
       .map((socket) => ({ socket, player: socket.deserializeAttachment() }))
       .filter(({ player }) => player?.id && player.interactive !== false);
+  }
+
+  async notifyMatchmakerOccupancy(matchRoom, now = Date.now()) {
+    const room = String(matchRoom || '').slice(0, 24);
+    if (!regionFromRoomLabel(room)) return;
+    try {
+      await socialDoJson(matchmakerStub(this.env), '/heartbeat', {
+        room, players: this.socketsWithPlayers().length, now,
+      });
+    } catch {}
+  }
+
+  broadcastChat(player, text, now = Date.now()) {
+    const payload = JSON.stringify({
+      type: 'chat', v: PROTOCOL_VERSION, id: player.id, name: player.name, text, at: now,
+    });
+    for (const { socket } of this.socketsWithPlayers()) {
+      if (socket.readyState === WebSocket.OPEN) socket.send(payload);
+    }
   }
 
   snapshot(includeFood = false, includeWildlife = false, includeWorld = false) {
@@ -494,6 +752,9 @@ export class GameRoom extends DurableObject {
     const requestedProfileId = boundedProfileId(url.searchParams.get('profile'));
     const requestedSkinId = skinById(url.searchParams.get('skin'))?.id || '';
     const requestedGameSessionId = boundedGameSessionId(url.searchParams.get('gameSession'));
+    const matchRoom = regionFromRoomLabel(url.searchParams.get('matchRoom'))
+      ? String(url.searchParams.get('matchRoom')).slice(0, 24)
+      : '';
     const now = Date.now();
     await this.cleanupReconnectSlots(now);
 
@@ -506,6 +767,7 @@ export class GameRoom extends DurableObject {
         player = {
           ...slot,
           room,
+          matchRoom,
           profileId: requestedProfileId || slot.profileId || '',
           skinId: requestedSkinId || slot.skinId || '',
           interactive: true,
@@ -523,6 +785,7 @@ export class GameRoom extends DurableObject {
         id: crypto.randomUUID().slice(0, 12),
         name: requestedName,
         room,
+        matchRoom,
         profileId: requestedProfileId,
         skinId: requestedSkinId,
         gameSessionId: requestedGameSessionId || newSessionId(),
@@ -557,6 +820,7 @@ export class GameRoom extends DurableObject {
     const [client, server] = Object.values(pair);
     this.ctx.acceptWebSocket(server);
     server.serializeAttachment(player);
+    await this.notifyMatchmakerOccupancy(player.matchRoom, now);
     server.send(JSON.stringify({
       type: 'welcome',
       v: PROTOCOL_VERSION,
@@ -591,6 +855,18 @@ export class GameRoom extends DurableObject {
       return;
     }
     const message = parsed.message;
+
+    if (message.type === 'chat') {
+      const chatState = this.chatState.get(player.id);
+      const accepted = acceptChatMessage(message.text, chatState, now);
+      this.chatState.set(player.id, accepted.state);
+      if (!accepted.ok) {
+        this.sendError(ws, accepted.code);
+        return;
+      }
+      this.broadcastChat(player, accepted.text, now);
+      return;
+    }
 
     if (message.type === 'ping') {
       ws.send(JSON.stringify({
@@ -768,7 +1044,9 @@ export class GameRoom extends DurableObject {
     const now = Date.now();
     player = await this.settleCheckpoint(player, now);
     const detached = { ...player, interactive: false };
+    this.chatState.delete(player.id);
     ws.serializeAttachment(detached);
+    await this.notifyMatchmakerOccupancy(detached.matchRoom, now);
     await this.saveReconnectSlot(detached, now);
     this.broadcastSnapshot(true);
   }
@@ -806,6 +1084,22 @@ export default {
       });
     }
 
+    if (url.pathname === '/api/report') {
+      return handleReportApi(request, env);
+    }
+
+    if (url.pathname === '/api/matchmaking/quick') {
+      return handleQuickDiveApi(request, env);
+    }
+
+    if (url.pathname === '/api/party/create') {
+      return handlePartyCreateApi(request, env);
+    }
+
+    if (['/api/party/join', '/api/party/leave', '/api/party/status', '/api/party/quick'].includes(url.pathname)) {
+      return handlePartyMemberApi(request, env, url);
+    }
+
     if (url.pathname === '/api/session' || url.pathname === '/api/session/guest') {
       return handleSessionApi(request, env);
     }
@@ -836,6 +1130,8 @@ export default {
       }
       const roomLabel = boundedText(url.searchParams.get('room'), 'ocean', 24);
       const room = roomIdFor(roomLabel, ROOM_POOL_SIZE);
+      if (regionFromRoomLabel(roomLabel)) url.searchParams.set('matchRoom', roomLabel);
+      else url.searchParams.delete('matchRoom');
       const sessionToken = url.searchParams.get('session') || '';
       url.searchParams.delete('session');
       url.searchParams.delete('profile');

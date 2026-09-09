@@ -9,6 +9,9 @@
 - Server-authoritative movement, world bounds, food collection, PvP/wildlife eating, score, growth, death and respawn.
 - Six mass-driven fish evolution silhouettes plus 12 deterministic presentation skin families. A server-verified selected `skinId` always takes precedence over visual fallbacks.
 - Persistent guest progression with opaque signed session credentials, XP, levels, pearls, owned skins, selected skins, best-run stats and durable all-time / UTC-quarter leaderboards.
+- Quick Dive uses a bounded regional Matchmaker with coarse `SEA`, `JP`, `EU`, `NA`, `OTHER` buckets while private room labels remain available.
+- Lightweight parties support invite codes, up to four unique persistent profiles, leader-only Quick Dive and transient Durable Object state.
+- Text-only room chat is server-normalized, independently rate-limited and duplicate-filtered; the client provides bounded local mute plus authenticated abuse reports without storing raw chat.
 - D1 persistence stores server-side session mappings, profiles, cosmetic ownership and idempotent reward checkpoints; movement, snapshots and ordinary input never write D1.
 - Canonical shop rules stay server-side. The client can request a `skinId` but never submits prices, balances or gameplay modifiers.
 - Compact desktop/mobile HUD with score, rank, edible-prey count, threat count, player count, ping, growth, depth and responsive leaderboards.
@@ -55,12 +58,22 @@ Game Worker (trinhtanphat6666)
        |      - movement/collision/eating authority
        |      - <=20 Hz versioned snapshots
        |
+       +--> Durable Object: Matchmaker
+       |      - bounded regional public-room registry
+       |      - capacity-aware Quick Dive placement
+       |      - meaningful-event occupancy heartbeats
+       |
+       +--> Durable Object: Party
+       |      - max 4 persistent members
+       |      - invite/join/leave/leader room assignment
+       |
        +--> PROFILE_DB (production-injected D1 binding)
               - opaque session -> profile mapping
               - XP / level / pearls / best run
               - owned + selected skins
               - idempotent reward checkpoints
               - all-time + UTC-quarter leaderboards
+              - bounded moderation report metadata
 ```
 
 The browser client is split into small presentation, scene, environment, fish, input, network, progression, state and UI modules under `public/`. Presentation code can change biome, quality, effects, audio, TTS, cosmetics and HUD behavior without changing the authoritative simulation contract.
@@ -77,6 +90,12 @@ Profile APIs fail closed with `persistence_unavailable` when `PROFILE_DB` or `SE
 
 The profile panel displays level, XP progress, pearls, best run, owned skins and durable rankings. Skin prices and unlock rules are canonical server data; selected skins change rendering materials only.
 
+## Social and matchmaking
+
+**Quick Dive** asks the authoritative Matchmaker Durable Object for a coarse-region room before opening the gameplay WebSocket. Solo Quick Dive may fall back to a default public room if matchmaking is temporarily unavailable; party Quick Dive fails closed instead of silently splitting the party. Private room labels continue to use the existing fixed `GameRoom` allocation path.
+
+Parties are transient and capped at four unique persistent profiles. Party APIs resolve identity from the opaque bearer session; the browser never submits a profile id as authority. Room chat stays outside movement snapshots and uses its own 160-character normalization, prohibited-term, duplicate and rate controls. Mute state is local-only and capped, while explicit reports persist only reporter, target player id, room, reason and timestamp — never raw chat or session credentials.
+
 ## Reconnect behavior
 
 A successful `welcome` rotates and returns a `resumeKey` plus the current `inputSeq`. The browser stores the key as `abyss-eater-resume:<room-label>` in `sessionStorage`. Reconnecting to the same room label within 12 seconds can resume the same fish identity, position, mass, score and deaths without allowing the disconnected fish to interact while offline.
@@ -85,7 +104,7 @@ See `docs/runbooks/multiplayer-hardening.md` for the exact protocol, rate, recon
 
 ## PWA and presentation behavior
 
-`public/manifest.webmanifest` supplies standalone-install metadata and maskable-capable install icons. `public/sw.js` caches the same-origin application shell, progression modules, fish evolution/skin modules and local SVG assets, then falls back to the cached root page for offline navigation. Multiplayer itself still requires network access; Three.js and the optional Piper runtime remain pinned external dependencies.
+`public/manifest.webmanifest` supplies standalone-install metadata and maskable-capable install icons. `public/sw.js` caches the same-origin application shell, progression/social modules, fish evolution/skin modules and local SVG assets, then falls back to the cached root page for offline navigation. Multiplayer itself still requires network access; Three.js and the optional Piper runtime remain pinned external dependencies.
 
 The six ocean biomes are presentation-only. `stylized` and `deep-sea` remain valid saved values, while the expanded catalog adds four newer biome ids. Fish cosmetics follow the same authority rule: server-verified purchased/selected cosmetics take priority; deterministic presentation palettes are fallback visuals and never affect gameplay stats.
 
@@ -109,7 +128,7 @@ After successful CI on the exact current `main`, the **Production smoke** workfl
 
 Production delivery is handled by the connected Cloudflare deployment integration that watches `main`; the repository does not perform production mutation from GitHub Actions.
 
-The authoritative game Worker is `abyss-eater` in account `trinhtanphat6666` (`6c5207813df3d5b83b9508125e0e9e12`). `wrangler.jsonc` pins that account and declares `GAME_ROOM -> GameRoom`. Production persistence is intentionally absent from the source config: `scripts/render-production-wrangler.mjs` injects `PROFILE_DB` only from an already-existing `ABYSS_EATER_D1_DATABASE_ID`. Its origin is `https://abyss-eater.hikvision.workers.dev`.
+The authoritative game Worker is `abyss-eater` in account `trinhtanphat6666` (`6c5207813df3d5b83b9508125e0e9e12`). `wrangler.jsonc` pins that account and declares `GAME_ROOM -> GameRoom`, `MATCHMAKER -> Matchmaker`, and `PARTY -> Party`. Production persistence is intentionally absent from the source config: `scripts/render-production-wrangler.mjs` injects `PROFILE_DB` only from an already-existing `ABYSS_EATER_D1_DATABASE_ID`. Its origin is `https://abyss-eater.hikvision.workers.dev`.
 
 The `qs3d.site` zone lives in `trinhtanphat2403` (`50afb4fd3c4c7a1f3e1bdb7f22d4af7f`). Production uses `abyss-eater-gateway` on that account. `wrangler.gateway.jsonc` serves `./public` through Workers Static Assets on `https://abyss-eater.qs3d.site` and invokes the gateway Worker first only for `/ws`, `/health` and `/api/*`; those routes proxy to the authoritative Worker. No gameplay state is stored in the gateway.
 
@@ -126,4 +145,4 @@ No paid Cloudflare product or paid-plan setting is enabled by this implementatio
 
 ## Still intentionally deferred
 
-Email/OAuth account linking, real-money payments, chat, parties, regional matchmaking, binary snapshots, client-side prediction, dedicated boss encounters, full biome gameplay progression and external authored 3D model packs remain future work. The public alpha already includes persistent guest profiles, opaque sessions, pearls/XP/levels, canonical cosmetic shop/selection, bounded wildlife, six ocean presentation biomes and durable all-time / seasonal leaderboards.
+Email/OAuth account linking, real-money payments, binary snapshots, deeper client-side prediction, and external authored 3D model packs remain future work. Binary networking stays evidence-gated: V1 will measure the JSON path before adding codec complexity. The public alpha now includes persistent guest profiles, opaque sessions, pearls/XP/levels, canonical cosmetics, four authoritative depth biomes with bounded AI/hazards/pickups, Quick Dive, parties, moderated room chat, local mute/report controls, and durable all-time / seasonal leaderboards.

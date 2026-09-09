@@ -1,4 +1,4 @@
-﻿import test from 'node:test';
+import test from 'node:test';
 import assert from 'node:assert/strict';
 import { readFile } from 'node:fs/promises';
 import {
@@ -112,6 +112,7 @@ test('offline shell precaches fish evolution, TTS, progression and skin dependen
   const sw = await readFile('public/sw.js', 'utf8');
   assert.ok(sw.includes("'/client-tts.mjs'"), 'reconciled shell must preserve the Vietnamese TTS dependency');
   assert.ok(sw.includes("'/client-progression.mjs'"), 'reconciled shell must cache the progression client');
+  assert.ok(sw.includes("'/client-social.mjs'"), 'reconciled shell must cache the social client');
   assert.ok(sw.includes("'/game/fish-evolution.mjs'"), 'service worker shell must cache fish evolution');
   assert.ok(sw.includes("'/game/skins.js'"), 'service worker shell must preserve verified cosmetic visuals');
   assert.ok(sw.includes("'/game/fish-skins.mjs'"), 'service worker shell must cache deterministic fallback palettes');

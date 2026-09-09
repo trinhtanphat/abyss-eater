@@ -55,24 +55,30 @@ const gameLogic = stripModuleSyntax(await readFile('src/game-logic.mjs', 'utf8')
 const world = stripModuleSyntax(await readFile('src/world.mjs', 'utf8'));
 const worldActors = stripModuleSyntax(await readFile('src/world-actors.mjs', 'utf8'));
 const wildlife = stripModuleSyntax(await readFile('src/wildlife.mjs', 'utf8'));
+const chat = stripModuleSyntax(await readFile('src/chat.mjs', 'utf8'));
 const protocol = stripModuleSyntax(await readFile('src/protocol.mjs', 'utf8'));
 const spatialGrid = stripModuleSyntax(await readFile('src/spatial-grid.mjs', 'utf8'));
 const roomState = stripModuleSyntax(await readFile('src/room-state.mjs', 'utf8'));
 const progression = stripModuleSyntax(await readFile('src/progression.mjs', 'utf8'));
 const sessionToken = stripModuleSyntax(await readFile('src/session-token.mjs', 'utf8'));
 const profileStore = stripModuleSyntax(await readFile('src/profile-store.mjs', 'utf8'));
+const matchmaking = stripModuleSyntax(await readFile('src/matchmaking.mjs', 'utf8'));
+const party = stripModuleSyntax(await readFile('src/party.mjs', 'utf8'));
 
 let template = await readFile('src/worker.template.mjs', 'utf8');
 template = replaceRequired(template, '/*__GAME_LOGIC__*/', gameLogic);
 template = replaceRequired(template, '/*__WORLD__*/', world);
 template = replaceRequired(template, '/*__WORLD_ACTORS__*/', worldActors);
 template = replaceRequired(template, '/*__WILDLIFE__*/', wildlife);
+template = replaceRequired(template, '/*__CHAT__*/', chat);
 template = replaceRequired(template, '/*__PROTOCOL__*/', protocol);
 template = replaceRequired(template, '/*__SPATIAL_GRID__*/', spatialGrid);
 template = replaceRequired(template, '/*__ROOM_STATE__*/', roomState);
 template = replaceRequired(template, '/*__PROGRESSION__*/', progression);
 template = replaceRequired(template, '/*__SESSION_TOKEN__*/', sessionToken);
 template = replaceRequired(template, '/*__PROFILE_STORE__*/', profileStore);
+template = replaceRequired(template, '/*__MATCHMAKING__*/', matchmaking);
+template = replaceRequired(template, '/*__PARTY__*/', party);
 template = replaceRequired(template, '/*__ASSETS__*/', JSON.stringify(assets));
 
 await mkdir('dist', { recursive: true });
