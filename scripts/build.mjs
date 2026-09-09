@@ -52,6 +52,7 @@ function replaceRequired(source, marker, replacement) {
 }
 
 const gameLogic = stripModuleSyntax(await readFile('src/game-logic.mjs', 'utf8'));
+const world = stripModuleSyntax(await readFile('src/world.mjs', 'utf8'));
 const wildlife = stripModuleSyntax(await readFile('src/wildlife.mjs', 'utf8'));
 const protocol = stripModuleSyntax(await readFile('src/protocol.mjs', 'utf8'));
 const spatialGrid = stripModuleSyntax(await readFile('src/spatial-grid.mjs', 'utf8'));
@@ -62,6 +63,7 @@ const profileStore = stripModuleSyntax(await readFile('src/profile-store.mjs', '
 
 let template = await readFile('src/worker.template.mjs', 'utf8');
 template = replaceRequired(template, '/*__GAME_LOGIC__*/', gameLogic);
+template = replaceRequired(template, '/*__WORLD__*/', world);
 template = replaceRequired(template, '/*__WILDLIFE__*/', wildlife);
 template = replaceRequired(template, '/*__PROTOCOL__*/', protocol);
 template = replaceRequired(template, '/*__SPATIAL_GRID__*/', spatialGrid);

@@ -1,6 +1,7 @@
 import { DurableObject } from 'cloudflare:workers';
 
 /*__GAME_LOGIC__*/
+/*__WORLD__*/
 /*__WILDLIFE__*/
 /*__PROTOCOL__*/
 /*__SPATIAL_GRID__*/
