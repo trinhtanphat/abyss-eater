@@ -46,3 +46,15 @@ test('fish renderer applies evolution silhouettes and localized bioluminescence'
   assert.ok(fish.includes('biolumeMaterial'), 'localized accents must use a dedicated material');
   assert.ok(fish.includes('data.biolumeMaterial?.dispose?.();'), 'per-rig bioluminescence material must be disposed');
 });
+
+test('food renderer uses a grouped marine silhouette instead of a standalone polyhedron', async () => {
+  const fish = await readFile('public/game/fish.js', 'utf8');
+  const start = fish.indexOf('export function createFoodMesh');
+  const end = fish.indexOf('export function applyFoodTheme');
+  const foodRenderer = fish.slice(start, end);
+
+  assert.ok(foodRenderer.includes('const group = new THREE.Group();'), 'food must be composed from multiple marine-form parts');
+  assert.ok(foodRenderer.includes('FOOD_FIN_GEOMETRY'), 'food must include a readable fin/tendril silhouette');
+  assert.ok(foodRenderer.includes('group.userData.foodMaterial = material;'), 'food group must preserve the existing theme/lifecycle material hook');
+  assert.ok(!foodRenderer.includes('new THREE.Mesh(FOOD_GEOMETRY, material)'), 'food must not remain a standalone icosahedron');
+});
