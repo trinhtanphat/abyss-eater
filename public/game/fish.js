@@ -38,7 +38,7 @@ function makeBodyMaterial(id, isLocal, theme) {
   return new THREE.MeshStandardMaterial({
     color,
     emissive,
-    emissiveIntensity: isLocal ? 0.9 : 0.5,
+    emissiveIntensity: isLocal ? 1.15 : 0.72,
     roughness: theme.fish.roughness,
     metalness: theme.fish.metalness,
   });
@@ -185,7 +185,7 @@ export function createFishRig({ id, isLocal = false, theme }) {
   const biolumeMaterial = new THREE.MeshBasicMaterial({
     color: theme.fish.local,
     transparent: true,
-    opacity: isLocal ? 0.28 : 0,
+    opacity: isLocal ? 0.36 : 0.12,
     depthWrite: false,
     blending: THREE.AdditiveBlending,
   });
@@ -208,7 +208,7 @@ export function createFishRig({ id, isLocal = false, theme }) {
   const glowGeometry = new THREE.SphereGeometry(1.05, 16, 10);
   const glow = new THREE.Mesh(
     glowGeometry,
-    new THREE.MeshBasicMaterial({ color: theme.fish.local, transparent: true, opacity: isLocal ? 0.018 : 0, side: THREE.BackSide, depthWrite: false, blending: THREE.AdditiveBlending }),
+    new THREE.MeshBasicMaterial({ color: theme.fish.local, transparent: true, opacity: isLocal ? 0.05 : 0.018, side: THREE.BackSide, depthWrite: false, blending: THREE.AdditiveBlending }),
   );
   glow.scale.copy(body.scale).multiplyScalar(1.18);
   group.add(glow);

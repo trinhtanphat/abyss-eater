@@ -2,6 +2,9 @@ export const START_MASS = 1;
 export const MIN_EDIBLE_MASS = 0.2;
 export const FOOD_RADIUS = 0.45;
 export const MAX_STEP_SECONDS = 0.25;
+export const MANUAL_BOOST_MULTIPLIER = 1.55;
+export const MANUAL_BOOST_GRACE_MS = 3000;
+export const MANUAL_BOOST_SCORE_DRAIN_PER_SECOND = 5;
 
 function finite(value) {
   return Number.isFinite(value) ? value : 0;
@@ -72,8 +75,33 @@ export function movementMultiplierForPlayer(player = {}, now = 0) {
   const slowed = Number.isFinite(player.slowUntil) && player.slowUntil > timestamp;
   const boosted = Number.isFinite(player.speedBoostUntil) && player.speedBoostUntil > timestamp;
   if (slowed) return 0.65;
-  if (boosted) return 1.2;
-  return 1;
+  const pickupMultiplier = boosted ? 1.2 : 1;
+  const manualMultiplier = player.manualBoostActive === true ? MANUAL_BOOST_MULTIPLIER : 1;
+  return pickupMultiplier * manualMultiplier;
+}
+
+export function updateManualBoostState(player = {}, boosting = false, now = 0) {
+  const timestamp = Number.isFinite(now) ? now : 0;
+  const score = Math.max(0, Math.round(finite(player.score)));
+  if (!boosting) {
+    return { ...player, score, manualBoostActive: false, manualBoostStartedAt: 0, manualBoostDrained: 0 };
+  }
+  const continuing = player.manualBoostActive === true
+    && Number.isFinite(player.manualBoostStartedAt)
+    && player.manualBoostStartedAt > 0
+    && timestamp >= player.manualBoostStartedAt;
+  const startedAt = continuing ? player.manualBoostStartedAt : timestamp;
+  const previousDrained = continuing ? Math.max(0, Math.round(finite(player.manualBoostDrained))) : 0;
+  const chargedMs = Math.max(0, timestamp - startedAt - MANUAL_BOOST_GRACE_MS);
+  const targetDrained = Math.floor((chargedMs / 1000) * MANUAL_BOOST_SCORE_DRAIN_PER_SECOND);
+  const drain = Math.max(0, targetDrained - previousDrained);
+  return {
+    ...player,
+    score: Math.max(0, score - drain),
+    manualBoostActive: true,
+    manualBoostStartedAt: startedAt,
+    manualBoostDrained: Math.max(previousDrained, targetDrained),
+  };
 }
 
 export function advancePlayer(player, dir, dt, bounds, now = 0) {
@@ -134,6 +162,9 @@ export function respawnPlayer(player, spawn) {
     bonusPearls: 0,
     slowUntil: 0,
     speedBoostUntil: 0,
+    manualBoostActive: false,
+    manualBoostStartedAt: 0,
+    manualBoostDrained: 0,
     deaths: Math.max(0, Math.round(finite(player.deaths))) + 1,
     position: {
       x: finite(spawn.x),
