@@ -17,7 +17,7 @@
 
   <section id="loading-screen" class="system-screen" role="status" aria-live="polite">
     <div class="system-card panel">
-      <div class="brand-mark compact-mark" aria-hidden="true"><span></span></div>
+      <img class="brand-asset compact-brand-asset" src="/assets/brand/abyss-eater-mark.svg" alt="" aria-hidden="true">
       <p class="eyebrow">ABYSS EATER</p>
       <h2>Preparing the ocean…</h2>
       <p>Checking 3D graphics and loading the premium ocean client.</p>
@@ -38,7 +38,7 @@
   <main id="start-screen" class="lobby-shell" aria-label="Abyss Eater lobby">
     <section class="lobby-copy">
       <div class="brand-lockup">
-        <div class="brand-mark" aria-hidden="true"><span></span></div>
+        <img class="brand-asset" src="/assets/brand/abyss-eater-mark.svg" alt="" aria-hidden="true">
         <div><p class="eyebrow">3D MULTIPLAYER OCEAN SURVIVAL</p><p class="brand-kicker">QS3D GAME LAB</p></div>
       </div>
       <h1>ABYSS<br><em>EATER</em></h1>
@@ -74,23 +74,23 @@
 
   <section id="hud" class="hud" aria-live="polite">
     <div class="hud-primary panel-mini">
-      <div class="hud-topline"><span class="hud-logo">ABYSS EATER</span><span class="connection"><i id="connection-dot"></i><span id="hud-status">Ready</span></span></div>
-      <div class="mass-row"><div><span class="metric-label">MASS</span><strong id="hud-mass">1.00</strong></div><span id="growth-label">0% evolution</span></div>
+      <div class="hud-topline"><span class="hud-logo"><img class="hud-brand-mark" src="/assets/brand/abyss-eater-mark.svg" alt="" aria-hidden="true">ABYSS EATER</span><span class="connection"><i id="connection-dot"></i><span id="hud-status">Ready</span></span></div>
+      <div class="mass-row"><div class="metric-with-icon"><img class="metric-icon" src="/assets/ui/icons/mass.svg" alt="" aria-hidden="true"><span><span class="metric-label">MASS</span><strong id="hud-mass">1.00</strong></span></div><span id="growth-label"><img class="metric-icon inline-icon" src="/assets/ui/icons/evolution.svg" alt="" aria-hidden="true">0% evolution</span></div>
       <div class="growth-track" aria-label="Growth progress"><i id="growth-progress"></i></div>
       <div class="hud-stats">
         <div><span>Score</span><strong id="hud-score">0</strong></div>
-        <div><span>Rank</span><strong id="hud-rank">—</strong></div>
-        <div class="hunt-stat prey-stat"><span>Edible</span><strong id="hud-prey">0</strong></div>
-        <div class="hunt-stat threat-stat"><span>Threats</span><strong id="hud-threats">0</strong></div>
+        <div><span><img class="metric-icon tiny-icon" src="/assets/ui/icons/crown.svg" alt="" aria-hidden="true">Rank</span><strong id="hud-rank">—</strong></div>
+        <div class="hunt-stat prey-stat"><span><img class="metric-icon tiny-icon" src="/assets/ui/icons/jaw.svg" alt="" aria-hidden="true">Edible</span><strong id="hud-prey">0</strong></div>
+        <div class="hunt-stat threat-stat"><span><img class="metric-icon tiny-icon" src="/assets/ui/icons/skull.svg" alt="" aria-hidden="true">Threats</span><strong id="hud-threats">0</strong></div>
         <div><span>Players</span><strong id="hud-players">0</strong></div>
         <div><span>Ping</span><strong id="hud-ping">—</strong></div>
       </div>
       <p class="room-line">Current <strong id="hud-room">ocean-1</strong></p>
     </div>
-    <aside class="leaderboard-card panel-mini" aria-label="Leaderboard"><div class="section-title"><span>TOP PREDATORS</span><small>Score</small></div><ol id="leaderboard"></ol></aside>
-    <div class="depth-card panel-mini"><div class="section-title"><span>DEPTH</span><strong id="depth-value">28 m</strong></div><div id="depth-meter" class="depth-meter" role="progressbar" aria-label="Ocean depth" aria-valuemin="0" aria-valuemax="56" aria-valuenow="28"><i></i><b></b></div></div>
-    <div id="danger-indicator" class="danger-indicator" data-level="safe" hidden><span class="danger-icon">!</span><span><strong>APEX NEARBY</strong><small id="danger-text">Water is clear</small></span></div>
-    <button id="settings-button" class="icon-button settings-button" type="button" aria-label="Game settings" aria-expanded="false" data-no-steer>⚙</button>
+    <aside class="leaderboard-card panel-mini" aria-label="Leaderboard"><div class="section-title"><span><img class="metric-icon tiny-icon" src="/assets/ui/icons/crown.svg" alt="" aria-hidden="true">TOP PREDATORS</span><small>Score</small></div><ol id="leaderboard"></ol></aside>
+    <div class="depth-card panel-mini"><div class="section-title"><span><img class="metric-icon tiny-icon" src="/assets/ui/icons/depth.svg" alt="" aria-hidden="true">DEPTH</span><strong id="depth-value">28 m</strong></div><div id="depth-meter" class="depth-meter" role="progressbar" aria-label="Ocean depth" aria-valuemin="0" aria-valuemax="56" aria-valuenow="28"><i></i><b></b></div></div>
+    <div id="danger-indicator" class="danger-indicator" data-level="safe" hidden><span class="danger-icon"><img class="metric-icon" src="/assets/ui/icons/skull.svg" alt="" aria-hidden="true"></span><span><strong>APEX NEARBY</strong><small id="danger-text">Water is clear</small></span></div>
+    <button id="settings-button" class="icon-button settings-button" type="button" aria-label="Game settings" aria-expanded="false" data-no-steer><img class="settings-icon" src="/assets/ui/icons/settings.svg" alt="" aria-hidden="true"></button>
   </section>
 
   <div id="connection-banner" class="connection-banner panel" role="status" aria-live="polite" hidden>
