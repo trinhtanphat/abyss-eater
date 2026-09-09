@@ -1,0 +1,3 @@
+# Abyss Eater V1 Carrier 5 Social and Matchmaking Dependency Boundary
+
+Carrier 5 is implemented after authoritative room hardening and persistent identity exist. Scope: Quick Dive room placement, coarse regional buckets, private rooms, lightweight Party Durable Object, text-only room chat, deterministic normalization/rate limits, local mute and report metadata. It must keep gameplay authority in `GameRoom`, never store social state in the gateway, and avoid external paid moderation services.

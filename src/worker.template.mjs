@@ -1,13 +1,21 @@
 import { DurableObject } from 'cloudflare:workers';
 
 /*__GAME_LOGIC__*/
+/*__PROTOCOL__*/
+/*__SPATIAL_GRID__*/
+/*__ROOM_STATE__*/
 
 const ASSETS = /*__ASSETS__*/;
 const WORLD_BOUNDS = { x: 80, y: 28, z: 80 };
 const MAX_PLAYERS = 20;
 const FOOD_COUNT = 42;
 const FOOD_VALUE = 0.2;
-const VERSION = '0.1.0';
+const VERSION = '0.2.0';
+const INPUT_RATE_LIMIT = 25;
+const INPUT_RATE_WINDOW_MS = 1000;
+const COLLISION_CELL_SIZE = 8;
+const RECONNECT_INDEX_KEY = 'reconnect:index';
+const MAX_RECONNECT_SLOTS = MAX_PLAYERS * 2;
 
 function boundedText(value, fallback, maxLength) {
   const normalized = String(value ?? '')
@@ -16,6 +24,15 @@ function boundedText(value, fallback, maxLength) {
     .replace(/\s+/g, ' ')
     .trim();
   return (normalized || fallback).slice(0, maxLength);
+}
+
+function boundedResumeKey(value) {
+  const key = String(value ?? '').trim();
+  return /^[a-f0-9]{64}$/i.test(key) ? key : '';
+}
+
+function reconnectStorageKey(resumeKey) {
+  return `reconnect:${resumeKey}`;
 }
 
 function spawnPoint() {
@@ -77,12 +94,13 @@ export class GameRoom extends DurableObject {
   socketsWithPlayers() {
     return this.ctx.getWebSockets()
       .map((socket) => ({ socket, player: socket.deserializeAttachment() }))
-      .filter(({ player }) => player?.id);
+      .filter(({ player }) => player?.id && player.interactive !== false);
   }
 
   snapshot() {
     return {
       type: 'snapshot',
+      v: PROTOCOL_VERSION,
       seq: ++this.snapshotSeq,
       serverTime: Date.now(),
       players: this.socketsWithPlayers().map(({ player }) => publicPlayer(player)),
@@ -92,41 +110,150 @@ export class GameRoom extends DurableObject {
 
   broadcastSnapshot() {
     const payload = JSON.stringify(this.snapshot());
-    for (const socket of this.ctx.getWebSockets()) {
+    for (const { socket } of this.socketsWithPlayers()) {
       if (socket.readyState === WebSocket.OPEN) socket.send(payload);
     }
+  }
+
+  sendError(ws, code) {
+    if (ws.readyState === WebSocket.OPEN) {
+      ws.send(JSON.stringify({ type: 'error', v: PROTOCOL_VERSION, code }));
+    }
+  }
+
+  async readReconnectIndex() {
+    const stored = await this.ctx.storage.get(RECONNECT_INDEX_KEY);
+    if (!Array.isArray(stored)) return [];
+    const unique = [];
+    const seen = new Set();
+    for (const value of stored) {
+      const resumeKey = boundedResumeKey(value);
+      if (!resumeKey || seen.has(resumeKey)) continue;
+      seen.add(resumeKey);
+      unique.push(resumeKey);
+      if (unique.length >= MAX_RECONNECT_SLOTS) break;
+    }
+    return unique;
+  }
+
+  async writeReconnectIndex(index) {
+    if (index.length === 0) {
+      await this.ctx.storage.delete(RECONNECT_INDEX_KEY);
+      return;
+    }
+    await this.ctx.storage.put(RECONNECT_INDEX_KEY, index.slice(0, MAX_RECONNECT_SLOTS));
+  }
+
+  async removeReconnectIndexKey(resumeKey) {
+    const index = await this.readReconnectIndex();
+    const next = index.filter((key) => key !== resumeKey);
+    if (next.length !== index.length) await this.writeReconnectIndex(next);
+  }
+
+  async cleanupReconnectSlots(now) {
+    const index = await this.readReconnectIndex();
+    const kept = [];
+    for (const resumeKey of index) {
+      const key = reconnectStorageKey(resumeKey);
+      const slot = await this.ctx.storage.get(key);
+      if (!slot || isReconnectSlotExpired(slot, now)) {
+        if (slot) await this.ctx.storage.delete(key);
+        continue;
+      }
+      kept.push(resumeKey);
+    }
+    if (kept.length !== index.length) await this.writeReconnectIndex(kept);
+    return kept;
+  }
+
+  async saveReconnectSlot(player, now) {
+    const resumeKey = boundedResumeKey(player?.resumeKey);
+    if (!resumeKey || !player?.id) return;
+    const kept = await this.cleanupReconnectSlots(now);
+    const slot = makeReconnectSlot(player, resumeKey, now);
+    await this.ctx.storage.put(reconnectStorageKey(resumeKey), slot);
+    const next = [resumeKey, ...kept.filter((key) => key !== resumeKey)].slice(0, MAX_RECONNECT_SLOTS);
+    await this.writeReconnectIndex(next);
+  }
+
+  async takeReconnectSlot(resumeKey, now) {
+    const normalized = boundedResumeKey(resumeKey);
+    if (!normalized) return null;
+    const key = reconnectStorageKey(normalized);
+    const slot = await this.ctx.storage.get(key);
+    if (!canResume(slot, normalized, now)) {
+      if (slot && isReconnectSlotExpired(slot, now)) await this.ctx.storage.delete(key);
+      await this.removeReconnectIndexKey(normalized);
+      return null;
+    }
+    await this.ctx.storage.delete(key);
+    await this.removeReconnectIndexKey(normalized);
+    return slot;
   }
 
   async fetch(request) {
     if (request.headers.get('Upgrade')?.toLowerCase() !== 'websocket') {
       return new Response('Expected WebSocket upgrade', { status: 426 });
     }
-    if (this.ctx.getWebSockets().length >= MAX_PLAYERS) {
+
+    const activePlayers = this.socketsWithPlayers();
+    if (activePlayers.length >= MAX_PLAYERS) {
       return new Response('Room full', { status: 503 });
     }
 
     const url = new URL(request.url);
     const room = boundedText(url.searchParams.get('room'), 'ocean-1', 24);
-    const name = boundedText(url.searchParams.get('name'), 'Little Fish', 20);
+    const requestedName = boundedText(url.searchParams.get('name'), 'Little Fish', 20);
+    const requestedResume = boundedResumeKey(url.searchParams.get('resume'));
+    const now = Date.now();
+    await this.cleanupReconnectSlots(now);
+
+    let resumed = false;
+    let player = null;
+    if (requestedResume) {
+      const slot = await this.takeReconnectSlot(requestedResume, now);
+      const activeIds = new Set(activePlayers.map(({ player: active }) => active.id));
+      if (slot?.id && !activeIds.has(slot.id)) {
+        player = {
+          ...slot,
+          room,
+          interactive: true,
+          seq: Number.isSafeInteger(slot.seq) ? slot.seq : 0,
+          lastAt: now,
+          rate: makeRateState(),
+        };
+        delete player.disconnectedAt;
+        resumed = true;
+      }
+    }
+
+    if (!player) {
+      player = {
+        id: crypto.randomUUID().slice(0, 12),
+        name: requestedName,
+        room,
+        position: spawnPoint(),
+        mass: START_MASS,
+        score: 0,
+        deaths: 0,
+        seq: 0,
+        lastAt: now,
+        rate: makeRateState(),
+        interactive: true,
+      };
+    }
+
+    player.resumeKey = makeResumeKey();
     const pair = new WebSocketPair();
     const [client, server] = Object.values(pair);
     this.ctx.acceptWebSocket(server);
-
-    const player = {
-      id: crypto.randomUUID().slice(0, 12),
-      name,
-      room,
-      position: spawnPoint(),
-      mass: START_MASS,
-      score: 0,
-      deaths: 0,
-      seq: 0,
-      lastAt: Date.now(),
-    };
     server.serializeAttachment(player);
     server.send(JSON.stringify({
       type: 'welcome',
+      v: PROTOCOL_VERSION,
       id: player.id,
+      resumeKey: player.resumeKey,
+      resumed,
       room,
       bounds: WORLD_BOUNDS,
       snapshot: this.snapshot(),
@@ -136,37 +263,42 @@ export class GameRoom extends DurableObject {
   }
 
   async webSocketMessage(ws, rawMessage) {
-    if (typeof rawMessage !== 'string' || rawMessage.length > 1024) {
-      ws.send(JSON.stringify({ type: 'error', code: 'bad_message' }));
-      return;
-    }
-
-    let message;
-    try {
-      message = JSON.parse(rawMessage);
-    } catch {
-      ws.send(JSON.stringify({ type: 'error', code: 'bad_json' }));
-      return;
-    }
-
-    if (message?.type === 'ping') {
-      ws.send(JSON.stringify({ type: 'pong', t: Number(message.t) || 0, serverTime: Date.now() }));
-      return;
-    }
-
-    if (message?.type !== 'input') {
-      ws.send(JSON.stringify({ type: 'error', code: 'bad_type' }));
-      return;
-    }
-
     let player = ws.deserializeAttachment();
-    if (!player?.id) return;
+    if (!player?.id || player.interactive === false) return;
+
     const now = Date.now();
-    const seq = Number.isSafeInteger(message.seq) ? message.seq : player.seq + 1;
-    if (seq <= player.seq) return;
+    const rateResult = consumeRateWindow(player.rate, now, INPUT_RATE_LIMIT, INPUT_RATE_WINDOW_MS);
+    player = { ...player, rate: rateResult.state };
+    ws.serializeAttachment(player);
+    if (!rateResult.allowed) {
+      ws.send(JSON.stringify({ type: 'error', v: PROTOCOL_VERSION, code: 'rate_limited' }));
+      return;
+    }
+
+    const parsed = parseClientMessage(rawMessage);
+    if (!parsed.ok) {
+      this.sendError(ws, parsed.code);
+      return;
+    }
+    const message = parsed.message;
+
+    if (message.type === 'ping') {
+      ws.send(JSON.stringify({
+        type: 'pong',
+        v: PROTOCOL_VERSION,
+        t: message.t,
+        serverTime: now,
+      }));
+      return;
+    }
+
+    if (!acceptSequence(player.seq, message.seq)) {
+      ws.send(JSON.stringify({ type: 'error', v: PROTOCOL_VERSION, code: 'bad_seq' }));
+      return;
+    }
 
     player = advancePlayer(player, message.dir, (now - player.lastAt) / 1000, WORLD_BOUNDS);
-    player.seq = seq;
+    player.seq = message.seq;
     player.lastAt = now;
 
     let foodChanged = false;
@@ -180,11 +312,26 @@ export class GameRoom extends DurableObject {
     }
 
     const peers = this.socketsWithPlayers().filter(({ socket }) => socket !== ws);
-    for (const peer of peers) {
-      let other = peer.socket.deserializeAttachment();
-      if (!other?.id) continue;
+    const buckets = buildSpatialBuckets(peers, COLLISION_CELL_SIZE, (entry) => entry.player.position);
+    const nearbyPeers = nearbyFromBuckets(buckets, player.position, COLLISION_CELL_SIZE);
+    const playerRadius = radiusForMass(player.mass);
+    const oversizedPeers = peers.filter(({ player: other }) => {
+      const otherRadius = radiusForMass(other.mass);
+      const maxReach = Math.max(
+        playerRadius + otherRadius * 0.35,
+        otherRadius + playerRadius * 0.35,
+      );
+      return maxReach > COLLISION_CELL_SIZE;
+    });
+    const candidates = [...new Set([...nearbyPeers, ...oversizedPeers])]
+      .sort((a, b) => String(a.player.id).localeCompare(String(b.player.id)));
 
-      if (canEat(player, other)) {
+    for (const peer of candidates) {
+      let other = peer.socket.deserializeAttachment();
+      if (!other?.id || other.interactive === false) continue;
+      const winner = resolveEatPair(player, other);
+
+      if (winner === 'a') {
         player = {
           ...player,
           mass: player.mass + other.mass * 0.7,
@@ -193,8 +340,12 @@ export class GameRoom extends DurableObject {
         other = respawnPlayer(other, spawnPoint());
         other.lastAt = now;
         peer.socket.serializeAttachment(other);
-        peer.socket.send(JSON.stringify({ type: 'eaten', by: player.name }));
-      } else if (canEat(other, player)) {
+        peer.socket.send(JSON.stringify({
+          type: 'eaten',
+          v: PROTOCOL_VERSION,
+          by: player.name,
+        }));
+      } else if (winner === 'b') {
         other = {
           ...other,
           mass: other.mass + player.mass * 0.7,
@@ -203,7 +354,11 @@ export class GameRoom extends DurableObject {
         peer.socket.serializeAttachment(other);
         player = respawnPlayer(player, spawnPoint());
         player.lastAt = now;
-        ws.send(JSON.stringify({ type: 'eaten', by: other.name }));
+        ws.send(JSON.stringify({
+          type: 'eaten',
+          v: PROTOCOL_VERSION,
+          by: other.name,
+        }));
       }
     }
 
@@ -212,11 +367,22 @@ export class GameRoom extends DurableObject {
     this.broadcastSnapshot();
   }
 
-  webSocketClose() {
+  async detachPlayer(ws) {
+    const player = ws.deserializeAttachment();
+    if (!player?.id || player.interactive === false) return;
+    const detached = { ...player, interactive: false };
+    ws.serializeAttachment(detached);
+    await this.saveReconnectSlot(detached, Date.now());
     this.broadcastSnapshot();
   }
 
-  webSocketError() {}
+  async webSocketClose(ws) {
+    await this.detachPlayer(ws);
+  }
+
+  async webSocketError(ws) {
+    await this.detachPlayer(ws);
+  }
 }
 
 export default {
@@ -224,7 +390,13 @@ export default {
     const url = new URL(request.url);
 
     if (url.pathname === '/health') {
-      return Response.json({ ok: true, service: 'abyss-eater', version: VERSION, realtime: 'durable-objects' });
+      return Response.json({
+        ok: true,
+        service: 'abyss-eater',
+        version: VERSION,
+        protocolVersion: PROTOCOL_VERSION,
+        realtime: 'durable-objects',
+      });
     }
 
     if (url.pathname === '/ws') {

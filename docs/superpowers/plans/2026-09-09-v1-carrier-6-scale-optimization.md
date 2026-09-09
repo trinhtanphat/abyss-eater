@@ -1,0 +1,3 @@
+# Abyss Eater V1 Carrier 6 Scale Optimization Evidence Gate
+
+Carrier 6 begins only after Carriers 1-5 provide real workload measurements. It measures snapshot bytes, p95 snapshot size, player count, message rate and serialization/Worker CPU evidence. JSON protocol version 1 remains the compatibility baseline. A negotiated binary snapshot codec is implemented only if measurements show a material benefit; otherwise Carrier 6 closes with tuning/instrumentation evidence and no binary complexity.

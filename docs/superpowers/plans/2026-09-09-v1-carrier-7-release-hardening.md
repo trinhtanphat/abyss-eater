@@ -1,0 +1,3 @@
+# Abyss Eater V1 Carrier 7 Release Hardening Qualification
+
+Carrier 7 is the final qualification layer: full deterministic regression suite, Node 22 CI, exact merged-source Worker build, SHA-256 equality with deployed authoritative Worker and gateway, Cloudflare deployment/domain/binding verification, live `/health` + home + WebSocket join/input/ping probes from a network-capable environment, README/runbook/rollback documentation and V1 release tagging. A probe unavailable because of sandbox DNS is `NO_RESULT`, never fabricated as PASS. No paid service may be enabled to satisfy release qualification.
