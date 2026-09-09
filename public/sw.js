@@ -18,6 +18,7 @@ const SHELL = [
   '/game/fish.js',
   '/game/fish-evolution.mjs',
   '/game/fish-skins.mjs',
+  '/game/skins.js',
   '/game/input.js',
   '/game/network.js',
   '/game/presentation.js',
