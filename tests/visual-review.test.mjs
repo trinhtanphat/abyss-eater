@@ -1,4 +1,4 @@
-﻿import test from 'node:test';
+import test from 'node:test';
 import assert from 'node:assert/strict';
 import { readFile } from 'node:fs/promises';
 
@@ -12,4 +12,17 @@ test('visual review uses a bounded CI render path before taking the screenshot',
   assert.ok(review.includes("const ciMode = new URLSearchParams(location.search).get('ci') === '1';"), 'review page must recognize bounded CI mode');
   assert.ok(review.includes('if (!ciMode) setInterval('), 'repeating showcase effects must stay disabled in CI mode');
   assert.ok(review.includes('if (!ciMode || frameCount < 12) requestAnimationFrame(frame);'), 'CI animation loop must terminate after a bounded number of frames');
+});
+
+test('visual review triggers for Carrier 4 biome and world presentation changes', async () => {
+  const workflow = await readFile('.github/workflows/visual-review.yml', 'utf8');
+  for (const path of [
+    "public/game/environment.js",
+    "public/game/biomes.js",
+    "public/game/world-actors.js",
+    "public/app.js",
+    "public/styles.css",
+  ]) {
+    assert.ok(workflow.includes(`- '${path}'`), `visual review must watch ${path}`);
+  }
 });
