@@ -13,7 +13,7 @@ function builtWorker() {
   return readFileSync('dist/worker.mjs', 'utf8');
 }
 
-test('production Worker bundle contains hardened multiplayer protocol, PWA and modular assets', () => {
+test('production Worker bundle contains hardened multiplayer protocol, capability bootstrap, PWA and modular assets', () => {
   const worker = builtWorker();
   for (const marker of [
     'export class GameRoom',
@@ -21,18 +21,24 @@ test('production Worker bundle contains hardened multiplayer protocol, PWA and m
     "url.pathname === '/health'",
     "url.pathname === '/ws'",
     '"/":',
+    '"/bootstrap.js":',
     '"/app.js":',
     '"/styles.css":',
     '"/themes.css":',
+    '"/polish.css":',
     '"/manifest.webmanifest":',
     '"/sw.js":',
     '"/icon-192.svg":',
     '"/icon-512.svg":',
     '"/client-input.mjs":',
+    '"/client-settings.mjs":',
+    '"/client-audio.mjs":',
+    '"/client-capabilities.mjs":',
     '"/game/presentation.js":',
     '"/game/themes.js":',
     '"/game/fish.js":',
     '"/game/network.js":',
+    '"/ui/client-polish.js":',
     '"/ui/hud.js":',
     '"/ui/lobby.js":',
     'GAME_ROOM.getByName',
@@ -50,6 +56,8 @@ test('embedded client contains pinned 3D renderer, premium HUD, touch controls a
     'id=\\"leaderboard\\"',
     'id=\\"depth-meter\\"',
     'id=\\"touch-joystick\\"',
+    'id=\\"connection-banner\\"',
+    'id=\\"respawn-card\\"',
     'new WebSocket',
     "new URL('/ws'",
     'Abyss Eater: Ocean Survival',
@@ -58,6 +66,7 @@ test('embedded client contains pinned 3D renderer, premium HUD, touch controls a
     'createEffectManager',
     'createInputController',
     'createNetworkClient',
+    'createClientPolish',
     'prefers-reduced-motion',
   ]) assert.ok(worker.includes(marker), `client bundle must include ${marker}`);
 });
