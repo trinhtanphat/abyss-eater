@@ -136,3 +136,23 @@ test('embedded client audio is gesture-gated local Web Audio without external me
     assert.equal(worker.includes(extension), false, `audio bundle must not load external ${extension} assets`);
   }
 });
+
+test('embedded client exposes responsive connection, respawn and keyboard-safe menu flows', () => {
+  const result = build();
+  assert.equal(result.status, 0, `build must succeed:\n${result.stdout}\n${result.stderr}`);
+  const worker = readFileSync('dist/worker.mjs', 'utf8');
+  for (const marker of [
+    'id=\\"connection-banner\\"',
+    'id=\\"respawn-card\\"',
+    'data-connection-state=\\"ready\\"',
+    "setConnectionState('connecting'",
+    "setConnectionState('online'",
+    "setConnectionState('reconnecting'",
+    "setConnectionState('upgrade-required'",
+    "setConnectionState('offline'",
+    "event.target?.matches('input, select, button, textarea')",
+    'document.exitPointerLock',
+  ]) {
+    assert.ok(worker.includes(marker), `client flow bundle must include ${marker}`);
+  }
+});
