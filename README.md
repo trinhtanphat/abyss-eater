@@ -1,36 +1,37 @@
-# Abyss Eater
+﻿# Abyss Eater
 
-**Abyss Eater: Ocean Survival** is a browser-first 3D multiplayer fish survival game. Start small, collect plankton, eat smaller fish, grow in mass, and avoid predators that are larger than you.
+**Abyss Eater: Ocean Survival** is a browser-first 3D multiplayer fish-survival game. Start small, collect marine food, hunt smaller fish, grow in mass, and avoid predators that can eat you.
 
 ## Public alpha
 
-- Procedural 3D ocean built with Three.js 0.185.1.
-- Premium **Stylized** presentation by default with a live-switchable **Deep Sea** theme.
-- Modular lobby, HUD, leaderboard, depth meter, danger indicator, procedural effects and touch joystick.
+- Procedural Three.js 0.185.1 ocean with six presentation biomes: **Sunken Reef**, **Ancient Abyss**, **Twilight Garden**, **Blue Trench**, **Volcanic Rift**, and **Leviathan Depths**. Legacy `stylized` and `deep-sea` settings remain compatible.
+- Server-owned living ecosystem with 24 wildlife fish per room, including prey below starter mass and predators above it.
+- Server-authoritative movement, world bounds, food collection, PvP/wildlife eating, score, growth, death and respawn.
+- Six mass-driven fish evolution silhouettes plus 12 deterministic presentation skin families. A server-verified selected `skinId` always takes precedence over visual fallbacks.
+- Persistent guest progression path with signed sessions, XP, levels, pearls, owned skins, selected skin, canonical shop actions and persistent leaderboard APIs.
+- Compact desktop/mobile HUD with score, rank, edible-prey count, threat count, player count, ping, growth, depth and a responsive leaderboard.
+- Branded same-origin SVG asset pack for the lobby and HUD, plus bounded eat/growth VFX and localized bioluminescence.
+- Optional Vietnamese voice announcements through lazy-loaded Piper TTS with native `vi-VN` speech-synthesis fallback.
 - Desktop controls: pointer-lock mouse look, pointer steering, camera-relative WASD / arrow keys, Space to swim up, Shift to swim down.
 - Touch controls for phones and tablets.
 - Local graphics presets `auto`, `high`, `medium`, `low`; the UI labels `medium` as **Balanced** without introducing a second persisted quality value.
-- Reduced-effects mode plus gesture-gated local Web Audio settings; presentation settings never alter authoritative gameplay.
-- Server-authoritative movement, world bounds, food collection, player eating, score and respawn.
-- Protocol `v=2` with strict message validation and monotonic input sequences.
-- Per-socket flood guard: 25 messages per 1000 ms window.
-- Spatially bounded, deterministic player collision candidates.
-- Local collision processing stops after the local fish is eaten and respawned, preventing same-input respawn chains.
-- 12-second transient reconnect grace using a rotated opaque room-scoped resume key in `sessionStorage`.
-- Disconnected reconnect slots are non-interactive and do not count toward the 20-player active room cap.
-- User room labels are deterministically mapped into a fixed pool of 64 Durable Objects instead of creating unbounded room names.
-- Room snapshots are coalesced to at most 20 Hz. Food is included only when dirty; player-only snapshots reuse the last food state on the client.
-- Shared Three.js resources and explicit disposal reduce GPU churn during join/leave and plankton replacement.
+- Reduced-effects mode plus gesture-gated local Web Audio/TTS settings; presentation settings never alter authoritative gameplay.
+- Protocol `v=2` with strict message validation, monotonic input sequences and a per-socket flood guard of 25 messages per 1000 ms.
+- Spatially bounded deterministic collision candidates; local collision processing stops after respawn to prevent same-input respawn chains.
+- 12-second reconnect grace using a rotated opaque room-scoped resume key in `sessionStorage`.
+- User room labels map deterministically into a fixed pool of 64 Durable Objects; disconnected slots do not count toward the 20-player active cap.
+- Room snapshots are coalesced to at most 20 Hz. Food and wildlife payloads are sent only when dirty and retained client-side across delta snapshots.
+- Shared Three.js resources and explicit disposal reduce GPU churn during joins, leaves and food replacement.
 - Installable PWA metadata, 192/512 icons and an offline application shell.
 - WebSocket Hibernation API; no perpetual Durable Object game-loop timer.
-- Dependency-free Node build and test pipeline.
+- Dependency-free Node build/test pipeline plus bounded headless visual-review screenshot coverage.
 
 ## Architecture
 
 ```text
 Browser / Three.js / PWA
        |
-       | static files
+       | static files + HTTPS API
        v
 abyss-eater.qs3d.site
 Workers Static Assets (trinhtanphat2403)
@@ -44,23 +45,27 @@ Gateway Worker (trinhtanphat2403)
 abyss-eater.hikvision.workers.dev
 Game Worker (trinhtanphat6666)
        |
-       | authoritative room
-       v
-Durable Object: GameRoom
-  - WebSocket player attachments
-  - fixed 64-room allocation pool
-  - bounded reconnect slots
-  - food state storage
-  - movement authority
-  - spatial collision/eating
-  - <=20 Hz versioned snapshots
+       +--> Durable Object: GameRoom
+       |      - WebSocket player attachments
+       |      - fixed 64-room allocation pool
+       |      - bounded reconnect slots
+       |      - food + 24 wildlife actors
+       |      - movement/collision/eating authority
+       |      - <=20 Hz versioned snapshots
+       |
+       +--> D1 persistence contract
+              - guest profiles + signed sessions
+              - XP / level / pearls
+              - owned + selected skins
+              - idempotent reward events
+              - persistent leaderboard
 ```
 
-The browser client is split into small presentation, scene, environment, fish, input, network, state and UI modules under `public/game` and `public/ui`. Presentation modules can change themes, quality, effects, audio and HUD behavior without changing the server-authoritative simulation contract.
+The browser client is split into small presentation, scene, environment, fish, input, network, progression, state and UI modules under `public/`. Presentation code can change biome, quality, effects, audio, TTS, cosmetics and HUD behavior without changing the authoritative simulation contract.
 
-The client renders at display refresh rate and sends movement intent at 10 Hz. Clients never send authoritative position, mass, score, or collision results. Every gameplay WebSocket message carries protocol version `2`; the server rejects malformed, stale, incompatible, or flood traffic before applying simulation work.
+The client renders at display refresh rate and sends movement intent at 10 Hz. Clients never send authoritative position, mass, score, collision results, shop prices or balances. Every gameplay WebSocket message carries protocol version `2`; the server rejects malformed, stale, incompatible or flood traffic before applying simulation work.
 
-Protocol v2 introduced optional food payloads in snapshots so unchanged food does not have to be resent every network update. A v1 browser fails closed on the version mismatch instead of silently misreading the delta format.
+Persistent identity is also server-owned: a signed guest session is verified before its profile id and selected cosmetic can enter a room snapshot. Shop APIs accept only a canonical `skinId`; pricing, unlock rules, pearl balances and ownership checks stay on the server. Persistence APIs fail closed when required runtime bindings are unavailable.
 
 ## Reconnect behavior
 
@@ -68,9 +73,13 @@ A successful `welcome` rotates and returns a `resumeKey` plus the current `input
 
 See `docs/runbooks/multiplayer-hardening.md` for the exact protocol, rate, reconnect, snapshot, release and rollback contract.
 
-## PWA behavior
+## PWA and presentation behavior
 
-`public/manifest.webmanifest` supplies standalone-install metadata and maskable-capable install icons. `public/sw.js` caches the same-origin premium application shell and its local module graph, then falls back to the cached root page for offline navigation. Multiplayer itself still requires network access, and Three.js remains loaded from the pinned jsDelivr URL.
+`public/manifest.webmanifest` supplies standalone-install metadata and maskable-capable install icons. `public/sw.js` caches the same-origin application shell, progression modules, fish evolution/skin modules and local SVG assets, then falls back to the cached root page for offline navigation. Multiplayer itself still requires network access.
+
+The six ocean biomes are presentation-only. `stylized` and `deep-sea` remain valid saved values, while the expanded catalog adds the four newer biome ids. Fish cosmetics follow the same rule: server-verified purchased/selected cosmetics take priority; deterministic presentation palettes are only fallback visuals and never affect gameplay stats.
+
+Vietnamese TTS is opt-in and lazy-loaded. When enabled, the client uses the pinned Piper web runtime/voice path and falls back to native `vi-VN` speech synthesis when Piper is unavailable.
 
 ## Local validation
 
@@ -82,25 +91,27 @@ npm run build
 node --check dist/worker.mjs
 ```
 
-The production origin bundle is written to `dist/worker.mjs`. CI runs the Node 22 tests, build and syntax check on pull requests and `main`.
+The production origin bundle is written to `dist/worker.mjs`. GitHub Actions is intentionally **CI-only**: pull requests and `main` run tests, build and syntax checks, while bounded visual-review runs produce screenshot evidence for presentation changes.
 
-## Cloudflare
+## Delivery
 
-The authoritative game Worker is `abyss-eater` in account `trinhtanphat6666` (`6c5207813df3d5b83b9508125e0e9e12`). `wrangler.jsonc` pins that account and declares a SQLite-backed Durable Object binding named `GAME_ROOM` using the `GameRoom` class. Its origin is `https://abyss-eater.hikvision.workers.dev`.
+Production delivery is handled by the connected Cloudflare deployment integration that watches `main`; the repository does not run a production-mutation workflow from GitHub Actions.
 
-The `qs3d.site` zone lives in `trinhtanphat2403` (`50afb4fd3c4c7a1f3e1bdb7f22d4af7f`). Production therefore uses `abyss-eater-gateway` on that account. `wrangler.gateway.jsonc` serves `./public` through Workers Static Assets on `https://abyss-eater.qs3d.site` and invokes the gateway Worker first only for `/ws` and `/health`; those routes proxy to the authoritative Worker in `trinhtanphat6666`. No gameplay state is stored in the gateway.
+The authoritative game Worker is `abyss-eater` in account `trinhtanphat6666` (`6c5207813df3d5b83b9508125e0e9e12`). `wrangler.jsonc` pins that account, declares the SQLite-backed `GAME_ROOM` Durable Object binding and keeps the draft D1 binding contract used by persistent progression. Its origin is `https://abyss-eater.hikvision.workers.dev`.
 
-Reproducible deploy commands pin Wrangler `4.129.1`:
+The `qs3d.site` zone lives in `trinhtanphat2403` (`50afb4fd3c4c7a1f3e1bdb7f22d4af7f`). Production uses `abyss-eater-gateway` on that account. `wrangler.gateway.jsonc` serves `./public` through Workers Static Assets on `https://abyss-eater.qs3d.site` and invokes the gateway Worker first only for `/ws` and `/health`; those routes proxy to the authoritative Worker. No gameplay state is stored in the gateway.
+
+Pinned Wrangler commands remain available as reproducible manual fallback tooling, but they are not called by GitHub Actions:
 
 ```bash
 npm run deploy:game
 npm run deploy:gateway
 ```
 
-`/health` for the public-alpha delivery release reports application version `0.3.0`, protocol version `2`, room-pool size `64` and snapshot cap `20` Hz.
+`/health` reports application version `0.3.0`, protocol version `2`, room-pool size `64`, wildlife-per-room `24` and snapshot cap `20` Hz.
 
-No paid Cloudflare product or paid-plan setting is enabled by this implementation. Existing account billing/plan state must be checked separately before claiming that the complete production account has zero cost.
+No paid Cloudflare product or paid-plan setting is enabled by this implementation.
 
 ## Still intentionally deferred
 
-Accounts, persistent leaderboards, skins, shops, chat, parties, regional matchmaking, binary snapshots, client-side prediction, AI fish/biomes/bosses and external 3D models remain separate future work so the public-alpha networking and delivery baseline stays small, testable and rollback-friendly.
+Full registered user accounts/login, chat, parties, regional matchmaking, binary snapshots, client-side prediction, dedicated boss encounters and external authored 3D model packs remain future work. The current public alpha already includes persistent guest progression, persistent leaderboard APIs, canonical skin shop/selection, server-owned wildlife and six ocean presentation biomes.
