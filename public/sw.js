@@ -1,4 +1,4 @@
-const CACHE_NAME = 'abyss-eater-shell-v5';
+const CACHE_NAME = 'abyss-eater-shell-v8';
 const SHELL = [
   '/',
   '/styles.css',
@@ -11,6 +11,7 @@ const SHELL = [
   '/client-settings.mjs',
   '/client-audio.mjs',
   '/client-tts.mjs',
+  '/client-progression.mjs',
   '/client-capabilities.mjs',
   '/game/config.js',
   '/game/effects.js',

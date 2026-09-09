@@ -60,6 +60,13 @@
         <label class="field"><span>Quality</span><select id="quality-select" aria-label="Graphics quality"><option value="auto">Auto</option><option value="high">High</option><option value="medium">Balanced</option><option value="low">Low</option></select></label>
       </div>
       <label class="toggle-row"><span><strong>Pointer steering</strong><small>Swim toward your mouse cursor</small></span><input id="pointer-steering" type="checkbox" checked><i aria-hidden="true"></i></label>
+      <section class="progression-card" aria-label="Persistent ocean profile">
+        <div class="progression-heading"><div><span class="metric-label">OCEAN PROFILE</span><strong id="profile-status">Guest progression</strong></div><span class="profile-level-chip">LV <b id="profile-level">&#8212;</b></span></div>
+        <div class="profile-metrics"><span><small>XP</small><strong id="profile-xp">&#8212;</strong></span><span><small>Pearls</small><strong id="profile-pearls">&#8212;</strong></span></div>
+        <div class="profile-xp-track" aria-label="Profile XP progress"><i id="profile-xp-progress"></i></div>
+        <div class="skin-section"><div class="section-title"><span>SKIN LOADOUT</span><small>Cosmetic only</small></div><div id="skin-grid" class="skin-grid" aria-live="polite"></div></div>
+        <div class="persistent-ranking"><div class="section-title"><span>ALL-TIME</span><small>Best score</small></div><ol id="persistent-leaderboard" aria-label="Persistent leaderboard"></ol></div>
+      </section>
       <button id="play-button" type="button"><span>DIVE IN</span><b aria-hidden="true">→</b></button>
       <div class="controls-legend" aria-label="Controls"><span><kbd>WASD</kbd> Swim</span><span><kbd>SPACE</kbd> Rise</span><span><kbd>SHIFT</kbd> Descend</span><span><kbd>MOUSE</kbd> Steer</span></div>
     </section>

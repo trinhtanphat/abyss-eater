@@ -41,7 +41,7 @@ test('the evolution catalog exposes six unique readable silhouettes', () => {
   assert.ok(profiles[5].spineCount > profiles[0].spineCount, 'leviathan must expose more silhouette spines than fry');
 });
 
-test('fish renderer applies evolution silhouettes and localized bioluminescence', async () => {
+test('fish renderer applies evolution silhouettes and localized bioluminescence without flattening sub-one wildlife mass', async () => {
   const fish = await readFile('public/game/fish.js', 'utf8');
 
   assert.ok(fish.includes("import { silhouetteForMass } from './fish-evolution.mjs';"), 'fish renderer must consume the deterministic visual profile');
@@ -51,6 +51,8 @@ test('fish renderer applies evolution silhouettes and localized bioluminescence'
   assert.ok(fish.includes('lateralLines'), 'local recognition must include lateral-line accents');
   assert.ok(fish.includes('biolumeMaterial'), 'localized accents must use a dedicated material');
   assert.ok(fish.includes('data.biolumeMaterial?.dispose?.();'), 'per-rig bioluminescence material must be disposed');
+  assert.ok(fish.includes('data.mass = Math.max(0.2,'), 'wildlife below starter mass must preserve its true rendered size');
+  assert.ok(fish.includes('Math.cbrt(Math.max(0.2, data.mass))'), 'render scale must preserve the sub-one predator-loop hierarchy');
 });
 
 test('food renderer uses a grouped marine silhouette instead of a standalone polyhedron', async () => {
@@ -103,9 +105,11 @@ test('fish renderer consumes deterministic skin palettes without changing its pu
   assert.ok(fish.includes('theme.fish.local'), 'local recognition must remain theme-driven bioluminescence');
 });
 
-test('offline shell precaches fish visual dependencies', async () => {
+test('offline shell precaches fish evolution, TTS, progression and skin dependencies', async () => {
   const sw = await readFile('public/sw.js', 'utf8');
+  assert.ok(sw.includes("'/client-tts.mjs'"), 'reconciled shell must preserve the Vietnamese TTS dependency');
+  assert.ok(sw.includes("'/client-progression.mjs'"), 'reconciled shell must cache the progression client');
   assert.ok(sw.includes("'/game/fish-evolution.mjs'"), 'service worker shell must cache fish evolution');
   assert.ok(sw.includes("'/game/fish-skins.mjs'"), 'service worker shell must cache fish skin palettes');
-  assert.ok(sw.includes("CACHE_NAME = 'abyss-eater-shell-v5'"), 'shell version must advance when skin dependency is added');
+  assert.ok(sw.includes("CACHE_NAME = 'abyss-eater-shell-v8'"), 'shell version must advance when second-slice dependencies are added');
 });
