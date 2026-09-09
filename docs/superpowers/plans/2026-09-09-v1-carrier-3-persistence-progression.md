@@ -36,7 +36,7 @@
 - Produces `SKIN_CATALOG`, `levelForXp(xp)`, `rewardForSession(summary)`, `skinById(id)`, `signSession(payload, secret, nowMs)`, and `verifySession(token, secret, nowMs)`.
 - Session payload shape is `{ profileId: string, version: number, expiresAt: number }`.
 
-- [ ] **Step 1: Write failing tests** for deterministic level thresholds, bounded rewards, catalog prices/unlock levels, HMAC round-trip, expiry, tamper rejection, and malformed-token rejection.
+- [x] **Step 1: Write failing tests** for deterministic level thresholds, bounded rewards, catalog prices/unlock levels, HMAC round-trip, expiry, tamper rejection, and malformed-token rejection.
 - [ ] **Step 2: Run `npm test`** and verify the new suites fail because the modules do not exist.
 - [ ] **Step 3: Implement minimal pure modules.** Use Web Crypto only; token format is `base64url(payload-json).base64url(hmac)` and never contains balance/inventory/score.
 - [ ] **Step 4: Run `npm test`** and verify all pure tests pass.
