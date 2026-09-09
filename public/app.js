@@ -1,6 +1,6 @@
 import { createEffectManager } from './game/effects.js';
 import { createOceanEnvironment } from './game/environment.js';
-import { animateFishRig, applyFishSnapshot, applyFishTheme, applyFoodTheme, createFishRig, createFoodMesh } from './game/fish.js';
+import { animateFishRig, applyFishSnapshot, applyFishTheme, applyFoodTheme, createFishRig, createFoodMesh, disposeFishRig } from './game/fish.js';
 import { createInputController } from './game/input.js';
 import { createNetworkClient } from './game/network.js';
 import { createGameScene } from './game/scene.js';
@@ -109,6 +109,7 @@ function syncSnapshot(changes = null) {
   for (const [id, rig] of playerMeshes) {
     if (!livePlayers.has(id)) {
       sceneContext.scene.remove(rig);
+      disposeFishRig(rig);
       playerMeshes.delete(id);
     }
   }
@@ -154,6 +155,7 @@ const lobby = createLobby({
     started = true;
     if (demoFish) {
       sceneContext.scene.remove(demoFish);
+      disposeFishRig(demoFish);
       demoFish = null;
     }
     setTheme(preferences.theme);
@@ -266,7 +268,7 @@ function animate(time) {
     cameraTarget = demoFish;
     cameraMass = 2.4;
   }
-  sceneContext.follow(cameraTarget, cameraMass, delta);
+  sceneContext.follow(cameraTarget, cameraMass, delta, input.look());
   sceneContext.render();
 }
 
