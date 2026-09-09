@@ -8,7 +8,7 @@
 * { box-sizing: border-box; }
 html, body, #game { width: 100%; height: 100%; margin: 0; }
 body { overflow: hidden; background: radial-gradient(circle at 50% 10%, #0b5871 0, #06283c 35%, #020c16 100%); }
-button, input { font: inherit; }
+button, input, select { font: inherit; }
 button { cursor: pointer; }
 canvas { display: block; width: 100%; height: 100%; }
 [hidden] { display: none !important; }
@@ -65,10 +65,11 @@ html[data-app-state="ready"] #loading-screen { display: none; }
 h1 { margin: 0; font-size: clamp(40px, 8vw, 58px); line-height: .95; letter-spacing: -.055em; }
 .subtitle { margin: 10px 0 24px; color: #9bc4d3; font-size: 18px; }
 label { display: grid; gap: 7px; margin: 14px 0; color: #afd3df; font-size: 12px; font-weight: 700; letter-spacing: .04em; text-transform: uppercase; }
-input { width: 100%; border: 1px solid rgba(139, 220, 244, .18); border-radius: 13px; padding: 12px 14px; outline: none; background: rgba(0, 20, 34, .75); color: #fff; text-transform: none; }
-input:focus { border-color: rgba(74, 225, 255, .72); box-shadow: 0 0 0 3px rgba(74, 225, 255, .12); }
+input:not([type="checkbox"]):not([type="range"]), select { width: 100%; border: 1px solid rgba(139, 220, 244, .18); border-radius: 13px; padding: 12px 14px; outline: none; background: rgba(0, 20, 34, .75); color: #fff; text-transform: none; }
+input:focus, select:focus, button:focus-visible { outline: 2px solid #83f1ff; outline-offset: 2px; }
 #play-button { width: 100%; margin-top: 8px; border: 0; border-radius: 14px; padding: 14px 16px; cursor: pointer; color: #00121d; font-weight: 900; background: linear-gradient(135deg, #83f1ff, #2bd1e8); box-shadow: 0 12px 30px rgba(17, 197, 222, .22); }
 #play-button:hover { filter: brightness(1.06); }
+.secondary-button { width: 100%; margin-top: 10px; border: 1px solid rgba(139, 220, 244, .22); border-radius: 14px; padding: 12px 16px; color: #dff9ff; background: rgba(5, 53, 72, .48); font-weight: 800; }
 .controls-hint { margin: 14px 0 0; text-align: center; color: #7398a7; font-size: 12px; }
 
 .hud {
@@ -92,6 +93,21 @@ body.playing .hud { opacity: 1; }
 .hud-status, .hud-room { margin-top: 9px; color: #7fa4b2; font-size: 11px; }
 #connection-dot { display: inline-block; width: 7px; height: 7px; margin-right: 7px; border-radius: 50%; background: #6d7f88; box-shadow: 0 0 12px currentColor; }
 body.connected #connection-dot { background: #62f4ba; }
+.hud-button { margin-top: 10px; border: 1px solid rgba(139, 220, 244, .18); border-radius: 9px; padding: 7px 10px; color: #bfefff; background: rgba(4, 43, 61, .5); font-size: 11px; font-weight: 800; }
+
+.settings-dialog { width: min(460px, calc(100vw - 28px)); max-height: calc(100dvh - 28px); padding: 0; border: 0; background: transparent; color: inherit; }
+.settings-dialog::backdrop { background: rgba(0, 8, 14, .72); backdrop-filter: blur(8px); }
+.settings-card { max-height: calc(100dvh - 28px); overflow: auto; padding: 26px; border-radius: 24px; }
+.settings-heading { display: flex; align-items: flex-start; justify-content: space-between; gap: 16px; }
+.settings-heading .eyebrow { margin-top: 0; }
+.settings-heading h2 { margin: 0; font-size: 32px; letter-spacing: -.04em; }
+.icon-button { width: 42px; height: 42px; border: 1px solid rgba(139, 220, 244, .2); border-radius: 12px; background: rgba(3, 37, 52, .74); color: #dff9ff; font-size: 25px; }
+.settings-dialog select { color-scheme: dark; }
+.checkbox-row { grid-template-columns: auto 1fr; align-items: center; gap: 10px; }
+.checkbox-row input { width: 20px; height: 20px; accent-color: #65e9ff; }
+.settings-dialog input[type="range"] { width: 100%; accent-color: #65e9ff; }
+.settings-dialog output { float: right; color: #fff; font-variant-numeric: tabular-nums; }
+.settings-note { margin: 18px 0 0; color: #789dac; font-size: 12px; line-height: 1.5; }
 
 .toast { position: fixed; z-index: 30; left: 50%; top: 18%; transform: translate(-50%, -10px); padding: 11px 16px; border-radius: 999px; background: rgba(2, 19, 31, .82); color: #fff; font-weight: 800; opacity: 0; pointer-events: none; transition: .2s ease; }
 .toast.show { opacity: 1; transform: translate(-50%, 0); }
@@ -111,4 +127,5 @@ body.connected #connection-dot { background: #62f4ba; }
   body.playing .touch-controls { display: flex; }
   .hud { min-width: 205px; }
   .start-panel, .system-card { padding: 24px; }
+  .settings-card { padding: 22px; }
 }
