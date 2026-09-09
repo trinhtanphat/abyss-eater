@@ -1,7 +1,7 @@
 import * as THREE from 'https://cdn.jsdelivr.net/npm/three@0.185.1/build/three.module.js';
 import { cameraRelativeDirection, updateLook } from '/client-input.mjs';
 
-const PROTOCOL_VERSION = 1;
+const PROTOCOL_VERSION = 2;
 const gameRoot = document.querySelector('#game');
 const startScreen = document.querySelector('#start-screen');
 const playButton = document.querySelector('#play-button');
