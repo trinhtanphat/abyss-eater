@@ -15,6 +15,7 @@ export const CRITICAL_ASSETS = Object.freeze([
   '/hud-assets.css',
   '/styles.css',
   '/client-progression.mjs',
+  '/client-social.mjs',
   '/client-tts.mjs',
   '/app.js',
   '/game/state.js',
@@ -30,6 +31,7 @@ export const CRITICAL_ASSETS = Object.freeze([
   '/game/themes.js',
   '/game/presentation.js',
   '/ui/hud.js',
+  '/ui/lobby.js',
 ]);
 
 export function normalizeStaticText(value) {
@@ -80,6 +82,21 @@ export function buildInputMessage(seq, dir = {}, boost = false) {
     dir: { x: dir.x, y: dir.y, z: dir.z },
     boost: boost === true,
   };
+}
+
+const SOCIAL_REGIONS = new Set(['SEA', 'JP', 'EU', 'NA', 'OTHER']);
+
+export function validateQuickDivePlacement(payload = {}) {
+  assert.equal(payload?.ok, true, 'Quick Dive response must be ok');
+  const room = String(payload?.room || '');
+  assert.match(room, /^public-(sea|jp|eu|na|other)-[a-z0-9]+$/i, 'Quick Dive public room is required');
+  assert.ok(SOCIAL_REGIONS.has(payload?.region), 'Quick Dive region is required');
+  return payload;
+}
+
+export function buildChatMessage(text) {
+  const normalized = String(text || '').normalize('NFKC').replace(/\s+/g, ' ').trim().slice(0, 160);
+  return { type: 'chat', v: PROTOCOL_VERSION, text: normalized };
 }
 
 export function buildWsUrl(base, { name, room, resumeKey = '' } = {}) {
@@ -137,13 +154,14 @@ function waitFor(predicate, timeoutMs, label) {
 
 async function openPlayer(base, identity) {
   const socket = new WebSocket(buildWsUrl(base, identity));
-  const state = { welcome: null, snapshot: null, pong: null, errors: [] };
+  const state = { welcome: null, snapshot: null, pong: null, chats: [], errors: [] };
   socket.addEventListener('message', (event) => {
     let message;
     try { message = JSON.parse(String(event.data)); } catch { return; }
     if (message?.type === 'welcome') state.welcome = validateWelcome(message);
     else if (message?.type === 'snapshot') state.snapshot = message;
     else if (message?.type === 'pong') state.pong = message;
+    else if (message?.type === 'chat') state.chats.push(message);
     else if (message?.type === 'error') state.errors.push(message);
   });
   await new Promise((resolve, reject) => {
@@ -162,6 +180,37 @@ async function closePlayer(player) {
     player.socket.addEventListener('close', () => { clearTimeout(timer); resolve(); }, { once: true });
     player.socket.close(1000, 'production smoke');
   });
+}
+
+async function verifyQuickDive(base) {
+  const response = await fetch(`${base}/api/matchmaking/quick`, {
+    method: 'POST',
+    headers: { accept: 'application/json', 'cache-control': 'no-cache' },
+  });
+  assert.equal(response.ok, true, `${base}/api/matchmaking/quick returned HTTP ${response.status}`);
+  const payload = await response.json();
+  return validateQuickDivePlacement(payload);
+}
+
+async function verifySocialRealtime(base, placement) {
+  const players = [];
+  try {
+    const first = await openPlayer(base, { name: 'Smoke Social A', room: placement.room });
+    const second = await openPlayer(base, { name: 'Smoke Social B', room: placement.room });
+    players.push(first, second);
+    const text = `smoke-chat-${Date.now().toString(36)}`;
+    first.socket.send(JSON.stringify(buildChatMessage(text)));
+    await waitFor(
+      () => second.state.chats.some((item) => item?.v === PROTOCOL_VERSION && item?.text === text && item?.name === 'Smoke Social A'),
+      5000,
+      'protocol-v2 room chat broadcast',
+    );
+    assert.equal(first.state.errors.length, 0, 'social sender must not receive server errors');
+    assert.equal(second.state.errors.length, 0, 'social receiver must not receive server errors');
+    return { room: placement.room, region: placement.region };
+  } finally {
+    await Promise.allSettled(players.map(closePlayer));
+  }
 }
 
 async function verifyRealtime(base) {
@@ -222,11 +271,16 @@ async function verifyRealtime(base) {
 }
 
 async function verifyConvergedProduction() {
+  const placements = [];
   for (const base of PRODUCTION_BASES) {
     await verifyHealth(base);
     await verifyStaticParity(base);
-    console.log(`static+health OK ${base}`);
+    const placement = await verifyQuickDive(base);
+    placements.push(placement);
+    console.log(`static+health+quick-dive OK ${base} room=${placement.room} region=${placement.region}`);
   }
+  const social = await verifySocialRealtime(PRODUCTION_BASES[1], placements[1]);
+  console.log(`social realtime OK room=${social.room} region=${social.region} chat=v2`);
   const realtime = await verifyRealtime(PRODUCTION_BASES[1]);
   console.log(`realtime OK room=${realtime.room} players=${realtime.players} resume=${realtime.resumedId}`);
 }
