@@ -2,6 +2,7 @@ import * as THREE from 'https://cdn.jsdelivr.net/npm/three@0.185.1/build/three.m
 import { silhouetteForMass } from './fish-evolution.mjs';
 import { skinVisual } from './skins.js';
 import { skinPaletteFor } from './fish-skins.mjs';
+import { createInterpolationBuffer, frameIndependentAlpha, renderServerTime } from './interpolation.mjs';
 
 const BODY_GEOMETRY = new THREE.SphereGeometry(1, 26, 18);
 const TAIL_GEOMETRY = new THREE.ConeGeometry(0.92, 1.35, 3);
@@ -243,6 +244,9 @@ export function createFishRig({ id, isLocal = false, theme }) {
     skinId: '',
     target: new THREE.Vector3(),
     previousTarget: new THREE.Vector3(),
+    interpolation: createInterpolationBuffer(),
+    latestServerTime: 0,
+    latestReceivedAt: 0,
     mass: 1,
     score: 0,
     deaths: 0,
@@ -253,11 +257,19 @@ export function createFishRig({ id, isLocal = false, theme }) {
   return group;
 }
 
-export function applyFishSnapshot(rig, player) {
+export function applyFishSnapshot(rig, player, timing = {}) {
   if (!rig || !player?.position) return;
   const data = rig.userData;
+  const local = Boolean(timing.local);
+  const serverTime = Number(timing.serverTime);
+  const receivedAt = Number(timing.receivedAt);
   data.previousTarget.copy(data.target);
   data.target.set(Number(player.position.x) || 0, Number(player.position.y) || 0, Number(player.position.z) || 0);
+  if (!local && Number.isFinite(serverTime)) {
+    data.interpolation.push(player.position, serverTime, Number.isFinite(receivedAt) ? receivedAt : 0);
+    data.latestServerTime = serverTime;
+    data.latestReceivedAt = Number.isFinite(receivedAt) ? receivedAt : 0;
+  } else if (local) data.interpolation.clear();
   data.mass = Math.max(0.2, Number(player.mass) || 1);
   data.score = Math.max(0, Number(player.score) || 0);
   data.deaths = Math.max(0, Number(player.deaths) || 0);
@@ -267,20 +279,28 @@ export function applyFishSnapshot(rig, player) {
   applyEvolutionSilhouette(rig, data.mass);
 }
 
-export function animateFishRig(rig, time, local = false) {
+export function animateFishRig(rig, time, local = false, deltaSeconds = 1 / 60) {
   const data = rig.userData;
-  rig.position.lerp(data.target, local ? 0.24 : 0.16);
+  if (!local && data.interpolation.size) {
+    const sampled = data.interpolation.sample(renderServerTime({
+      latestServerTime: data.latestServerTime,
+      latestReceivedAt: data.latestReceivedAt,
+      now: time,
+    }));
+    if (sampled) data.target.set(sampled.x, sampled.y, sampled.z);
+  }
+  rig.position.lerp(data.target, frameIndependentAlpha(local ? 16.5 : 10.5, deltaSeconds));
   const size = Math.cbrt(Math.max(0.2, data.mass));
   TARGET_SCALE.set(size, size, size);
-  rig.scale.lerp(TARGET_SCALE, 0.11);
+  rig.scale.lerp(TARGET_SCALE, frameIndependentAlpha(7, deltaSeconds));
 
-  MOVE.subVectors(data.target, data.previousTarget);
+  MOVE.subVectors(data.target, rig.position);
   const speed = Math.min(1, MOVE.length() / 2.2);
-  data.lastSpeed += (speed - data.lastSpeed) * 0.18;
+  data.lastSpeed += (speed - data.lastSpeed) * frameIndependentAlpha(12, deltaSeconds);
   if (MOVE.lengthSq() > 0.00008) {
     MOVE.normalize();
     const targetQuaternion = new THREE.Quaternion().setFromUnitVectors(X_AXIS, MOVE);
-    rig.quaternion.slerp(targetQuaternion, 0.18);
+    rig.quaternion.slerp(targetQuaternion, frameIndependentAlpha(12, deltaSeconds));
   }
 
   const seconds = time * 0.001;

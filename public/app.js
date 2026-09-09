@@ -317,7 +317,7 @@ function setQuality(value) {
   rebuildEffects();
 }
 
-function ensurePlayerMesh(player) {
+function ensurePlayerMesh(player, timing = {}) {
   let rig = playerMeshes.get(player.id);
   if (!rig) {
     rig = createFishRig({ id: player.id, isLocal: player.id === state.clientId, theme: activeTheme });
@@ -327,11 +327,11 @@ function ensurePlayerMesh(player) {
     sceneContext.scene.add(rig);
     playerMeshes.set(player.id, rig);
   }
-  applyFishSnapshot(rig, player);
+  applyFishSnapshot(rig, player, { ...timing, local: player.id === state.clientId });
   return rig;
 }
 
-function ensureWildlifeMesh(actor) {
+function ensureWildlifeMesh(actor, timing = {}) {
   let rig = wildlifeMeshes.get(actor.id);
   if (!rig) {
     rig = createFishRig({ id: `wildlife-${actor.id}`, isLocal: false, theme: activeTheme });
@@ -341,7 +341,7 @@ function ensureWildlifeMesh(actor) {
     sceneContext.scene.add(rig);
     wildlifeMeshes.set(actor.id, rig);
   }
-  applyFishSnapshot(rig, actor);
+  applyFishSnapshot(rig, actor, { ...timing, local: false });
   return rig;
 }
 
@@ -388,10 +388,12 @@ function showRespawn(by) {
 }
 
 function syncSnapshot(changes = null) {
+  const snapshotReceivedAt = performance.now();
+  const timing = { serverTime: state.snapshot.serverTime, receivedAt: snapshotReceivedAt };
   const livePlayers = new Set();
   for (const player of state.snapshot.players) {
     livePlayers.add(player.id);
-    ensurePlayerMesh(player);
+    ensurePlayerMesh(player, timing);
   }
   for (const [id, rig] of playerMeshes) {
     if (!livePlayers.has(id)) {
@@ -404,7 +406,7 @@ function syncSnapshot(changes = null) {
   const liveWildlife = new Set();
   for (const actor of state.snapshot.wildlife) {
     liveWildlife.add(actor.id);
-    ensureWildlifeMesh(actor);
+    ensureWildlifeMesh(actor, timing);
   }
   for (const [id, rig] of wildlifeMeshes) {
     if (!liveWildlife.has(id)) {
@@ -796,8 +798,8 @@ function animate(time) {
     mesh.rotation.y += delta * 0.85;
     if (!settings.reducedEffects) mesh.rotation.z = Math.sin(time * 0.0017 + mesh.position.x) * 0.12;
   }
-  for (const [id, rig] of playerMeshes) animateFishRig(rig, time, id === state.clientId);
-  for (const rig of wildlifeMeshes.values()) animateFishRig(rig, time, false);
+  for (const [id, rig] of playerMeshes) animateFishRig(rig, time, id === state.clientId, delta);
+  for (const rig of wildlifeMeshes.values()) animateFishRig(rig, time, false, delta);
 
   let cameraTarget = playerMeshes.get(state.clientId) || null;
   let cameraMass = state.localPlayer()?.mass || 1;
@@ -809,7 +811,7 @@ function animate(time) {
       1.2 + Math.sin(seconds * 0.56) * 0.8,
       Math.cos(seconds * 0.34) * 2.1,
     );
-    animateFishRig(demoFish, time, true);
+    animateFishRig(demoFish, time, true, delta);
     cameraTarget = demoFish;
     cameraMass = 2.4;
   }

@@ -117,5 +117,6 @@ test('offline shell precaches fish evolution, TTS, progression and skin dependen
   assert.ok(sw.includes("'/game/fish-skins.mjs'"), 'service worker shell must cache deterministic fallback palettes');
   assert.ok(sw.includes("'/game/biomes.js'"), 'service worker shell must cache biome presentation');
   assert.ok(sw.includes("'/game/world-actors.js'"), 'service worker shell must cache world actor presentation');
-  assert.ok(sw.includes("CACHE_NAME = 'abyss-eater-shell-v9'"), 'shell version must match the reconciled visual dependency set');
+  assert.ok(sw.includes("'/game/interpolation.mjs'"), 'service worker shell must cache remote interpolation');
+  assert.ok(sw.includes("CACHE_NAME = 'abyss-eater-shell-v10'"), 'shell version must match the reconciled visual dependency set');
 });
