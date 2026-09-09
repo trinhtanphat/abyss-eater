@@ -169,6 +169,9 @@ export function createInputController({ canvas, joystick, joystickKnob, upButton
   return {
     direction,
     setEnabled,
+    look() {
+      return { yaw: lookYaw, pitch: lookPitch };
+    },
     setPointerEnabled(value) {
       pointerEnabled = Boolean(value);
       if (pointerToggle) pointerToggle.checked = pointerEnabled;
