@@ -117,3 +117,22 @@ test('embedded client exposes accessible quality and reduced-effects settings wi
     assert.ok(worker.includes(marker), `settings bundle must include ${marker}`);
   }
 });
+
+test('embedded client audio is gesture-gated local Web Audio without external media assets', () => {
+  const result = build();
+  assert.equal(result.status, 0, `build must succeed:\n${result.stdout}\n${result.stderr}`);
+  const worker = readFileSync('dist/worker.mjs', 'utf8');
+  for (const marker of [
+    '"/client-audio.mjs":',
+    'AudioContext',
+    'visibilitychange',
+    'playDeath',
+    'playEat',
+    'startAmbience',
+  ]) {
+    assert.ok(worker.includes(marker), `audio bundle must include ${marker}`);
+  }
+  for (const extension of ['.mp3', '.ogg', '.wav']) {
+    assert.equal(worker.includes(extension), false, `audio bundle must not load external ${extension} assets`);
+  }
+});
