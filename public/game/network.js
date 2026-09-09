@@ -1,4 +1,4 @@
-const PROTOCOL_VERSION = 1;
+const PROTOCOL_VERSION = 2;
 const VERSIONED_MESSAGE_TYPES = new Set(['welcome', 'snapshot', 'pong', 'eaten', 'error']);
 
 export function createNetworkClient({
@@ -79,7 +79,7 @@ export function createNetworkClient({
       }
       if (message.type === 'welcome') {
         if (Number.isSafeInteger(message.inputSeq) && message.inputSeq >= 0) inputSeq = message.inputSeq;
-        if (typeof message.resumeKey === 'string' && message.resumeKey) writeResumeKey(message.room || credentials.room, message.resumeKey);
+        if (typeof message.resumeKey === 'string' && message.resumeKey) writeResumeKey(credentials.room, message.resumeKey);
         onWelcome(message);
         return;
       }
