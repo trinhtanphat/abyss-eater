@@ -106,11 +106,13 @@ body.connected #connection-dot { background: #63efb8; }
 #growth-label { color: #78a2ae; font-size: 9px; }
 .growth-track { height: 5px; margin-top: 8px; overflow: hidden; border-radius: 999px; background: rgba(129,213,236,.08); }
 .growth-track i { display: block; width: 0%; height: 100%; border-radius: inherit; background: linear-gradient(90deg, var(--accent), var(--accent-2)); box-shadow: 0 0 14px rgba(102,239,255,.38); transition: width .35s ease; }
-.hud-stats { display: grid; grid-template-columns: repeat(4, 1fr); gap: 7px; margin-top: 12px; }
+.hud-stats { display: grid; grid-template-columns: repeat(3, 1fr); gap: 7px; margin-top: 12px; }
 .hud-stats div { padding: 8px 7px; border-radius: 10px; background: rgba(0,15,25,.27); }
 .hud-stats span, .hud-stats strong { display: block; }
 .hud-stats span { color: #668997; font-size: 8px; text-transform: uppercase; letter-spacing: .09em; }
 .hud-stats strong { margin-top: 2px; color: #e8faff; font-size: 12px; }
+.hunt-stat.prey-stat strong { color: var(--accent-2); }
+.hunt-stat.threat-stat strong { color: #ff9bad; }
 .room-line { margin: 9px 1px 0; color: #5f8290; font-size: 9px; }
 .room-line strong { color: #92bac5; }
 
@@ -203,14 +205,20 @@ body[data-danger="danger"] .danger-indicator { animation: dangerPulse 1.25s ease
   h1 { font-size: clamp(54px, 20vw, 78px); }
   .feature-pills { display: none; }
   .field-row { grid-template-columns: 1fr 1fr; }
-  .leaderboard-card { display: none; }
   .depth-card { right: max(10px, env(safe-area-inset-right)); top: max(10px, env(safe-area-inset-top)); width: 128px; padding: 9px 10px; }
+  .leaderboard-card { right: max(10px, env(safe-area-inset-right)); top: max(70px, calc(env(safe-area-inset-top) + 70px)); width: 128px; padding: 8px 9px; border-radius: 14px; }
+  .leaderboard-card .section-title { gap: 4px; }
+  .leaderboard-card .section-title small { display: none; }
+  .leaderboard-card #leaderboard { margin-top: 5px; }
+  .leaderboard-card .leader-row { grid-template-columns: 20px minmax(0,1fr) auto; gap: 4px; min-height: 21px; padding: 2px 3px; font-size: 8px; }
+  .leaderboard-card .leader-place, .leaderboard-card .leader-score { font-size: 8px; }
+  .leaderboard-card .leader-row:nth-child(n+4) { display: none; }
   .hud-primary { left: max(10px, env(safe-area-inset-left)); top: max(10px, env(safe-area-inset-top)); width: min(210px, calc(100vw - 158px)); min-width: 168px; }
   .hud-logo { font-size: 8px; }
   .connection { font-size: 8px; }
   .hud-stats { grid-template-columns: repeat(2, 1fr); }
   .room-line { display: none; }
-  .danger-indicator { top: 105px; max-width: calc(100vw - 28px); }
+  .danger-indicator { top: 170px; max-width: calc(100vw - 28px); }
   .settings-button { bottom: max(16px, calc(env(safe-area-inset-bottom) + 150px)); }
   .joystick { width: 120px; height: 120px; }
 }
