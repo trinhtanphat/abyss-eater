@@ -34,18 +34,14 @@ test('source Wrangler preserves GameRoom while production D1 binding stays gener
   assert.ok(renderer.includes('ABYSS_EATER_D1_DATABASE_ID'));
 });
 
-test('production deployment fails closed on paid Workers and applies D1 migrations before game deploy', () => {
-  const workflow = readFileSync('.github/workflows/deploy-production.yml', 'utf8');
-  for (const marker of [
-    'Fail closed unless Workers account is free',
-    '/subscriptions',
-    'Paid Workers subscription detected',
-    'wrangler@4.129.1 d1 migrations apply PROFILE_DB --remote',
-    'SESSION_SIGNING_KEY',
-    'dist/wrangler.production.jsonc',
-    'npm run deploy:game',
-  ]) {
-    assert.ok(workflow.includes(marker), `production deploy must include ${marker}`);
+test('GitHub CI never mutates persistent production state', () => {
+  assert.equal(
+    existsSync('.github/workflows/deploy-production.yml'),
+    false,
+    'production delivery belongs to the connected deployment platform, not GitHub Actions',
+  );
+  const ci = readFileSync('.github/workflows/ci.yml', 'utf8');
+  for (const forbidden of ['d1 migrations apply', 'wrangler deploy', 'deploy:game', 'deploy:gateway', 'SESSION_SIGNING_KEY']) {
+    assert.equal(ci.includes(forbidden), false, `CI must not mutate production state: ${forbidden}`);
   }
-  assert.ok(workflow.indexOf('d1 migrations apply PROFILE_DB --remote') < workflow.indexOf('npm run deploy:game'), 'migration must run before game deploy');
 });

@@ -1,40 +1,39 @@
-# Abyss Eater
+﻿# Abyss Eater
 
-**Abyss Eater: Ocean Survival** is a browser-first 3D multiplayer fish survival game. Start small, collect plankton, eat smaller fish, grow in mass, and avoid predators that are larger than you.
+**Abyss Eater: Ocean Survival** is a browser-first 3D multiplayer fish-survival game. Start small, collect marine food, hunt smaller fish, grow in mass, and avoid predators that can eat you.
 
 ## Public alpha
 
-- Procedural 3D ocean built with Three.js 0.185.1.
-- Premium **Stylized** presentation by default with a live-switchable **Deep Sea** theme.
-- Modular lobby, HUD, leaderboard, depth meter, danger indicator, procedural effects and touch joystick.
+- Procedural Three.js 0.185.1 ocean with six presentation biomes: **Sunken Reef**, **Ancient Abyss**, **Twilight Garden**, **Blue Trench**, **Volcanic Rift**, and **Leviathan Depths**. Legacy `stylized` and `deep-sea` settings remain compatible.
+- Server-owned living ecosystem with 24 wildlife fish per room, including prey below starter mass and predators above it.
+- Server-authoritative movement, world bounds, food collection, PvP/wildlife eating, score, growth, death and respawn.
+- Six mass-driven fish evolution silhouettes plus 12 deterministic presentation skin families. A server-verified selected `skinId` always takes precedence over visual fallbacks.
+- Persistent guest progression with opaque signed session credentials, XP, levels, pearls, owned skins, selected skins, best-run stats and durable all-time / UTC-quarter leaderboards.
+- D1 persistence stores server-side session mappings, profiles, cosmetic ownership and idempotent reward checkpoints; movement, snapshots and ordinary input never write D1.
+- Canonical shop rules stay server-side. The client can request a `skinId` but never submits prices, balances or gameplay modifiers.
+- Compact desktop/mobile HUD with score, rank, edible-prey count, threat count, player count, ping, growth, depth and responsive leaderboards.
+- Branded same-origin SVG lobby/HUD assets, bounded eat/growth VFX and localized bioluminescence.
+- Optional Vietnamese voice announcements through lazy-loaded Piper TTS with native `vi-VN` speech-synthesis fallback.
 - Desktop controls: pointer-lock mouse look, pointer steering, camera-relative WASD / arrow keys, Space to swim up, Shift to swim down.
 - Touch controls for phones and tablets.
 - Local graphics presets `auto`, `high`, `medium`, `low`; the UI labels `medium` as **Balanced** without introducing a second persisted quality value.
-- Reduced-effects mode plus gesture-gated local Web Audio settings; presentation settings never alter authoritative gameplay.
-- Server-authoritative movement, world bounds, food collection, player eating, score and respawn.
-- Protocol `v=2` with strict message validation and monotonic input sequences.
-- Per-socket flood guard: 25 messages per 1000 ms window.
-- Spatially bounded, deterministic player collision candidates.
-- Local collision processing stops after the local fish is eaten and respawned, preventing same-input respawn chains.
-- 12-second transient reconnect grace using a rotated opaque room-scoped resume key in `sessionStorage`.
-- Disconnected reconnect slots are non-interactive and do not count toward the 20-player active room cap.
-- User room labels are deterministically mapped into a fixed pool of 64 Durable Objects instead of creating unbounded room names.
-- Room snapshots are coalesced to at most 20 Hz. Food is included only when dirty; player-only snapshots reuse the last food state on the client.
-- Shared Three.js resources and explicit disposal reduce GPU churn during join/leave and plankton replacement.
+- Reduced-effects mode plus gesture-gated local Web Audio/TTS settings; presentation settings never alter authoritative gameplay.
+- Protocol `v=2` with strict message validation, monotonic input sequences and a per-socket flood guard of 25 messages per 1000 ms.
+- Spatially bounded deterministic collision candidates; local collision processing stops after respawn to prevent same-input respawn chains.
+- 12-second reconnect grace using a rotated opaque room-scoped resume key in `sessionStorage`.
+- User room labels map deterministically into a fixed pool of 64 Durable Objects; disconnected slots do not count toward the 20-player active cap.
+- Room snapshots are coalesced to at most 20 Hz. Food and wildlife payloads are sent only when dirty and retained client-side across delta snapshots.
+- Shared Three.js resources and explicit disposal reduce GPU churn during joins, leaves and food replacement.
 - Installable PWA metadata, 192/512 icons and an offline application shell.
 - WebSocket Hibernation API; no perpetual Durable Object game-loop timer.
-- Persistent guest profiles use an opaque signed session credential; profile ids, pearls and inventory are never encoded into the browser token.
-- D1 stores profiles, opaque session mappings, cosmetic ownership, idempotent reward events and durable all-time / quarterly leaderboards.
-- Progression writes occur only at bounded death/disconnect checkpoints; movement, snapshots and ordinary input never write D1.
-- In-game pearls unlock visual-only skins. The client can request a skin id but cannot submit prices, balances or gameplay modifiers.
-- Dependency-free Node build and test pipeline.
+- Dependency-free Node build/test pipeline plus bounded headless visual-review screenshot coverage.
 
 ## Architecture
 
 ```text
 Browser / Three.js / PWA
        |
-       | static files
+       | static files + HTTPS API
        v
 abyss-eater.qs3d.site
 Workers Static Assets (trinhtanphat2403)
@@ -48,31 +47,35 @@ Gateway Worker (trinhtanphat2403)
 abyss-eater.hikvision.workers.dev
 Game Worker (trinhtanphat6666)
        |
-       | authoritative room
-       v
-Durable Object: GameRoom
-  - WebSocket player attachments
-  - fixed 64-room allocation pool
-  - bounded reconnect slots
-  - food state storage
-  - movement authority
-  - spatial collision/eating
-  - <=20 Hz versioned snapshots
+       +--> Durable Object: GameRoom
+       |      - WebSocket player attachments
+       |      - fixed 64-room allocation pool
+       |      - bounded reconnect slots
+       |      - food + 24 wildlife actors
+       |      - movement/collision/eating authority
+       |      - <=20 Hz versioned snapshots
+       |
+       +--> PROFILE_DB (production-injected D1 binding)
+              - opaque session -> profile mapping
+              - XP / level / pearls / best run
+              - owned + selected skins
+              - idempotent reward checkpoints
+              - all-time + UTC-quarter leaderboards
 ```
 
-The browser client is split into small presentation, scene, environment, fish, input, network, state and UI modules under `public/game` and `public/ui`. Presentation modules can change themes, quality, effects, audio and HUD behavior without changing the server-authoritative simulation contract.
+The browser client is split into small presentation, scene, environment, fish, input, network, progression, state and UI modules under `public/`. Presentation code can change biome, quality, effects, audio, TTS, cosmetics and HUD behavior without changing the authoritative simulation contract.
 
-The client renders at display refresh rate and sends movement intent at 10 Hz. Clients never send authoritative position, mass, score, or collision results. Every gameplay WebSocket message carries protocol version `2`; the server rejects malformed, stale, incompatible, or flood traffic before applying simulation work.
+The client renders at display refresh rate and sends movement intent at 10 Hz. Clients never send authoritative position, mass, score, collision results, shop prices or balances. Every gameplay WebSocket message carries protocol version `2`; the server rejects malformed, stale, incompatible or flood traffic before applying simulation work.
 
-Protocol v2 introduced optional food payloads in snapshots so unchanged food does not have to be resent every network update. A v1 browser fails closed on the version mismatch instead of silently misreading the delta format.
+Protocol v2 supports delta snapshots so unchanged food/wildlife data does not need to be resent every network update. Incompatible clients fail closed on the version mismatch instead of silently misreading state.
 
 ## Persistent guest progression
 
-The first profile bootstrap creates a random server-side profile and a separate random session id. The signed browser token contains only that opaque session id, token version and expiry. D1 maps the session id to the profile; clearing the local token intentionally starts a new guest identity on the next bootstrap.
+The first profile bootstrap creates a random server-side profile and a separate opaque session id. The signed browser token contains only that opaque session id, token version and expiry. D1 maps the session id to the profile; clearing the local token intentionally starts a new guest identity on the next bootstrap.
 
-Profile APIs fail closed with `persistence_unavailable` when `PROFILE_DB` or `SESSION_SIGNING_KEY` is unavailable. That failure does **not** disable anonymous realtime play. Rewards are derived from authoritative score/mass/eat deltas at death and disconnect checkpoints and use `<gameSessionId>:<checkpointSeq>` idempotency keys. Each applied reward updates both the all-time leaderboard and the current UTC-quarter season.
+Profile APIs fail closed with `persistence_unavailable` when `PROFILE_DB` or `SESSION_SIGNING_KEY` is unavailable. Anonymous realtime play remains available. Rewards are derived from authoritative score/mass/eat deltas at bounded death/disconnect checkpoints and use `<gameSessionId>:<checkpointSeq>` idempotency keys. Each applied reward updates both the all-time leaderboard and the current UTC-quarter season.
 
-The profile panel displays level, XP progress, pearls, best run, owned skins and durable rankings. Skin prices/unlock rules are canonical server data and skins only change rendering materials.
+The profile panel displays level, XP progress, pearls, best run, owned skins and durable rankings. Skin prices and unlock rules are canonical server data; selected skins change rendering materials only.
 
 ## Reconnect behavior
 
@@ -80,9 +83,13 @@ A successful `welcome` rotates and returns a `resumeKey` plus the current `input
 
 See `docs/runbooks/multiplayer-hardening.md` for the exact protocol, rate, reconnect, snapshot, release and rollback contract.
 
-## PWA behavior
+## PWA and presentation behavior
 
-`public/manifest.webmanifest` supplies standalone-install metadata and maskable-capable install icons. `public/sw.js` caches the same-origin premium application shell and its local module graph, then falls back to the cached root page for offline navigation. Multiplayer itself still requires network access, and Three.js remains loaded from the pinned jsDelivr URL.
+`public/manifest.webmanifest` supplies standalone-install metadata and maskable-capable install icons. `public/sw.js` caches the same-origin application shell, progression modules, fish evolution/skin modules and local SVG assets, then falls back to the cached root page for offline navigation. Multiplayer itself still requires network access; Three.js and the optional Piper runtime remain pinned external dependencies.
+
+The six ocean biomes are presentation-only. `stylized` and `deep-sea` remain valid saved values, while the expanded catalog adds four newer biome ids. Fish cosmetics follow the same authority rule: server-verified purchased/selected cosmetics take priority; deterministic presentation palettes are fallback visuals and never affect gameplay stats.
+
+Vietnamese TTS is opt-in and lazy-loaded. When enabled, the client uses the pinned Piper web runtime/voice path and falls back to native `vi-VN` speech synthesis when Piper is unavailable.
 
 ## Local validation
 
@@ -94,27 +101,27 @@ npm run build
 node --check dist/worker.mjs
 ```
 
-The production origin bundle is written to `dist/worker.mjs`. CI runs the Node 22 tests, build and syntax check on pull requests and `main`.
+The production origin bundle is written to `dist/worker.mjs`. GitHub Actions is intentionally **CI-only**: pull requests and `main` run tests, build and syntax checks, while bounded visual-review runs produce screenshot evidence for presentation changes.
 
-## Cloudflare
+## Delivery
 
-The authoritative game Worker is `abyss-eater` in account `trinhtanphat6666` (`6c5207813df3d5b83b9508125e0e9e12`). `wrangler.jsonc` pins that account and declares the SQLite-backed Durable Object binding `GAME_ROOM -> GameRoom`. Production persistence is intentionally absent from the source config: `scripts/render-production-wrangler.mjs` injects `PROFILE_DB` only from an already-existing `ABYSS_EATER_D1_DATABASE_ID`. Its origin is `https://abyss-eater.hikvision.workers.dev`.
+Production delivery is handled by the connected Cloudflare deployment integration that watches `main`; the repository does not perform production mutation from GitHub Actions.
 
-The `qs3d.site` zone lives in `trinhtanphat2403` (`50afb4fd3c4c7a1f3e1bdb7f22d4af7f`). Production therefore uses `abyss-eater-gateway` on that account. `wrangler.gateway.jsonc` serves `./public` through Workers Static Assets on `https://abyss-eater.qs3d.site` and invokes the gateway Worker first only for `/ws`, `/health` and `/api/*`; those routes proxy to the authoritative Worker in `trinhtanphat6666`. No gameplay state is stored in the gateway.
+The authoritative game Worker is `abyss-eater` in account `trinhtanphat6666` (`6c5207813df3d5b83b9508125e0e9e12`). `wrangler.jsonc` pins that account and declares `GAME_ROOM -> GameRoom`. Production persistence is intentionally absent from the source config: `scripts/render-production-wrangler.mjs` injects `PROFILE_DB` only from an already-existing `ABYSS_EATER_D1_DATABASE_ID`. Its origin is `https://abyss-eater.hikvision.workers.dev`.
 
-Reproducible deploy commands pin Wrangler `4.129.1`. Authoritative deployment requires an existing D1 id; the renderer refuses missing/malformed ids and never creates a database:
+The `qs3d.site` zone lives in `trinhtanphat2403` (`50afb4fd3c4c7a1f3e1bdb7f22d4af7f`). Production uses `abyss-eater-gateway` on that account. `wrangler.gateway.jsonc` serves `./public` through Workers Static Assets on `https://abyss-eater.qs3d.site` and invokes the gateway Worker first only for `/ws`, `/health` and `/api/*`; those routes proxy to the authoritative Worker. No gameplay state is stored in the gateway.
+
+Pinned Wrangler commands remain as explicit reproducible/manual tooling. They are not invoked by GitHub Actions, never create a D1 database, and the production renderer refuses a missing or malformed existing D1 id:
 
 ```bash
 ABYSS_EATER_D1_DATABASE_ID=<existing-d1-uuid> npm run deploy:game
 npm run deploy:gateway
 ```
 
-The production workflow additionally verifies that the Workers account is not on a paid Workers plan, confirms the Worker already has a `SESSION_SIGNING_KEY` secret, applies `migrations/` to `PROFILE_DB`, and only then deploys. The D1 database itself and the signing secret are provisioning prerequisites, not resources created by the repository workflow.
+`SESSION_SIGNING_KEY` and the production D1 database are provisioning prerequisites outside the CI workflow. `/health` reports application version `0.3.0`, protocol version `2`, room-pool size `64`, wildlife-per-room `24` and snapshot cap `20` Hz.
 
-`/health` for the public-alpha delivery release reports application version `0.3.0`, protocol version `2`, room-pool size `64` and snapshot cap `20` Hz.
-
-No paid Cloudflare product or paid-plan setting is enabled by this implementation. Existing account billing/plan state must be checked separately before claiming that the complete production account has zero cost.
+No paid Cloudflare product or paid-plan setting is enabled by this implementation.
 
 ## Still intentionally deferred
 
-Email/OAuth account linking, real-money payments, chat, parties, regional matchmaking, binary snapshots, client-side prediction, full biome/boss progression and external 3D model packs remain separate future work. Persistent guest profiles, pearls, cosmetic skins, bounded wildlife and durable leaderboards are now part of the Carrier 3 baseline.
+Email/OAuth account linking, real-money payments, chat, parties, regional matchmaking, binary snapshots, client-side prediction, dedicated boss encounters, full biome gameplay progression and external authored 3D model packs remain future work. The public alpha already includes persistent guest profiles, opaque sessions, pearls/XP/levels, canonical cosmetic shop/selection, bounded wildlife, six ocean presentation biomes and durable all-time / seasonal leaderboards.
