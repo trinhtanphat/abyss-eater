@@ -1,12 +1,25 @@
 import * as THREE from 'https://cdn.jsdelivr.net/npm/three@0.185.1/build/three.module.js';
 import { cameraRelativeDirection, updateLook } from '/client-input.mjs';
+import { DEFAULT_SETTINGS, normalizeSettings, resolveQualityPreset } from '/client-settings.mjs';
 
 const PROTOCOL_VERSION = 1;
 const VERSIONED_MESSAGE_TYPES = new Set(['welcome', 'snapshot', 'pong', 'eaten', 'error']);
+const SETTINGS_STORAGE_KEY = 'abyss-eater-settings-v1';
 
 const gameRoot = document.querySelector('#game');
 const startScreen = document.querySelector('#start-screen');
 const playButton = document.querySelector('#play-button');
+const settingsButton = document.querySelector('#settings-button');
+const hudSettingsButton = document.querySelector('#hud-settings-button');
+const settingsDialog = document.querySelector('#settings-dialog');
+const qualitySetting = document.querySelector('#quality-setting');
+const reducedEffectsSetting = document.querySelector('#reduced-effects-setting');
+const masterVolume = document.querySelector('#master-volume');
+const musicVolume = document.querySelector('#music-volume');
+const sfxVolume = document.querySelector('#sfx-volume');
+const masterVolumeValue = document.querySelector('#master-volume-value');
+const musicVolumeValue = document.querySelector('#music-volume-value');
+const sfxVolumeValue = document.querySelector('#sfx-volume-value');
 const nameInput = document.querySelector('#player-name');
 const roomInput = document.querySelector('#room-name');
 const hudMass = document.querySelector('#hud-mass');
@@ -17,6 +30,34 @@ const hudStatus = document.querySelector('#hud-status');
 const hudRoom = document.querySelector('#hud-room');
 const toast = document.querySelector('#toast');
 
+function readClientSettings() {
+  try {
+    const stored = localStorage.getItem(SETTINGS_STORAGE_KEY);
+    return normalizeSettings(stored ? JSON.parse(stored) : DEFAULT_SETTINGS);
+  } catch {
+    return { ...DEFAULT_SETTINGS };
+  }
+}
+
+function writeClientSettings(value) {
+  try {
+    localStorage.setItem(SETTINGS_STORAGE_KEY, JSON.stringify(value));
+  } catch {
+    // Local presentation settings are optional and never gate gameplay.
+  }
+}
+
+function qualityEnvironment() {
+  return {
+    width: innerWidth,
+    devicePixelRatio,
+    coarsePointer: matchMedia('(pointer: coarse)').matches,
+  };
+}
+
+let settings = readClientSettings();
+let qualityPreset = resolveQualityPreset(settings, qualityEnvironment());
+
 const scene = new THREE.Scene();
 scene.background = new THREE.Color(0x031722);
 scene.fog = new THREE.FogExp2(0x031722, 0.014);
@@ -25,14 +66,16 @@ const camera = new THREE.PerspectiveCamera(62, innerWidth / innerHeight, 0.1, 40
 camera.position.set(0, 7, 17);
 
 const renderer = new THREE.WebGLRenderer({ antialias: true, powerPreference: 'high-performance' });
-renderer.setPixelRatio(Math.min(devicePixelRatio, 2));
+renderer.setPixelRatio(Math.min(devicePixelRatio, qualityPreset.pixelRatioCap));
 renderer.setSize(innerWidth, innerHeight);
 renderer.outputColorSpace = THREE.SRGBColorSpace;
+renderer.shadowMap.enabled = qualityPreset.shadows;
 gameRoot.appendChild(renderer.domElement);
 
 scene.add(new THREE.HemisphereLight(0x8cecff, 0x001622, 1.25));
 const sun = new THREE.DirectionalLight(0xb5f4ff, 1.1);
 sun.position.set(25, 45, 15);
+sun.castShadow = qualityPreset.shadows;
 scene.add(sun);
 
 const seaFloor = new THREE.Mesh(
@@ -43,15 +86,19 @@ seaFloor.rotation.x = -Math.PI / 2;
 seaFloor.position.y = -28;
 scene.add(seaFloor);
 
-const bubbleGeometry = new THREE.BufferGeometry();
-const bubblePositions = new Float32Array(360 * 3);
-for (let i = 0; i < bubblePositions.length; i += 3) {
-  bubblePositions[i] = (Math.random() * 2 - 1) * 95;
-  bubblePositions[i + 1] = (Math.random() * 2 - 1) * 35;
-  bubblePositions[i + 2] = (Math.random() * 2 - 1) * 95;
+function makeBubblePositions(count) {
+  const positions = new Float32Array(Math.max(0, count) * 3);
+  for (let i = 0; i < positions.length; i += 3) {
+    positions[i] = (Math.random() * 2 - 1) * 95;
+    positions[i + 1] = (Math.random() * 2 - 1) * 35;
+    positions[i + 2] = (Math.random() * 2 - 1) * 95;
+  }
+  return positions;
 }
-bubbleGeometry.setAttribute('position', new THREE.BufferAttribute(bubblePositions, 3));
-const bubbles = new THREE.Points(bubbleGeometry, new THREE.PointsMaterial({ color: 0x80eaff, size: 0.16, transparent: true, opacity: 0.38 }));
+
+const bubbleGeometry = new THREE.BufferGeometry();
+bubbleGeometry.setAttribute('position', new THREE.BufferAttribute(makeBubblePositions(qualityPreset.bubbles), 3));
+const bubbles = new THREE.Points(bubbleGeometry, new THREE.PointsMaterial({ color: 0x80eaff, size: 0.16, transparent: true, opacity: settings.reducedEffects ? 0.22 : 0.38 }));
 scene.add(bubbles);
 
 const playerMeshes = new Map();
@@ -184,6 +231,59 @@ function setStatus(message, connected = false) {
   document.body.classList.toggle('connected', connected);
 }
 
+function updateVolumeOutputs() {
+  masterVolumeValue.textContent = `${Math.round(settings.master * 100)}%`;
+  musicVolumeValue.textContent = `${Math.round(settings.music * 100)}%`;
+  sfxVolumeValue.textContent = `${Math.round(settings.sfx * 100)}%`;
+}
+
+function syncSettingsControls() {
+  qualitySetting.value = settings.quality;
+  reducedEffectsSetting.checked = settings.reducedEffects;
+  masterVolume.value = String(settings.master);
+  musicVolume.value = String(settings.music);
+  sfxVolume.value = String(settings.sfx);
+  updateVolumeOutputs();
+}
+
+function applyVisualSettings() {
+  qualityPreset = resolveQualityPreset(settings, qualityEnvironment());
+  renderer.setPixelRatio(Math.min(devicePixelRatio, qualityPreset.pixelRatioCap));
+  renderer.shadowMap.enabled = qualityPreset.shadows;
+  sun.castShadow = qualityPreset.shadows;
+  bubbles.geometry.setAttribute('position', new THREE.BufferAttribute(makeBubblePositions(qualityPreset.bubbles), 3));
+  bubbles.material.opacity = settings.reducedEffects ? 0.22 : 0.38;
+}
+
+function persistSettingsFromControls(changedControl) {
+  const previous = settings;
+  settings = normalizeSettings({
+    quality: qualitySetting.value,
+    reducedEffects: reducedEffectsSetting.checked,
+    master: Number(masterVolume.value),
+    music: Number(musicVolume.value),
+    sfx: Number(sfxVolume.value),
+  });
+  writeClientSettings(settings);
+  updateVolumeOutputs();
+  if (changedControl === qualitySetting || changedControl === reducedEffectsSetting
+    || previous.quality !== settings.quality || previous.reducedEffects !== settings.reducedEffects) {
+    applyVisualSettings();
+  }
+}
+
+function openSettings() {
+  syncSettingsControls();
+  if (document.pointerLockElement) document.exitPointerLock?.();
+  if (!settingsDialog.open) settingsDialog.showModal();
+}
+
+settingsButton?.addEventListener('click', openSettings);
+hudSettingsButton?.addEventListener('click', openSettings);
+settingsDialog?.addEventListener('input', (event) => persistSettingsFromControls(event.target));
+settingsDialog?.addEventListener('change', (event) => persistSettingsFromControls(event.target));
+syncSettingsControls();
+
 function sanitized(value, fallback, max) {
   return (String(value || '').replace(/[^\p{L}\p{N} _.-]/gu, '').replace(/\s+/g, ' ').trim() || fallback).slice(0, max);
 }
@@ -313,7 +413,7 @@ addEventListener('keyup', (event) => inputKeys.delete(event.code));
 addEventListener('blur', () => inputKeys.clear());
 
 renderer.domElement.addEventListener('click', () => {
-  if (!started || !matchMedia('(pointer: fine)').matches) return;
+  if (!started || settingsDialog?.open || !matchMedia('(pointer: fine)').matches) return;
   renderer.domElement.requestPointerLock?.();
 });
 
@@ -328,7 +428,7 @@ document.addEventListener('pointerlockchange', () => {
   if (!started) return;
   if (document.pointerLockElement === renderer.domElement) {
     showToast('Mouse look active · Esc releases cursor');
-  } else if (matchMedia('(pointer: fine)').matches) {
+  } else if (!settingsDialog?.open && matchMedia('(pointer: fine)').matches) {
     showToast('Mouse released · click the ocean to resume');
   }
 });
@@ -348,7 +448,7 @@ playButton.addEventListener('click', () => {
   document.body.classList.add('playing');
   startScreen.classList.add('hidden');
   connect();
-  if (matchMedia('(pointer: fine)').matches) renderer.domElement.requestPointerLock?.();
+  if (!settingsDialog?.open && matchMedia('(pointer: fine)').matches) renderer.domElement.requestPointerLock?.();
 });
 
 nameInput.value = localStorage.getItem('abyss-eater-name') || nameInput.value;
@@ -358,12 +458,14 @@ setInterval(sendInput, 100);
 setInterval(ping, 2000);
 
 function animate(time) {
-  bubbles.rotation.y = time * 0.000015;
-  bubbles.position.y = Math.sin(time * 0.0002) * 1.4;
+  if (!settings.reducedEffects || Math.floor(time / 50) % 2 === 0) {
+    bubbles.rotation.y = time * 0.000015;
+    bubbles.position.y = Math.sin(time * 0.0002) * 1.4;
 
-  for (const mesh of foodMeshes.values()) {
-    mesh.rotation.x += 0.01;
-    mesh.rotation.y += 0.013;
+    for (const mesh of foodMeshes.values()) {
+      mesh.rotation.x += 0.01;
+      mesh.rotation.y += 0.013;
+    }
   }
 
   for (const [id, mesh] of playerMeshes) {
@@ -402,5 +504,6 @@ addEventListener('resize', () => {
   camera.aspect = innerWidth / innerHeight;
   camera.updateProjectionMatrix();
   renderer.setSize(innerWidth, innerHeight);
-  renderer.setPixelRatio(Math.min(devicePixelRatio, 2));
+  qualityPreset = resolveQualityPreset(settings, qualityEnvironment());
+  renderer.setPixelRatio(Math.min(devicePixelRatio, qualityPreset.pixelRatioCap));
 });
