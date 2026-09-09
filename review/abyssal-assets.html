@@ -1,0 +1,175 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width,initial-scale=1">
+  <title>Abyss Eater — Abyssal Asset Review</title>
+  <style>
+    * { box-sizing: border-box; }
+    html, body { margin: 0; width: 100%; height: 100%; overflow: hidden; background: #020b13; color: #e7fbff; font-family: Inter, ui-sans-serif, system-ui, sans-serif; }
+    canvas { position: fixed; inset: 0; width: 100%; height: 100%; }
+    .header { position: fixed; z-index: 3; left: 34px; top: 28px; pointer-events: none; }
+    .eyebrow { font-size: 12px; letter-spacing: .28em; color: #6ee7ff; font-weight: 800; }
+    h1 { margin: 8px 0 4px; font-size: 30px; letter-spacing: -.035em; }
+    .sub { color: #8eb7c6; font-size: 13px; }
+    .legend { position: fixed; z-index: 3; right: 32px; top: 28px; padding: 12px 15px; border: 1px solid rgba(105,226,255,.22); border-radius: 12px; background: rgba(3,16,26,.68); backdrop-filter: blur(12px); font-size: 12px; line-height: 1.6; color: #a8cdd7; }
+    .legend b { color: #e6fbff; }
+    .label { position: fixed; z-index: 2; transform: translate(-50%, 22px); min-width: 118px; padding: 5px 8px; border: 1px solid rgba(115,226,255,.18); border-radius: 7px; background: rgba(1,11,18,.76); text-align: center; pointer-events: none; box-shadow: 0 6px 22px rgba(0,0,0,.24); }
+    .label strong { display: block; font-size: 10px; letter-spacing: .12em; color: #dffaff; }
+    .label span { font-size: 9px; color: #73dff5; }
+    .label.prey { border-color: rgba(113,255,187,.35); }
+    .label.prey span { color: #78ffc1; }
+    .footer { position: fixed; left: 34px; bottom: 24px; z-index: 3; font-size: 11px; color: #7095a1; letter-spacing: .08em; }
+  </style>
+</head>
+<body>
+  <div class="header">
+    <div class="eyebrow">ABYSS EATER • VISUAL QA</div>
+    <h1>Abyssal Bioluminescence</h1>
+    <div class="sub">Real procedural renderer • evolution silhouette hierarchy • marine food • pulse VFX</div>
+  </div>
+  <div class="legend"><b>Threat readability</b><br>Prey 0.45 → Fry 1 → Leviathan 32<br><b>Cyan pulse</b> = local-player bioluminescence</div>
+  <div class="footer">PR VISUAL REVIEW • NO GAMEPLAY / PROTOCOL CHANGES</div>
+
+  <script type="module">
+    import * as THREE from 'https://cdn.jsdelivr.net/npm/three@0.185.1/build/three.module.js';
+    import { createFishRig, applyFishSnapshot, animateFishRig, createFoodMesh } from '../public/game/fish.js';
+    import { createEffectManager } from '../public/game/effects.js';
+
+    const theme = {
+      fish: {
+        local: 0x52efff,
+        saturation: 0.78,
+        lightness: 0.62,
+        emissiveBoost: 0.5,
+        roughness: 0.44,
+        metalness: 0.08,
+        eye: 0xd8fbff,
+        pupil: 0x04131d,
+      },
+      food: {
+        color: 0xffb85a,
+        emissive: 0xff6b35,
+        emissiveIntensity: 1.35,
+      },
+    };
+
+    const renderer = new THREE.WebGLRenderer({ antialias: true, alpha: false, powerPreference: 'high-performance' });
+    renderer.setPixelRatio(Math.min(1.6, devicePixelRatio || 1));
+    renderer.setSize(innerWidth, innerHeight);
+    renderer.outputColorSpace = THREE.SRGBColorSpace;
+    renderer.toneMapping = THREE.ACESFilmicToneMapping;
+    renderer.toneMappingExposure = 1.18;
+    document.body.prepend(renderer.domElement);
+
+    const scene = new THREE.Scene();
+    scene.background = new THREE.Color(0x020b13);
+    scene.fog = new THREE.FogExp2(0x06131d, 0.021);
+
+    const camera = new THREE.PerspectiveCamera(42, innerWidth / innerHeight, 0.1, 110);
+    camera.position.set(0, 0.4, 42);
+    camera.lookAt(0, -0.2, 0);
+
+    scene.add(new THREE.HemisphereLight(0x9befff, 0x05101a, 2.45));
+    const key = new THREE.DirectionalLight(0xd8faff, 3.4);
+    key.position.set(7, 10, 16);
+    scene.add(key);
+    const rim = new THREE.PointLight(0x704cff, 40, 40, 1.8);
+    rim.position.set(-12, -3, 11);
+    scene.add(rim);
+    const warm = new THREE.PointLight(0xff7b47, 25, 26, 1.8);
+    warm.position.set(11, -7, 10);
+    scene.add(warm);
+
+    const seabed = new THREE.Mesh(
+      new THREE.PlaneGeometry(80, 38),
+      new THREE.MeshStandardMaterial({ color: 0x061a22, roughness: 1, metalness: 0 }),
+    );
+    seabed.rotation.x = -Math.PI / 2;
+    seabed.position.y = -11.2;
+    scene.add(seabed);
+
+    const bubbleGeo = new THREE.BufferGeometry();
+    const bubblePositions = [];
+    for (let i = 0; i < 170; i += 1) bubblePositions.push((Math.random() - .5) * 50, (Math.random() - .5) * 25, (Math.random() - .5) * 20 - 2);
+    bubbleGeo.setAttribute('position', new THREE.Float32BufferAttribute(bubblePositions, 3));
+    const bubbles = new THREE.Points(bubbleGeo, new THREE.PointsMaterial({ color: 0x7edff5, size: .045, transparent: true, opacity: .38, depthWrite: false }));
+    scene.add(bubbles);
+
+    const entries = [
+      { mass: 0.45, tier: 'WILDLIFE PREY', x: 0, y: 8.2, local: false, prey: true },
+      { mass: 1, tier: 'FRY', x: -9.6, y: 4.8 },
+      { mass: 2, tier: 'REEFLING', x: 9.0, y: 4.8 },
+      { mass: 4, tier: 'HUNTER', x: -9.3, y: 0.3, local: true },
+      { mass: 8, tier: 'RAZORFIN', x: 8.7, y: 0.3 },
+      { mass: 16, tier: 'ABYSS PREDATOR', x: -9.4, y: -5.5 },
+      { mass: 32, tier: 'LEVIATHAN', x: 8.8, y: -5.7 },
+    ];
+
+    const rigs = [];
+    for (let index = 0; index < entries.length; index += 1) {
+      const entry = entries[index];
+      const rig = createFishRig({ id: `review-${index}`, isLocal: Boolean(entry.local), theme });
+      applyFishSnapshot(rig, { position: { x: entry.x, y: entry.y, z: 0 }, mass: entry.mass, score: 0, deaths: 0 });
+      rig.position.set(entry.x, entry.y, 0);
+      rig.userData.target.set(entry.x, entry.y, 0);
+      rig.userData.previousTarget.copy(rig.userData.target);
+      rig.rotation.z = index % 2 ? 0.025 : -0.018;
+      scene.add(rig);
+      const label = document.createElement('div');
+      label.className = `label${entry.prey ? ' prey' : ''}`;
+      label.innerHTML = `<strong>${entry.tier}</strong><span>MASS ${entry.mass}</span>`;
+      document.body.appendChild(label);
+      rigs.push({ rig, label, entry });
+    }
+
+    const food = [];
+    for (const [x, y, z] of [[-1.7,-8.7,2],[0,-8.35,2.5],[1.8,-8.7,2]]) {
+      const mesh = createFoodMesh(theme);
+      mesh.position.set(x, y, z);
+      mesh.scale.setScalar(1.2);
+      scene.add(mesh);
+      food.push(mesh);
+    }
+
+    const effects = createEffectManager(scene, { profile: { effectParticles: 18 }, reducedMotion: false });
+    effects.growth(new THREE.Vector3(-9.3, .3, 0));
+    effects.eat(new THREE.Vector3(8.8, -5.7, 0), 320, 0x69efff);
+    setInterval(() => {
+      effects.growth(new THREE.Vector3(-9.3, .3, 0));
+      effects.eat(new THREE.Vector3(8.8, -5.7, 0), 320, 0x69efff);
+    }, 900);
+
+    const projected = new THREE.Vector3();
+    let last = performance.now();
+    function frame(now) {
+      const delta = Math.min(.05, (now - last) / 1000);
+      last = now;
+      for (let i = 0; i < rigs.length; i += 1) {
+        const item = rigs[i];
+        animateFishRig(item.rig, now + i * 130, Boolean(item.entry.local));
+        projected.copy(item.rig.position).project(camera);
+        item.label.style.left = `${(projected.x * .5 + .5) * innerWidth}px`;
+        item.label.style.top = `${(-projected.y * .5 + .5) * innerHeight}px`;
+      }
+      for (let i = 0; i < food.length; i += 1) {
+        food[i].rotation.y += delta * (0.55 + i * .12);
+        food[i].rotation.z = Math.sin(now * .0015 + i) * .12;
+      }
+      bubbles.rotation.z += delta * .012;
+      effects.update(delta);
+      renderer.render(scene, camera);
+      requestAnimationFrame(frame);
+    }
+    requestAnimationFrame(frame);
+
+    addEventListener('resize', () => {
+      camera.aspect = innerWidth / innerHeight;
+      camera.updateProjectionMatrix();
+      renderer.setSize(innerWidth, innerHeight);
+    });
+
+    window.__ABYSS_VISUAL_REVIEW_READY__ = true;
+  </script>
+</body>
+</html>
