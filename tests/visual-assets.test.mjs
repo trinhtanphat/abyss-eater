@@ -6,6 +6,12 @@ import {
   evolutionTierForMass,
   silhouetteForMass,
 } from '../public/game/fish-evolution.mjs';
+import {
+  SKIN_FAMILIES,
+  skinFamilyForId,
+  skinPaletteFor,
+} from '../public/game/fish-skins.mjs';
+import { getTheme } from '../public/game/themes.js';
 
 test('fish evolution tiers preserve the existing log2 mass progression', () => {
   assert.deepEqual(
@@ -73,8 +79,33 @@ test('effect manager owns bounded disposable eat and growth pulse rings', async 
   assert.ok(effects.includes('if (reducedMotion) return;'), 'pulse rings must respect reduced-effects mode');
 });
 
-test('offline shell precaches the fish evolution dependency', async () => {
+test('the approved skin catalog exposes twelve deterministic families', () => {
+  assert.equal(SKIN_FAMILIES.length, 12);
+  assert.equal(new Set(SKIN_FAMILIES.map((skin) => skin.id)).size, 12);
+  assert.equal(skinFamilyForId('player-42').id, skinFamilyForId('player-42').id);
+  assert.ok(skinFamilyForId('player-42').id);
+});
+
+test('skin palettes remain numeric and bounded across ocean themes', () => {
+  for (const themeId of ['stylized', 'deep-sea', 'twilight-garden', 'blue-trench', 'volcanic-rift', 'leviathan-depths']) {
+    const palette = skinPaletteFor('player-42', getTheme(themeId));
+    for (const key of ['body', 'fin', 'accent', 'emissive']) assert.equal(Number.isInteger(palette[key]), true, `${key} must be a numeric hex color`);
+    assert.ok(palette.roughnessOffset >= -0.25 && palette.roughnessOffset <= 0.25);
+    assert.ok(palette.metalnessOffset >= -0.1 && palette.metalnessOffset <= 0.18);
+  }
+});
+
+test('fish renderer consumes deterministic skin palettes without changing its public API', async () => {
+  const fish = await readFile('public/game/fish.js', 'utf8');
+  assert.ok(fish.includes("import { skinPaletteFor } from './fish-skins.mjs';"));
+  assert.ok(fish.includes('skinFamilyId'));
+  assert.ok(fish.includes('skinPaletteFor(id, theme)'));
+  assert.ok(fish.includes('theme.fish.local'), 'local recognition must remain theme-driven bioluminescence');
+});
+
+test('offline shell precaches fish visual dependencies', async () => {
   const sw = await readFile('public/sw.js', 'utf8');
-  assert.ok(sw.includes("'/game/fish-evolution.mjs'"), 'service worker shell must cache the module imported by fish.js');
-  assert.ok(sw.includes("CACHE_NAME = 'abyss-eater-shell-v4'"), 'shell version must advance when its dependency list changes');
+  assert.ok(sw.includes("'/game/fish-evolution.mjs'"), 'service worker shell must cache fish evolution');
+  assert.ok(sw.includes("'/game/fish-skins.mjs'"), 'service worker shell must cache fish skin palettes');
+  assert.ok(sw.includes("CACHE_NAME = 'abyss-eater-shell-v5'"), 'shell version must advance when skin dependency is added');
 });
