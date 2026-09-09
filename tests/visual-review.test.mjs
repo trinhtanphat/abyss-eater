@@ -33,5 +33,6 @@ test('visual review covers Carrier 5 social lobby changes', async () => {
     assert.ok(workflow.includes(`- '${path}'`), `visual review must watch ${path}`);
   }
   assert.ok(workflow.includes('artifacts/social-lobby.png'));
-  assert.ok(workflow.includes('http://127.0.0.1:4173/?visual-review=1'));
+  assert.ok(workflow.includes('python3 -m http.server 4174 --bind 127.0.0.1 --directory public'));
+  assert.ok(workflow.includes('http://127.0.0.1:4174/?visual-review=1'));
 });
