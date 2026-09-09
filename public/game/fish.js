@@ -95,8 +95,9 @@ export function createFishRig({ id, isLocal = false, theme }) {
   mouth.rotation.z = -Math.PI / 2;
   group.add(mouth);
 
+  const glowGeometry = new THREE.SphereGeometry(1.05, 16, 10);
   const glow = new THREE.Mesh(
-    new THREE.SphereGeometry(1.05, 16, 10),
+    glowGeometry,
     new THREE.MeshBasicMaterial({ color: theme.fish.local, transparent: true, opacity: isLocal ? 0.055 : 0, side: THREE.BackSide, depthWrite: false, blending: THREE.AdditiveBlending }),
   );
   glow.scale.copy(body.scale).multiplyScalar(1.18);
@@ -111,6 +112,7 @@ export function createFishRig({ id, isLocal = false, theme }) {
     eyeMaterial,
     pupilMaterial,
     mouthMaterial,
+    glowGeometry,
     glowMaterial: glow.material,
     tailPivot,
     pectoralPivots,
@@ -179,6 +181,21 @@ export function applyFishTheme(rig, theme) {
   data.pupilMaterial.color.setHex(theme.fish.pupil);
   data.mouthMaterial.color.setHex(theme.fish.pupil);
   data.glowMaterial.color.setHex(theme.fish.local);
+}
+
+export function disposeFishRig(rig) {
+  const data = rig?.userData;
+  if (!data) return;
+  const materials = new Set([
+    data.bodyMaterial,
+    data.finMaterial,
+    data.eyeMaterial,
+    data.pupilMaterial,
+    data.mouthMaterial,
+    data.glowMaterial,
+  ]);
+  for (const material of materials) material?.dispose?.();
+  data.glowGeometry?.dispose?.();
 }
 
 export function createFoodMesh(theme) {
