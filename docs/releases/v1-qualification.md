@@ -25,3 +25,16 @@ Qualification enables **no paid service**. No task may upgrade Cloudflare plans,
 Rollback uses the previously verified game Worker and gateway versions through the connected deployment integration or explicit pinned manual tooling. Do not rewrite Durable Object/D1 migration history and do not delete profile/session/report rows.
 
 After rollback, re-run health, shell and WebSocket probes and record new evidence. A rollback is not terminal until the branded domain and authoritative origin both return the expected prior runtime state.
+
+## Terminal V1 evidence
+
+- Release/tag: `v1-full-abc` — **Abyss Eater V1 Full A+B+C**.
+- Qualified source merge: `c55f2db52e82c491d29b47dc29b9c9fb39cb2a05`.
+- Post-merge CI run: `34361234094` — SUCCESS on that exact main SHA.
+- Qualification artifact: `abyss-eater-qualification` from the post-merge CI run.
+- Worker SHA-256: `692fa570d4ae7add90e9a8595eda038dc95f848e0e07bdf34a1763808f326a6e`.
+- Worker build: 300,621 bytes / 44 embedded assets.
+- Live origin and branded probes: PASS for health, home, service worker, and WebSocket join → ping → input.
+- Carrier 6 decision: `JSON_KEEP`; 20-player full snapshot p95 9,926 bytes.
+
+This is the terminal Carrier 7 qualification record. The release tag intentionally names the V1 feature milestone without changing the application's existing `0.3.0` SemVer/health version. No paid service was enabled.
