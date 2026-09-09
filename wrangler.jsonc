@@ -7,13 +7,18 @@
   "workers_dev": true,
   "durable_objects": {
     "bindings": [
-      { "name": "GAME_ROOM", "class_name": "GameRoom" }
+      {
+        "name": "GAME_ROOM",
+        "class_name": "GameRoom"
+      }
     ]
   },
-  "d1_databases": [
-    { "binding": "DB" }
-  ],
   "migrations": [
-    { "tag": "v1", "new_sqlite_classes": ["GameRoom"] }
+    {
+      "tag": "v1",
+      "new_sqlite_classes": [
+        "GameRoom"
+      ]
+    }
   ]
 }

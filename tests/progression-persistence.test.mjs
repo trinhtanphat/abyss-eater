@@ -44,7 +44,7 @@ test('applySessionReward batches an idempotent pending event, profile update, le
   assert.ok(result.reward.xp > 0);
   assert.ok(result.reward.pearls > 0);
   assert.equal(db.batches.length, 1);
-  assert.equal(db.batches[0].length, 4);
+  assert.equal(db.batches[0].length, 5);
   assert.match(db.batches[0][0].sql, /INSERT OR IGNORE INTO reward_events/);
   assert.match(db.batches[0][1].sql, /UPDATE profiles/);
   assert.match(db.batches[0][1].sql, /applied = 0/);
@@ -52,8 +52,10 @@ test('applySessionReward batches an idempotent pending event, profile update, le
   assert.match(db.batches[0][1].sql, /best_mass = MAX\(best_mass, \?\)/);
   assert.match(db.batches[0][2].sql, /INSERT INTO leaderboard_entries/);
   assert.match(db.batches[0][2].sql, /ON CONFLICT\(profile_id, season\)/);
-  assert.match(db.batches[0][3].sql, /UPDATE reward_events/);
-  assert.match(db.batches[0][3].sql, /SET applied = 1/);
+  assert.match(db.batches[0][3].sql, /INSERT INTO leaderboard_entries/);
+  assert.match(db.batches[0][3].sql, /ON CONFLICT\(profile_id, season\)/);
+  assert.match(db.batches[0][4].sql, /UPDATE reward_events/);
+  assert.match(db.batches[0][4].sql, /SET applied = 1/);
 });
 
 test('applySessionReward reports duplicate/no-op when guarded profile update changes zero rows', async () => {
@@ -78,21 +80,21 @@ test('readLeaderboard clamps limit and returns deterministic public rows', async
   assert.match(statement.sql, /ORDER BY l.best_score DESC, l.best_mass DESC, l.updated_at ASC, l.profile_id ASC/);
 });
 
-test('Worker binds validated persistent identity to WebSocket without trusting client profile ids and settles only authoritative deaths', () => {
+test('Worker binds opaque persistent identity and checkpoints authoritative reward deltas', () => {
   const worker = readFileSync('src/worker.template.mjs', 'utf8');
   for (const marker of [
-    "url.pathname === '/api/leaderboard'",
-    "url.searchParams.get('session')",
-    "url.searchParams.delete('session')",
-    "url.searchParams.set('profile'",
-    'async settleDeath(player, now)',
+    "url.pathname === '/api/leaderboard'" ,
+    "url.searchParams.get('session')" ,
+    "url.searchParams.delete('session')" ,
+    'profileForSessionToken',
+    "url.searchParams.set('profile'" ,
+    "url.searchParams.set('skin'" ,
+    'async settleCheckpoint(player, now)',
     'applySessionReward',
-    "`death:${player.room}:${player.id}:${player.deaths + 1}`",
-    'await this.settleDeath(other, now)',
-    'await this.settleDeath(player, now)',
-  ]) {
-    assert.ok(worker.includes(marker), `Worker reward integration must include ${marker}`);
-  }
-  assert.equal(worker.includes("url.searchParams.get('profile')"), true, 'GameRoom may consume only the server-injected profile id');
+    '${player.gameSessionId}:${player.checkpointSeq + 1}',
+    'await this.settleCheckpoint(other, now)',
+    'await this.settleCheckpoint(player, now)',
+    'async detachPlayer(ws)',
+  ]) assert.ok(worker.includes(marker), `Worker reward integration must include ${marker}`);
   assert.equal(worker.includes("wsUrl.searchParams.set('profile'"), false, 'browser must never choose a profile id');
 });

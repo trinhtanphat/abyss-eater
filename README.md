@@ -23,6 +23,10 @@
 - Shared Three.js resources and explicit disposal reduce GPU churn during join/leave and plankton replacement.
 - Installable PWA metadata, 192/512 icons and an offline application shell.
 - WebSocket Hibernation API; no perpetual Durable Object game-loop timer.
+- Persistent guest profiles use an opaque signed session credential; profile ids, pearls and inventory are never encoded into the browser token.
+- D1 stores profiles, opaque session mappings, cosmetic ownership, idempotent reward events and durable all-time / quarterly leaderboards.
+- Progression writes occur only at bounded death/disconnect checkpoints; movement, snapshots and ordinary input never write D1.
+- In-game pearls unlock visual-only skins. The client can request a skin id but cannot submit prices, balances or gameplay modifiers.
 - Dependency-free Node build and test pipeline.
 
 ## Architecture
@@ -35,7 +39,7 @@ Browser / Three.js / PWA
 abyss-eater.qs3d.site
 Workers Static Assets (trinhtanphat2403)
        |
-       | /ws and /health only
+       | /ws, /health and /api/* only
        v
 Gateway Worker (trinhtanphat2403)
        |
@@ -62,6 +66,14 @@ The client renders at display refresh rate and sends movement intent at 10 Hz. C
 
 Protocol v2 introduced optional food payloads in snapshots so unchanged food does not have to be resent every network update. A v1 browser fails closed on the version mismatch instead of silently misreading the delta format.
 
+## Persistent guest progression
+
+The first profile bootstrap creates a random server-side profile and a separate random session id. The signed browser token contains only that opaque session id, token version and expiry. D1 maps the session id to the profile; clearing the local token intentionally starts a new guest identity on the next bootstrap.
+
+Profile APIs fail closed with `persistence_unavailable` when `PROFILE_DB` or `SESSION_SIGNING_KEY` is unavailable. That failure does **not** disable anonymous realtime play. Rewards are derived from authoritative score/mass/eat deltas at death and disconnect checkpoints and use `<gameSessionId>:<checkpointSeq>` idempotency keys. Each applied reward updates both the all-time leaderboard and the current UTC-quarter season.
+
+The profile panel displays level, XP progress, pearls, best run, owned skins and durable rankings. Skin prices/unlock rules are canonical server data and skins only change rendering materials.
+
 ## Reconnect behavior
 
 A successful `welcome` rotates and returns a `resumeKey` plus the current `inputSeq`. The browser stores the key as `abyss-eater-resume:<room-label>` in `sessionStorage`. Reconnecting to the same room label within 12 seconds can resume the same fish identity, position, mass, score and deaths without allowing the disconnected fish to interact while offline.
@@ -86,16 +98,18 @@ The production origin bundle is written to `dist/worker.mjs`. CI runs the Node 2
 
 ## Cloudflare
 
-The authoritative game Worker is `abyss-eater` in account `trinhtanphat6666` (`6c5207813df3d5b83b9508125e0e9e12`). `wrangler.jsonc` pins that account and declares a SQLite-backed Durable Object binding named `GAME_ROOM` using the `GameRoom` class. Its origin is `https://abyss-eater.hikvision.workers.dev`.
+The authoritative game Worker is `abyss-eater` in account `trinhtanphat6666` (`6c5207813df3d5b83b9508125e0e9e12`). `wrangler.jsonc` pins that account and declares the SQLite-backed Durable Object binding `GAME_ROOM -> GameRoom`. Production persistence is intentionally absent from the source config: `scripts/render-production-wrangler.mjs` injects `PROFILE_DB` only from an already-existing `ABYSS_EATER_D1_DATABASE_ID`. Its origin is `https://abyss-eater.hikvision.workers.dev`.
 
-The `qs3d.site` zone lives in `trinhtanphat2403` (`50afb4fd3c4c7a1f3e1bdb7f22d4af7f`). Production therefore uses `abyss-eater-gateway` on that account. `wrangler.gateway.jsonc` serves `./public` through Workers Static Assets on `https://abyss-eater.qs3d.site` and invokes the gateway Worker first only for `/ws` and `/health`; those routes proxy to the authoritative Worker in `trinhtanphat6666`. No gameplay state is stored in the gateway.
+The `qs3d.site` zone lives in `trinhtanphat2403` (`50afb4fd3c4c7a1f3e1bdb7f22d4af7f`). Production therefore uses `abyss-eater-gateway` on that account. `wrangler.gateway.jsonc` serves `./public` through Workers Static Assets on `https://abyss-eater.qs3d.site` and invokes the gateway Worker first only for `/ws`, `/health` and `/api/*`; those routes proxy to the authoritative Worker in `trinhtanphat6666`. No gameplay state is stored in the gateway.
 
-Reproducible deploy commands pin Wrangler `4.129.1`:
+Reproducible deploy commands pin Wrangler `4.129.1`. Authoritative deployment requires an existing D1 id; the renderer refuses missing/malformed ids and never creates a database:
 
 ```bash
-npm run deploy:game
+ABYSS_EATER_D1_DATABASE_ID=<existing-d1-uuid> npm run deploy:game
 npm run deploy:gateway
 ```
+
+The production workflow additionally verifies that the Workers account is not on a paid Workers plan, confirms the Worker already has a `SESSION_SIGNING_KEY` secret, applies `migrations/` to `PROFILE_DB`, and only then deploys. The D1 database itself and the signing secret are provisioning prerequisites, not resources created by the repository workflow.
 
 `/health` for the public-alpha delivery release reports application version `0.3.0`, protocol version `2`, room-pool size `64` and snapshot cap `20` Hz.
 
@@ -103,4 +117,4 @@ No paid Cloudflare product or paid-plan setting is enabled by this implementatio
 
 ## Still intentionally deferred
 
-Accounts, persistent leaderboards, skins, shops, chat, parties, regional matchmaking, binary snapshots, client-side prediction, AI fish/biomes/bosses and external 3D models remain separate future work so the public-alpha networking and delivery baseline stays small, testable and rollback-friendly.
+Email/OAuth account linking, real-money payments, chat, parties, regional matchmaking, binary snapshots, client-side prediction, full biome/boss progression and external 3D model packs remain separate future work. Persistent guest profiles, pearls, cosmetic skins, bounded wildlife and durable leaderboards are now part of the Carrier 3 baseline.

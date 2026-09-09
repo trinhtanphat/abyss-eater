@@ -3,7 +3,7 @@ const ORIGIN = 'abyss-eater.hikvision.workers.dev';
 export default {
   async fetch(request, env) {
     const url = new URL(request.url);
-    const shouldProxy = url.pathname === '/ws' || url.pathname === '/health';
+    const shouldProxy = url.pathname === '/ws' || url.pathname === '/health' || url.pathname.startsWith('/api/');
     if (!shouldProxy) {
       return env.ASSETS.fetch(request);
     }

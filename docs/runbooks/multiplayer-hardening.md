@@ -37,6 +37,17 @@ Server to client includes `v: 2` for `welcome`, `snapshot`, `pong`, `eaten` and 
 
 Protocol v2 is intentionally incompatible with v1 because v2 permits player-only snapshot deltas. An old browser must fail closed and reload instead of silently discarding those snapshots.
 
+## Persistence and progression contract
+
+- Browser identity is a persistent guest token stored locally. The signed token carries only an opaque 64-hex session id, version and expiry; profile id, pearls, score and inventory stay server-side.
+- `migrations/0002_opaque_sessions.sql` maps opaque sessions to profiles. Invalid, expired or deleted tokens do not reveal profile state and fall back to new-guest creation when the client explicitly bootstraps again.
+- Persistence is ready only when both `PROFILE_DB` and `SESSION_SIGNING_KEY` are available. Profile/shop APIs return `persistence_unavailable` otherwise; realtime anonymous play remains available.
+- WebSocket join accepts only the signed `session` token from the browser. The outer Worker resolves it, removes browser authority fields, and injects internal profile id / selected skin / random game-session id into `GameRoom`.
+- Public player snapshots expose `skinId` but never profile id, session id, token or pearl balance. Skins are material/palette changes only.
+- Persistent rewards run only at authoritative death and disconnect boundaries. Each player attachment tracks checkpoint score/mass/eaten baselines and uses `<gameSessionId>:<checkpointSeq>` as the idempotency key.
+- Reconnect preserves the same game-session/checkpoint state and requires the reconnect slot profile id to match the newly server-resolved profile id.
+- Every applied reward upserts both `all-time` and the current UTC-quarter season leaderboard before the reward event is marked applied. No D1 writes occur for ordinary movement, snapshots or ping traffic.
+
 ## Delivery contract
 
 - Authoritative Worker: `abyss-eater`, account `trinhtanphat6666` (`6c5207813df3d5b83b9508125e0e9e12`).
@@ -44,18 +55,20 @@ Protocol v2 is intentionally incompatible with v1 because v2 permits player-only
 - Origin: `abyss-eater.hikvision.workers.dev`.
 - Branded gateway: `abyss-eater-gateway`, account `trinhtanphat2403` (`50afb4fd3c4c7a1f3e1bdb7f22d4af7f`).
 - Branded domain: `abyss-eater.qs3d.site`.
-- `wrangler.gateway.jsonc` serves `./public` through Workers Static Assets and runs gateway code first only for `/ws` and `/health`.
-- Static routes are served from the branded account; `/ws` and `/health` proxy to the authoritative origin.
+- `wrangler.gateway.jsonc` serves `./public` through Workers Static Assets and runs gateway code first only for `/ws`, `/health` and `/api/*`.
+- Static routes are served from the branded account; `/ws`, `/health` and `/api/*` proxy to the authoritative origin.
 - Wrangler is pinned to `4.129.1` in the deploy scripts.
+- Source `wrangler.jsonc` intentionally has no D1 binding. `scripts/render-production-wrangler.mjs` accepts only an existing `ABYSS_EATER_D1_DATABASE_ID` and renders `PROFILE_DB` into `dist/wrangler.production.jsonc`.
+- Production activation requires the Worker to already contain the `SESSION_SIGNING_KEY` secret; the workflow verifies its presence without reading its value.
 
-Deploy authoritative compute before the gateway:
+Deploy authoritative compute before the gateway. The D1 database id below must identify an already-provisioned database:
 
 ```bash
-npm run deploy:game
+ABYSS_EATER_D1_DATABASE_ID=<existing-d1-uuid> npm run deploy:game
 npm run deploy:gateway
 ```
 
-No paid Cloudflare product or paid-plan setting is enabled by these changes.
+Production workflow order is strict: verify tests/build -> prove no paid Workers subscription -> render production config -> verify existing signing secret -> apply D1 migrations -> deploy authoritative Worker -> deploy gateway -> smoke-test. Missing inputs fail before Wrangler mutation. No workflow command creates a D1 database, upgrades a plan, or enables a paid Cloudflare product.
 
 ## PWA contract
 
@@ -86,4 +99,4 @@ After deployment, verify at minimum:
 
 ## Rollback
 
-If protocol v2 or delivery routing causes a production regression, deploy the previously verified game Worker version first and then restore the previously verified gateway version. Do not rewrite Durable Object migration history or delete room storage. After rollback, verify `/health`, static shell delivery, WebSocket join/ping, and active deployment percentage before considering rollback complete.
+If protocol v2, persistence, or delivery routing causes a production regression, deploy the previously verified game Worker version first and then restore the previously verified gateway version. Do not rewrite Durable Object or D1 migration history, delete profile/session rows, or delete room storage. A rollback may stop using new columns/tables but must leave forward-applied migrations intact. After rollback, verify `/health`, static shell delivery, WebSocket join/ping, and active deployment percentage before considering rollback complete.
