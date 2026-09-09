@@ -11,7 +11,8 @@
     "deploy:game": "npm run build && npm run render:production && npx --yes wrangler@4.129.1 deploy --config dist/wrangler.production.jsonc",
     "deploy:gateway": "npx --yes wrangler@4.129.1 deploy --config wrangler.gateway.jsonc",
     "deploy": "npm run deploy:game && npm run deploy:gateway",
-    "render:production": "node scripts/render-production-wrangler.mjs"
+    "render:production": "node scripts/render-production-wrangler.mjs",
+    "profile:scale": "node scripts/profile-scale.mjs"
   },
   "engines": {
     "node": ">=22"

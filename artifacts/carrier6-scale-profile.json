@@ -1,0 +1,72 @@
+{
+  "generatedBy": "npm run profile:scale",
+  "iterationsPerCase": 2000,
+  "snapshotHzCap": 20,
+  "thresholds": {
+    "binaryP95Bytes": 32768,
+    "serializationMsPerSnapshot": 2.5
+  },
+  "decision": "JSON_KEEP",
+  "cases": [
+    {
+      "label": "1-player-full",
+      "count": 2000,
+      "averageBytes": 7541,
+      "p95Bytes": 7541,
+      "messagesPerSecond": 5525.89,
+      "serializationMs": 361.933,
+      "serializationMsPerSnapshot": 0.180966,
+      "estimatedMessagesPerSecond": 20
+    },
+    {
+      "label": "1-player-delta",
+      "count": 2000,
+      "averageBytes": 194,
+      "p95Bytes": 194,
+      "messagesPerSecond": 106733.84,
+      "serializationMs": 18.738,
+      "serializationMsPerSnapshot": 0.009369,
+      "estimatedMessagesPerSecond": 20
+    },
+    {
+      "label": "10-player-full",
+      "count": 2000,
+      "averageBytes": 8649,
+      "p95Bytes": 8649,
+      "messagesPerSecond": 6627.69,
+      "serializationMs": 301.764,
+      "serializationMsPerSnapshot": 0.150882,
+      "estimatedMessagesPerSecond": 20
+    },
+    {
+      "label": "10-player-delta",
+      "count": 2000,
+      "averageBytes": 1302,
+      "p95Bytes": 1302,
+      "messagesPerSecond": 42471.41,
+      "serializationMs": 47.091,
+      "serializationMsPerSnapshot": 0.023545,
+      "estimatedMessagesPerSecond": 20
+    },
+    {
+      "label": "20-player-full",
+      "count": 2000,
+      "averageBytes": 9926,
+      "p95Bytes": 9926,
+      "messagesPerSecond": 6113.67,
+      "serializationMs": 327.136,
+      "serializationMsPerSnapshot": 0.163568,
+      "estimatedMessagesPerSecond": 20
+    },
+    {
+      "label": "20-player-delta",
+      "count": 2000,
+      "averageBytes": 2579,
+      "p95Bytes": 2579,
+      "messagesPerSecond": 26248.99,
+      "serializationMs": 76.193,
+      "serializationMsPerSnapshot": 0.038097,
+      "estimatedMessagesPerSecond": 20
+    }
+  ]
+}
