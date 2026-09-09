@@ -37,4 +37,18 @@ After rollback, re-run health, shell and WebSocket probes and record new evidenc
 - Live origin and branded probes: PASS for health, home, service worker, and WebSocket join → ping → input.
 - Carrier 6 decision: `JSON_KEEP`; 20-player full snapshot p95 9,926 bytes.
 
+## Post-release hardening qualification
+
+- Hotfix release/tag: `v1-full-abc.1` — **Abyss Eater V1 Full A+B+C Hotfix 1**.
+- Qualified hardened runtime source: `86fb47f64dd0d2f36177fe46feab3ad3dd552804`.
+- Post-merge CI run: `34362891440` — SUCCESS on that exact main SHA.
+- Production smoke run: `34362950491` — SUCCESS on that exact main SHA.
+- Visual Review run: `34362572236` — SUCCESS on the merged hotfix tree before merge.
+- Fresh local regression: **234/234 PASS**; Worker build **301,571 bytes / 44 assets**.
+- Worker SHA-256: `b4227be647e329c3279703a6902349ba9d30cf74161a880cb51bd6cc38c6ec99`.
+- Carrier 6 remains `JSON_KEEP`; 20-player full snapshot p95 remains **9,926 bytes**.
+- Live origin and branded probes remain PASS for health, home, service worker, and WebSocket join → ping → input.
+
+The original `v1-full-abc` tag remains immutable at the initial qualified V1 runtime. `v1-full-abc.1` records the privacy/party-boundary and visual-review hardening follow-up without changing application SemVer `0.3.0` or enabling any paid service.
+
 This is the terminal Carrier 7 qualification record. The release tag intentionally names the V1 feature milestone without changing the application's existing `0.3.0` SemVer/health version. No paid service was enabled.
