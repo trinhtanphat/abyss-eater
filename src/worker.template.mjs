@@ -13,6 +13,7 @@ import { DurableObject } from 'cloudflare:workers';
 /*__PROFILE_STORE__*/
 /*__MATCHMAKING__*/
 /*__PARTY__*/
+/*__NETWORK_METRICS__*/
 
 const ASSETS = /*__ASSETS__*/;
 const WORLD_BOUNDS = { x: 80, y: 28, z: 80 };
@@ -558,6 +559,7 @@ export class GameRoom extends DurableObject {
     this.wildlifeDirty = true;
     this.worldDirty = true;
     this.chatState = new Map();
+    this.serializationMetrics = createSerializationMetrics({ maxSamples: 120, reportIntervalMs: 60_000 });
     this.ctx.blockConcurrencyWhile(async () => {
       const stored = await this.ctx.storage.get('food');
       this.food = Array.isArray(stored) && stored.length ? stored : makeFood();
@@ -617,7 +619,17 @@ export class GameRoom extends DurableObject {
     const includeFood = this.foodDirty;
     const includeWildlife = this.wildlifeDirty;
     const includeWorld = this.worldDirty;
-    const payload = JSON.stringify(this.snapshot(includeFood, includeWildlife, includeWorld));
+    const serializeStartedAt = performance.now();
+    const snapshot = this.snapshot(includeFood, includeWildlife, includeWorld);
+    const payload = JSON.stringify(snapshot);
+    this.serializationMetrics.record({
+      bytes: new TextEncoder().encode(payload).byteLength,
+      players: snapshot.players.length,
+      serializeMs: performance.now() - serializeStartedAt,
+      at: now,
+    });
+    const metrics = this.serializationMetrics.takeReport(now);
+    if (metrics) console.log(JSON.stringify({ event: 'snapshot_metrics', ...metrics }));
     for (const { socket } of this.socketsWithPlayers()) {
       if (socket.readyState === WebSocket.OPEN) socket.send(payload);
     }

@@ -773,12 +773,25 @@ sceneContext.scene.add(demoFish);
 setConnectionState('ready', 'Ready', 'Choose a fish name and dive into the ocean.');
 renderProgression();
 void refreshProgression({ profile: true, leaderboard: true });
-setInterval(() => { if (started) network.sendInput(input.direction(), input.boosting()); }, 100);
-setInterval(() => { if (started) network.ping(); }, 2000);
+function sendRoutineInput() {
+  if (!started || document.hidden) return false;
+  return network.sendInput(input.direction(), input.boosting());
+}
+function sendRoutinePing() {
+  if (!started || document.hidden) return false;
+  return network.ping();
+}
+setInterval(sendRoutineInput, 100);
+setInterval(sendRoutinePing, 2000);
 
 document.addEventListener('visibilitychange', () => {
   void audio.setSuspended(document.hidden);
-  if (document.hidden) tts.stop();
+  if (document.hidden) {
+    tts.stop();
+    return;
+  }
+  sendRoutineInput();
+  sendRoutinePing();
 });
 
 function animate(time) {

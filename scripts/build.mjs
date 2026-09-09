@@ -64,6 +64,7 @@ const sessionToken = stripModuleSyntax(await readFile('src/session-token.mjs', '
 const profileStore = stripModuleSyntax(await readFile('src/profile-store.mjs', 'utf8'));
 const matchmaking = stripModuleSyntax(await readFile('src/matchmaking.mjs', 'utf8'));
 const party = stripModuleSyntax(await readFile('src/party.mjs', 'utf8'));
+const networkMetrics = stripModuleSyntax(await readFile('src/network-metrics.mjs', 'utf8'));
 
 let template = await readFile('src/worker.template.mjs', 'utf8');
 template = replaceRequired(template, '/*__GAME_LOGIC__*/', gameLogic);
@@ -79,6 +80,7 @@ template = replaceRequired(template, '/*__SESSION_TOKEN__*/', sessionToken);
 template = replaceRequired(template, '/*__PROFILE_STORE__*/', profileStore);
 template = replaceRequired(template, '/*__MATCHMAKING__*/', matchmaking);
 template = replaceRequired(template, '/*__PARTY__*/', party);
+template = replaceRequired(template, '/*__NETWORK_METRICS__*/', networkMetrics);
 template = replaceRequired(template, '/*__ASSETS__*/', JSON.stringify(assets));
 
 await mkdir('dist', { recursive: true });
