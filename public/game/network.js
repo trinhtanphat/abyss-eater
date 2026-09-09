@@ -41,7 +41,7 @@ export function createNetworkClient({
     protocolBlocked = true;
     shouldReconnect = false;
     clearTimeout(reconnectTimer);
-    onStatus('Upgrade required', false);
+    onStatus('Upgrade required', false, 'upgrade-required');
     onProtocolMismatch();
     if (socket && socket.readyState < WebSocket.CLOSING) socket.close(1002, 'protocol-version');
   }
@@ -49,7 +49,7 @@ export function createNetworkClient({
   function connect({ name, room }) {
     clearTimeout(reconnectTimer);
     if (protocolBlocked) {
-      onStatus('Upgrade required', false);
+      onStatus('Upgrade required', false, 'upgrade-required');
       return;
     }
 
@@ -60,7 +60,7 @@ export function createNetworkClient({
     };
     const resumeKey = readResumeKey(credentials.room);
     shouldReconnect = true;
-    onStatus('Connecting…', false);
+    onStatus('Connecting…', false, 'connecting');
 
     const wsUrl = new URL('/ws', location.href);
     wsUrl.protocol = location.protocol === 'https:' ? 'wss:' : 'ws:';
@@ -69,7 +69,7 @@ export function createNetworkClient({
     if (resumeKey) wsUrl.searchParams.set('resume', resumeKey);
     socket = new WebSocket(wsUrl);
 
-    socket.addEventListener('open', () => onStatus('Online', true));
+    socket.addEventListener('open', () => onStatus('Online', true, 'online'));
     socket.addEventListener('message', (event) => {
       let message;
       try { message = JSON.parse(event.data); } catch { return; }
@@ -94,16 +94,17 @@ export function createNetworkClient({
     });
     socket.addEventListener('close', () => {
       if (protocolBlocked) {
-        onStatus('Upgrade required', false);
+        onStatus('Upgrade required', false, 'upgrade-required');
         return;
       }
-      onStatus(shouldReconnect ? 'Reconnecting…' : 'Offline', false);
+      const state = shouldReconnect ? 'reconnecting' : 'offline';
+      onStatus(shouldReconnect ? 'Reconnecting…' : 'Offline', false, state);
       if (shouldReconnect && credentials) {
         clearTimeout(reconnectTimer);
         reconnectTimer = setTimeout(() => connect(credentials), 1600);
       }
     });
-    socket.addEventListener('error', () => onStatus('Connection issue', false));
+    socket.addEventListener('error', () => onStatus('Connection issue', false, 'offline'));
   }
 
   function disconnect(reconnect = false) {
