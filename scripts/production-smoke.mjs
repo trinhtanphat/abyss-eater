@@ -13,10 +13,14 @@ export const CRITICAL_ASSETS = Object.freeze([
   '/sw.js',
   '/themes.css',
   '/hud-assets.css',
+  '/styles.css',
   '/client-progression.mjs',
   '/client-tts.mjs',
   '/app.js',
   '/game/state.js',
+  '/game/input.js',
+  '/game/network.js',
+  '/game/scene.js',
   '/game/biomes.js',
   '/game/world-actors.js',
   '/game/fish.js',
@@ -54,6 +58,16 @@ export function validateWelcome(message) {
   assert.ok(message?.snapshot && Array.isArray(message.snapshot.players), 'welcome snapshot is required');
   assert.ok(Array.isArray(message.snapshot.hazards) && Array.isArray(message.snapshot.pickups), 'world snapshot is required');
   return message;
+}
+
+export function buildInputMessage(seq, dir = {}, boost = false) {
+  return {
+    type: 'input',
+    v: PROTOCOL_VERSION,
+    seq,
+    dir: { x: dir.x, y: dir.y, z: dir.z },
+    boost: boost === true,
+  };
 }
 
 export function buildWsUrl(base, { name, room, resumeKey = '' } = {}) {
@@ -160,14 +174,12 @@ async function verifyRealtime(base) {
     }
 
     const mover = players[1];
-    mover.socket.send(JSON.stringify({
-      type: 'input',
-      v: PROTOCOL_VERSION,
-      seq: mover.state.welcome.inputSeq + 1,
-      dir: { x: 0.35, y: 0, z: 0.2 },
-    }));
+    const boostSeq = mover.state.welcome.inputSeq + 1;
+    mover.socket.send(JSON.stringify(buildInputMessage(boostSeq, { x: 0.35, y: 0, z: 0.2 }, true)));
     await delay(180);
-    assert.equal(mover.state.errors.length, 0, 'valid movement input must not be rejected');
+    mover.socket.send(JSON.stringify(buildInputMessage(boostSeq + 1, { x: 0, y: 0, z: 0 }, false)));
+    await delay(180);
+    assert.equal(mover.state.errors.length, 0, 'valid boost movement input must not be rejected');
 
     const originalId = players[0].state.welcome.id;
     const originalResumeKey = players[0].state.welcome.resumeKey;
