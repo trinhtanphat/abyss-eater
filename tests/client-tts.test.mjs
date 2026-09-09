@@ -86,7 +86,7 @@ test('Piper failure falls back to native vi-VN speech synthesis', async () => {
   assert.equal(spoken[0].volume, 0.2);
 });
 
-test('game wires Vietnamese TTS only to important events and shell v4', async () => {
+test('game wires Vietnamese TTS only to important events and advances the shell cache', async () => {
   const [html, app, sw] = await Promise.all([
     readFile('public/index.html', 'utf8'),
     readFile('public/app.js', 'utf8'),
@@ -101,6 +101,6 @@ test('game wires Vietnamese TTS only to important events and shell v4', async ()
   assert.ok(app.includes("tts.speak(message.resumed ? 'Đã kết nối lại với cá của bạn.' : 'Đã kết nối. Bạn đã vào đại dương.');"), 'connection must be spoken');
   assert.ok(app.includes('tts.speak(`Bạn đã bị ${message.by || \'một con cá lớn hơn\'} ăn. Đang hồi sinh.`);'), 'death must be spoken');
   assert.ok(app.indexOf('if (changes.scoreDelta >= 50)') < app.indexOf('tts.speak(`Nuốt cá thành công.'), 'TTS must stay inside the fish-devour threshold, not plankton events');
-  assert.ok(sw.includes("const CACHE_NAME = 'abyss-eater-shell-v4';"));
+  assert.ok(sw.includes("const CACHE_NAME = 'abyss-eater-shell-v5';"));
   assert.ok(sw.includes("'/client-tts.mjs'"));
 });
