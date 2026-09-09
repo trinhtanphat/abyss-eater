@@ -46,6 +46,7 @@
       <input id="room-name" maxlength="24" value="ocean-1">
     </label>
     <button id="play-button" type="button">Dive into the abyss</button>
+    <button id="settings-button" class="secondary-button" type="button">Settings</button>
     <p class="controls-hint">Mouse look · WASD / arrows swim · Space up · Shift down · Esc cursor</p>
   </section>
 
@@ -59,7 +60,44 @@
     </div>
     <div class="hud-status"><span id="connection-dot"></span><span id="hud-status">Ready</span></div>
     <div class="hud-room">Room: <strong id="hud-room">ocean-1</strong></div>
+    <button id="hud-settings-button" class="hud-button" type="button">Settings</button>
   </aside>
+
+  <dialog id="settings-dialog" class="settings-dialog" aria-labelledby="settings-title">
+    <form method="dialog" class="settings-card panel">
+      <div class="settings-heading">
+        <div>
+          <p class="eyebrow">PRESENTATION</p>
+          <h2 id="settings-title">Settings</h2>
+        </div>
+        <button id="settings-close" class="icon-button" type="submit" value="close" aria-label="Close settings">×</button>
+      </div>
+
+      <label for="quality-setting">Quality</label>
+      <select id="quality-setting" name="quality">
+        <option value="auto">Auto</option>
+        <option value="low">Low</option>
+        <option value="medium">Medium</option>
+        <option value="high">High</option>
+      </select>
+
+      <label class="checkbox-row" for="reduced-effects-setting">
+        <input id="reduced-effects-setting" name="reducedEffects" type="checkbox">
+        <span>Reduced effects</span>
+      </label>
+
+      <label for="master-volume">Master volume <output id="master-volume-value">65%</output></label>
+      <input id="master-volume" name="master" type="range" min="0" max="1" step="0.05" value="0.65">
+
+      <label for="music-volume">Music volume <output id="music-volume-value">35%</output></label>
+      <input id="music-volume" name="music" type="range" min="0" max="1" step="0.05" value="0.35">
+
+      <label for="sfx-volume">SFX volume <output id="sfx-volume-value">75%</output></label>
+      <input id="sfx-volume" name="sfx" type="range" min="0" max="1" step="0.05" value="0.75">
+
+      <p class="settings-note">Quality and audio settings are local to this browser and never change server-authoritative gameplay.</p>
+    </form>
+  </dialog>
 
   <div id="toast" class="toast" role="status" aria-live="polite"></div>
 
