@@ -43,11 +43,11 @@
       </div>
       <h1>ABYSS<br><em>EATER</em></h1>
       <p class="hero-line">Eat small. Grow huge. Own the abyss.</p>
-      <div class="feature-pills" aria-label="Game features"><span>Realtime PvP</span><span>Server authoritative</span><span>Cross-device</span></div>
+      <div class="feature-pills" aria-label="Game features"><span>Realtime PvP</span><span>Living ecosystem</span><span>Server authoritative</span><span>Cross-device</span></div>
       <div class="lobby-tips">
-        <p><strong>Hunt</strong><span>Consume plankton and smaller fish.</span></p>
-        <p><strong>Survive</strong><span>Keep distance from larger silhouettes.</span></p>
-        <p><strong>Evolve</strong><span>More mass means a bigger ocean presence.</span></p>
+        <p><strong>Hunt</strong><span>Consume plankton and fish marked by your size advantage.</span></p>
+        <p><strong>Survive</strong><span>Keep distance from larger silhouettes and apex hunters.</span></p>
+        <p><strong>Evolve</strong><span>More mass unlocks new prey while changing your speed and scale.</span></p>
       </div>
     </section>
 
@@ -70,7 +70,15 @@
       <div class="hud-topline"><span class="hud-logo"><img class="hud-brand-mark" src="/assets/brand/abyss-eater-mark.svg" alt="">ABYSS EATER</span><span class="connection"><i id="connection-dot"></i><span id="hud-status">Ready</span></span></div>
       <div class="mass-row"><div><span class="metric-label"><i class="metric-icon" style="--metric-icon:url('/assets/ui/icons/mass.svg')"></i>MASS</span><strong id="hud-mass">1.00</strong></div><span id="growth-label"><i class="metric-icon" style="--metric-icon:url('/assets/ui/icons/evolution.svg')"></i>0% evolution</span></div>
       <div class="growth-track" aria-label="Growth progress"><i id="growth-progress"></i></div>
-      <div class="hud-stats"><div><span><i class="metric-icon" style="--metric-icon:url('/assets/ui/icons/jaw.svg')"></i>Score</span><strong id="hud-score">0</strong></div><div><span><i class="metric-icon" style="--metric-icon:url('/assets/ui/icons/crown.svg')"></i>Rank</span><strong id="hud-rank">—</strong></div><div><span>Fish</span><strong id="hud-players">0</strong></div><div><span>Ping</span><strong id="hud-ping">—</strong></div></div>
+        <div class="hud-stats">
+          <div><span><i class="metric-icon" style="--metric-icon:url('/assets/ui/icons/jaw.svg')"></i>Score</span><strong id="hud-score">0</strong></div>
+          <div><span><i class="metric-icon" style="--metric-icon:url('/assets/ui/icons/crown.svg')"></i>Rank</span><strong id="hud-rank">—</strong></div>
+          <div class="hunt-stat prey-stat"><span>Edible</span><strong id="hud-prey">0</strong></div>
+          <div class="hunt-stat threat-stat"><span>Threats</span><strong id="hud-threats">0</strong></div>
+          <div><span>Players</span><strong id="hud-players">0</strong></div>
+          <div><span>Ping</span><strong id="hud-ping">—</strong></div>
+        </div>
+
       <p class="room-line">Current <strong id="hud-room">ocean-1</strong></p>
     </div>
     <aside class="leaderboard-card panel-mini" aria-label="Leaderboard"><div class="section-title"><span><i class="metric-icon" style="--metric-icon:url('/assets/ui/icons/crown.svg')"></i>TOP PREDATORS</span><small>Score</small></div><ol id="leaderboard"></ol></aside>
@@ -101,7 +109,10 @@
       <label class="audio-field" for="master-volume"><span>Master volume <output id="master-volume-value">65%</output></span><input id="master-volume" type="range" min="0" max="1" step="0.05" value="0.65"></label>
       <label class="audio-field" for="music-volume"><span>Music volume <output id="music-volume-value">35%</output></span><input id="music-volume" type="range" min="0" max="1" step="0.05" value="0.35"></label>
       <label class="audio-field" for="sfx-volume"><span>SFX volume <output id="sfx-volume-value">75%</output></span><input id="sfx-volume" type="range" min="0" max="1" step="0.05" value="0.75"></label>
+      <label class="toggle-row compact"><span><strong>Vietnamese voice</strong><small>Local Piper TTS. First use downloads about 63 MB and caches it in your browser.</small></span><input id="tts-enabled-setting" type="checkbox"><i aria-hidden="true"></i></label>
+      <label class="audio-field" for="tts-volume"><span>TTS volume <output id="tts-volume-value">80%</output></span><input id="tts-volume" type="range" min="0" max="1" step="0.05" value="0.8"></label>
     </div>
+    <div class="settings-note"><span>Voice</span><strong>Piper vi_VN-vais1000-medium · VAIS-1000 dataset CC BY 4.0 · no paid TTS service</strong></div>
     <div class="settings-note"><span>Network</span><strong>Protocol v2 · realtime WebSocket · server authoritative</strong></div>
   </aside>
 

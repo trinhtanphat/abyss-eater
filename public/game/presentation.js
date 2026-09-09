@@ -1,4 +1,4 @@
-const THEMES = new Set(['stylized', 'deep-sea']);
+const THEMES = new Set(['stylized', 'deep-sea', 'twilight-garden', 'blue-trench', 'volcanic-rift', 'leviathan-depths']);
 const QUALITIES = new Set(['auto', 'high', 'medium', 'low']);
 
 function normalizedToken(value) {
@@ -45,6 +45,23 @@ export function leaderboard(players, clientId, limit = 5) {
       rank: index + 1,
       isLocal: String(player?.id ?? '') === String(clientId ?? ''),
     }));
+}
+
+export function ecosystemSummary(entities, clientId) {
+  const list = Array.isArray(entities) ? entities : [];
+  const me = list.find((entity) => String(entity?.id) === String(clientId));
+  if (!me) return { prey: 0, threats: 0 };
+  const myMass = Math.max(0.2, numeric(me.mass, 1));
+  let prey = 0;
+  let threats = 0;
+  for (const entity of list) {
+    if (!entity || String(entity.id) === String(clientId)) continue;
+    const mass = numeric(entity.mass, 0);
+    if (mass < 0.2) continue;
+    if (myMass >= mass * 1.15) prey += 1;
+    else if (mass >= myMass * 1.15) threats += 1;
+  }
+  return { prey, threats };
 }
 
 function positionOf(player) {

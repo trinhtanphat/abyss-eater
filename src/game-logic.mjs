@@ -1,4 +1,5 @@
 export const START_MASS = 1;
+export const MIN_EDIBLE_MASS = 0.2;
 export const FOOD_RADIUS = 0.45;
 export const MAX_STEP_SECONDS = 0.25;
 
@@ -58,7 +59,7 @@ export function clampDirection(dir = {}) {
 }
 
 export function radiusForMass(mass) {
-  return Math.cbrt(Math.max(START_MASS, finite(mass) || START_MASS)) * 1.2;
+  return Math.cbrt(Math.max(MIN_EDIBLE_MASS, finite(mass) || START_MASS)) * 1.2;
 }
 
 export function speedForMass(mass) {
@@ -86,7 +87,7 @@ export function canEat(predator, prey) {
   const predatorMass = predator.mass;
   const preyMass = prey.mass;
   if (!Number.isFinite(predatorMass) || !Number.isFinite(preyMass)) return false;
-  if (predatorMass < START_MASS || preyMass < START_MASS) return false;
+  if (predatorMass < MIN_EDIBLE_MASS || preyMass < MIN_EDIBLE_MASS) return false;
   if (predatorMass < preyMass * 1.15) return false;
   const reach = radiusForMass(predatorMass) + radiusForMass(preyMass) * 0.35;
   return distance3(predator.position, prey.position) <= reach;

@@ -1,4 +1,4 @@
-import { dangerLevel, growthProgress, leaderboard } from '../game/presentation.js';
+import { dangerLevel, ecosystemSummary, growthProgress, leaderboard } from '../game/presentation.js';
 
 function text(element, value) {
   if (element) element.textContent = String(value);
@@ -9,6 +9,8 @@ export function createHud(root = document) {
   const score = root.querySelector('#hud-score');
   const rank = root.querySelector('#hud-rank');
   const players = root.querySelector('#hud-players');
+  const prey = root.querySelector('#hud-prey');
+  const threats = root.querySelector('#hud-threats');
   const ping = root.querySelector('#hud-ping');
   const room = root.querySelector('#hud-room');
   const status = root.querySelector('#hud-status');
@@ -41,17 +43,22 @@ export function createHud(root = document) {
     leaderboardRoot.replaceChildren(fragment);
   }
 
-  function render({ snapshot = { players: [] }, clientId = null, bounds = { y: 28 }, room: roomName = 'ocean-1', pingMs = null, statusText = 'Ready', connected = false } = {}) {
+  function render({ snapshot = { players: [], wildlife: [] }, clientId = null, bounds = { y: 28 }, room: roomName = 'ocean-1', pingMs = null, statusText = 'Ready', connected = false } = {}) {
     const list = Array.isArray(snapshot.players) ? snapshot.players : [];
+    const wildlife = Array.isArray(snapshot.wildlife) ? snapshot.wildlife : [];
+    const entities = [...list, ...wildlife];
     const me = list.find((player) => player.id === clientId) || null;
     const allRows = leaderboard(list, clientId, 10);
     const myRank = allRows.find((row) => row.id === clientId)?.rank || '—';
     const topRows = allRows.slice(0, 5);
+    const ecosystem = ecosystemSummary(entities, clientId);
 
     text(mass, me ? Number(me.mass || 1).toFixed(2) : '1.00');
     text(score, me ? Math.max(0, Math.round(Number(me.score) || 0)) : 0);
     text(rank, myRank === '—' ? '—' : `#${myRank}`);
     text(players, list.length);
+    text(prey, ecosystem.prey);
+    text(threats, ecosystem.threats);
     text(ping, pingMs === null ? '—' : `${Math.max(0, Math.round(pingMs))} ms`);
     text(room, roomName);
     text(status, statusText);
@@ -72,7 +79,7 @@ export function createHud(root = document) {
     }
 
     renderLeaderboard(topRows);
-    const threat = dangerLevel(list, clientId, 28);
+    const threat = dangerLevel(entities, clientId, 28);
     if (danger) {
       danger.dataset.level = threat.level;
       danger.hidden = threat.level === 'safe';

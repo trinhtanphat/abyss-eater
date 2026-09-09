@@ -21,6 +21,7 @@ jobs:
     timeout-minutes: 15
     env:
       CF_TELEMETRY_DISABLED: '1'
+      CF_ACCOUNT_ID: 6c5207813df3d5b83b9508125e0e9e12
     steps:
       - name: Checkout
         uses: actions/checkout@v4
@@ -33,7 +34,7 @@ jobs:
       - name: Verify release candidate
         run: npm run check
 
-      - name: Deploy authoritative game Worker
+      - name: Fail closed unless Workers account is free
         env:
           CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN_6666 || secrets.CLOUDFLARE_API_TOKEN }}
         run: |
@@ -42,6 +43,41 @@ jobs:
             echo "::error::Missing CLOUDFLARE_API_TOKEN_6666 (or fallback CLOUDFLARE_API_TOKEN)."
             exit 1
           fi
+          curl --fail --show-error --silent \
+            -H "Authorization: Bearer ${CLOUDFLARE_API_TOKEN}" \
+            "https://api.cloudflare.com/client/v4/accounts/${CF_ACCOUNT_ID}/subscriptions" \
+            > /tmp/subscriptions.json
+          node <<'NODE'
+          const fs = require('node:fs');
+          const response = JSON.parse(fs.readFileSync('/tmp/subscriptions.json', 'utf8'));
+          if (response.success !== true || !Array.isArray(response.result)) {
+            console.error('::error::Could not prove Cloudflare subscription state; refusing production mutation.');
+            process.exit(1);
+          }
+          const active = response.result.filter((item) => !['Cancelled', 'Expired', 'Failed'].includes(item?.state));
+          const workerPlans = active
+            .map((item) => String(item?.rate_plan?.id || ''))
+            .filter((id) => /WORKERS/i.test(id));
+          const paidWorkerPlans = workerPlans.filter((id) => !/FREE/i.test(id));
+          if (paidWorkerPlans.length) {
+            console.error(`::error::Paid Workers subscription detected (${paidWorkerPlans.join(', ')}); production mutation refused.`);
+            process.exit(1);
+          }
+          console.log(workerPlans.length ? `Confirmed free Workers plan: ${workerPlans.join(', ')}` : 'No paid Workers subscription found; default Workers Free plan accepted.');
+          NODE
+
+      - name: Apply Carrier 3 D1 migrations
+        env:
+          CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN_6666 || secrets.CLOUDFLARE_API_TOKEN }}
+        run: |
+          set -euo pipefail
+          npx --yes wrangler@4.129.1 d1 migrations apply DB --remote --config wrangler.jsonc
+
+      - name: Deploy authoritative game Worker
+        env:
+          CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN_6666 || secrets.CLOUDFLARE_API_TOKEN }}
+        run: |
+          set -euo pipefail
           npm run deploy:game
 
       - name: Deploy branded gateway Worker and static assets
@@ -69,14 +105,26 @@ jobs:
             grep -Fq '"protocolVersion":2' <<<"$body"
             grep -Fq '"roomPoolSize":64' <<<"$body"
             grep -Fq '"snapshotHzCap":20' <<<"$body"
+            grep -Fq '"wildlifePerRoom":24' <<<"$body"
           done
 
-      - name: Verify branded premium shell
+      - name: Verify branded premium shell and Vietnamese TTS
         run: |
           set -euo pipefail
-          html="$(curl --fail --show-error --silent --retry 5 --retry-all-errors --max-time 20 https://abyss-eater.qs3d.site/)"
+          base=https://abyss-eater.qs3d.site
+          html="$(curl --fail --show-error --silent --retry 5 --retry-all-errors --max-time 20 "$base/")"
+          app="$(curl --fail --show-error --silent --retry 5 --retry-all-errors --max-time 20 "$base/app.js")"
+          tts="$(curl --fail --show-error --silent --retry 5 --retry-all-errors --max-time 20 "$base/client-tts.mjs")"
+          sw="$(curl --fail --show-error --silent --retry 5 --retry-all-errors --max-time 20 "$base/sw.js")"
           grep -Fq 'ABYSS' <<<"$html"
           grep -Fq 'Deep Sea' <<<"$html"
           grep -Fq 'id="leaderboard"' <<<"$html"
+          grep -Fq 'id="hud-prey"' <<<"$html"
+          grep -Fq 'id="hud-threats"' <<<"$html"
           grep -Fq 'id="touch-joystick"' <<<"$html"
+          grep -Fq 'id="tts-enabled-setting"' <<<"$html"
           grep -Fq '/bootstrap.js' <<<"$html"
+          grep -Fq "createTtsController" <<<"$app"
+          grep -Fq "vi_VN-vais1000-medium" <<<"$tts"
+          grep -Fq "@mintplex-labs/piper-tts-web@1.0.5" <<<"$tts"
+          grep -Fq "abyss-eater-shell-v5" <<<"$sw"
