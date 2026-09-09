@@ -1,5 +1,6 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
+import { readFile } from 'node:fs/promises';
 import {
   EVOLUTION_TIERS,
   evolutionTierForMass,
@@ -32,4 +33,16 @@ test('the evolution catalog exposes six unique readable silhouettes', () => {
   assert.ok(profiles[5].body[0] > profiles[0].body[0], 'leviathan body must be longer than fry body');
   assert.ok(profiles[5].mouthScale > profiles[0].mouthScale, 'leviathan jaw cue must be stronger than fry');
   assert.ok(profiles[5].spineCount > profiles[0].spineCount, 'leviathan must expose more silhouette spines than fry');
+});
+
+test('fish renderer applies evolution silhouettes and localized bioluminescence', async () => {
+  const fish = await readFile('public/game/fish.js', 'utf8');
+
+  assert.ok(fish.includes("import { silhouetteForMass } from './fish-evolution.mjs';"), 'fish renderer must consume the deterministic visual profile');
+  assert.ok(fish.includes('function applyEvolutionSilhouette'), 'fish renderer must have a bounded tier application path');
+  assert.ok(fish.includes('data.appliedEvolutionTier'), 'fish rig must cache the applied visual tier');
+  assert.ok(fish.includes('gillAccents'), 'local recognition must include gill accents');
+  assert.ok(fish.includes('lateralLines'), 'local recognition must include lateral-line accents');
+  assert.ok(fish.includes('biolumeMaterial'), 'localized accents must use a dedicated material');
+  assert.ok(fish.includes('data.biolumeMaterial?.dispose?.();'), 'per-rig bioluminescence material must be disposed');
 });
