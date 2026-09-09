@@ -95,3 +95,25 @@ test('embedded client uses a capability-aware bootstrap with explicit system sta
     assert.ok(worker.includes(marker), `capability bootstrap bundle must include ${marker}`);
   }
 });
+
+test('embedded client exposes accessible quality and reduced-effects settings without changing protocol', () => {
+  const result = build();
+  assert.equal(result.status, 0, `build must succeed:\n${result.stdout}\n${result.stderr}`);
+  const worker = readFileSync('dist/worker.mjs', 'utf8');
+  for (const marker of [
+    '"/client-settings.mjs":',
+    'id=\\"settings-dialog\\"',
+    'id=\\"quality-setting\\"',
+    'id=\\"reduced-effects-setting\\"',
+    'value=\\"auto\\"',
+    'value=\\"low\\"',
+    'value=\\"medium\\"',
+    'value=\\"high\\"',
+    'abyss-eater-settings-v1',
+    'prefers-reduced-motion',
+    'pixelRatioCap',
+    'v: PROTOCOL_VERSION',
+  ]) {
+    assert.ok(worker.includes(marker), `settings bundle must include ${marker}`);
+  }
+});
