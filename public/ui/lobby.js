@@ -9,7 +9,14 @@ const STORAGE = Object.freeze({
   pointer: 'abyss-eater-pointer-steering',
 });
 
-export function createLobby({ onPlay = () => {}, onTheme = () => {}, onQuality = () => {}, onPointer = () => {} } = {}) {
+export function createLobby({
+  onPlay = () => {},
+  onTheme = () => {},
+  onQuality = () => {},
+  onPointer = () => {},
+  onSettingsOpen = () => {},
+  onSettingsClose = () => {},
+} = {}) {
   const panel = document.querySelector('#start-screen');
   const playButton = document.querySelector('#play-button');
   const nameInput = document.querySelector('#player-name');
@@ -67,8 +74,19 @@ export function createLobby({ onPlay = () => {}, onTheme = () => {}, onQuality =
   }
 
   function closeSettings() {
+    const wasOpen = Boolean(settingsPanel?.classList.contains('open'));
     settingsPanel?.classList.remove('open');
+    document.body.classList.remove('settings-open');
     settingsButton?.setAttribute('aria-expanded', 'false');
+    if (wasOpen) onSettingsClose();
+  }
+
+  function openSettings() {
+    settingsPanel?.classList.add('open');
+    document.body.classList.add('settings-open');
+    settingsButton?.setAttribute('aria-expanded', 'true');
+    if (document.pointerLockElement) document.exitPointerLock?.();
+    onSettingsOpen();
   }
 
   function applyThemeSelection(rawValue) {
@@ -111,9 +129,8 @@ export function createLobby({ onPlay = () => {}, onTheme = () => {}, onQuality =
   settingsPointerToggle?.addEventListener('change', () => applyPointerSelection(settingsPointerToggle.checked));
 
   settingsButton?.addEventListener('click', () => {
-    const next = !settingsPanel?.classList.contains('open');
-    settingsPanel?.classList.toggle('open', next);
-    settingsButton.setAttribute('aria-expanded', String(next));
+    if (settingsPanel?.classList.contains('open')) closeSettings();
+    else openSettings();
   });
   settingsClose?.addEventListener('click', closeSettings);
 
@@ -134,6 +151,7 @@ export function createLobby({ onPlay = () => {}, onTheme = () => {}, onQuality =
     persist,
     hide,
     show,
+    openSettings,
     closeSettings,
     setThemeOptions(ids) {
       const current = normalizeTheme(themeSelect.value);
