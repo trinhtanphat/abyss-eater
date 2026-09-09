@@ -1,6 +1,7 @@
 import * as THREE from 'https://cdn.jsdelivr.net/npm/three@0.185.1/build/three.module.js';
 import { silhouetteForMass } from './fish-evolution.mjs';
 import { skinVisual } from './skins.js';
+import { skinFamilyForId, skinPaletteFor } from './fish-skins.mjs';
 
 const BODY_GEOMETRY = new THREE.SphereGeometry(1, 26, 18);
 const TAIL_GEOMETRY = new THREE.ConeGeometry(0.92, 1.35, 3);
@@ -31,6 +32,11 @@ function fishBaseColor(id, isLocal, theme) {
   return new THREE.Color().setHSL(idHue(id), theme.fish.saturation, theme.fish.lightness);
 }
 
+function materialValue(value, fallback, min = 0, max = 1) {
+  const number = Number(value);
+  return Math.max(min, Math.min(max, Number.isFinite(number) ? number : fallback));
+}
+
 function makeBodyMaterial(id, isLocal, theme) {
   const color = fishBaseColor(id, isLocal, theme);
   const emissive = color.clone().multiplyScalar(isLocal ? theme.fish.emissiveBoost : theme.fish.emissiveBoost * 0.42);
@@ -46,26 +52,28 @@ function makeBodyMaterial(id, isLocal, theme) {
 function applyFishAppearance(rig, theme) {
   const data = rig.userData;
   const visual = skinVisual(data.skinId);
-  const bodyColor = visual ? new THREE.Color(visual.bodyColor) : fishBaseColor(data.id, data.isLocal, theme);
-  const finColor = visual ? new THREE.Color(visual.accentColor) : bodyColor.clone();
+  const palette = skinPaletteFor(data.skinId || data.id, theme);
+  const bodyColor = visual ? new THREE.Color(visual.bodyColor) : new THREE.Color(palette.body);
+  const finColor = visual ? new THREE.Color(visual.accentColor) : new THREE.Color(palette.fin);
   const emissive = visual
     ? new THREE.Color(visual.emissive)
-    : bodyColor.clone().multiplyScalar(data.isLocal ? theme.fish.emissiveBoost : theme.fish.emissiveBoost * 0.42);
+    : new THREE.Color(palette.emissive).multiplyScalar(data.isLocal ? 1 : 0.72);
 
   data.bodyMaterial.color.copy(bodyColor);
   data.bodyMaterial.emissive.copy(emissive);
-  data.bodyMaterial.roughness = theme.fish.roughness;
-  data.bodyMaterial.metalness = theme.fish.metalness;
+  data.bodyMaterial.roughness = materialValue(theme.fish.roughness + palette.roughnessOffset, theme.fish.roughness);
+  data.bodyMaterial.metalness = materialValue(theme.fish.metalness + palette.metalnessOffset, theme.fish.metalness);
   data.finMaterial.color.copy(finColor);
   data.finMaterial.emissive.copy(emissive);
-  data.finMaterial.roughness = Math.min(1, theme.fish.roughness + 0.12);
-  data.finMaterial.metalness = theme.fish.metalness;
+  data.finMaterial.roughness = materialValue(theme.fish.roughness + 0.12 + palette.roughnessOffset, theme.fish.roughness + 0.12);
+  data.finMaterial.metalness = materialValue(theme.fish.metalness + palette.metalnessOffset, theme.fish.metalness);
   data.eyeMaterial.color.setHex(theme.fish.eye);
   data.eyeMaterial.emissive.setHex(theme.fish.eye);
   data.pupilMaterial.color.setHex(theme.fish.pupil);
   data.mouthMaterial.color.setHex(theme.fish.pupil);
-  data.biolumeMaterial.color.set(visual?.accentColor || theme.fish.local);
-  data.glowMaterial.color.set(visual?.emissive || theme.fish.local);
+  data.biolumeMaterial.color.setHex(theme.fish.local);
+  data.glowMaterial.color.setHex(theme.fish.local);
+  data.skinFamilyId = skinFamilyForId(data.skinId || data.id).id;
 }
 
 function applyEvolutionSilhouette(rig, mass) {
@@ -234,6 +242,7 @@ export function createFishRig({ id, isLocal = false, theme }) {
     appliedEvolutionTier: null,
     theme,
     skinId: '',
+    skinFamilyId: skinFamilyForId(id).id,
     target: new THREE.Vector3(),
     previousTarget: new THREE.Vector3(),
     mass: 1,
@@ -241,6 +250,7 @@ export function createFishRig({ id, isLocal = false, theme }) {
     deaths: 0,
     lastSpeed: 0,
   };
+  applyFishAppearance(group, theme);
   applyEvolutionSilhouette(group, 1);
   return group;
 }
