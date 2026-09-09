@@ -3,8 +3,18 @@ import assert from 'node:assert/strict';
 
 import { getTheme, themeIds } from '../public/game/themes.js';
 
-test('theme registry exposes stylized first and deep-sea as an additive mode', () => {
-  assert.deepEqual(themeIds(), ['stylized', 'deep-sea']);
+const EXPECTED_THEME_IDS = [
+  'stylized',
+  'deep-sea',
+  'twilight-garden',
+  'blue-trench',
+  'volcanic-rift',
+  'leviathan-depths',
+];
+
+test('theme registry keeps stylized first and deep-sea compatible inside the biome catalog', () => {
+  assert.deepEqual(themeIds(), EXPECTED_THEME_IDS);
+  assert.deepEqual(themeIds().slice(0, 2), ['stylized', 'deep-sea']);
   assert.equal(getTheme().id, 'stylized');
   assert.equal(getTheme('deep-sea').id, 'deep-sea');
 });

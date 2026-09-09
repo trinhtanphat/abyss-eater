@@ -14,6 +14,8 @@ test('theme normalization keeps supported modes and defaults to stylized', () =>
   assert.equal(normalizeTheme('stylized'), 'stylized');
   assert.equal(normalizeTheme('deep-sea'), 'deep-sea');
   assert.equal(normalizeTheme('DEEP-SEA'), 'deep-sea');
+  for (const value of ['twilight-garden', 'blue-trench', 'volcanic-rift', 'leviathan-depths']) assert.equal(normalizeTheme(value), value);
+  assert.equal(normalizeTheme('VOLCANIC-RIFT'), 'volcanic-rift');
   assert.equal(normalizeTheme('unknown'), 'stylized');
   assert.equal(normalizeTheme(null), 'stylized');
 });

@@ -1,0 +1,86 @@
+.hud-brand-mark {
+  width: 24px;
+  height: 24px;
+  display: inline-block;
+  object-fit: contain;
+  filter: drop-shadow(0 0 10px rgba(102, 239, 255, .22));
+}
+
+.hud-brand-mark.compact-mark {
+  width: 48px;
+  height: 48px;
+  margin-bottom: 10px;
+}
+
+.lobby-brand-mark {
+  width: 58px;
+  height: 58px;
+  flex: 0 0 auto;
+}
+
+.hud-logo {
+  display: inline-flex;
+  align-items: center;
+  gap: 7px;
+}
+
+.hud-logo .hud-brand-mark {
+  width: 18px;
+  height: 18px;
+}
+
+.metric-icon {
+  --metric-icon: none;
+  width: 13px;
+  height: 13px;
+  display: inline-block;
+  flex: 0 0 auto;
+  vertical-align: -2px;
+  margin-right: 4px;
+  background: currentColor;
+  -webkit-mask: var(--metric-icon) center / contain no-repeat;
+  mask: var(--metric-icon) center / contain no-repeat;
+  filter: drop-shadow(0 0 7px rgba(102, 239, 255, .24));
+}
+
+.metric-label,
+#growth-label,
+.hud-stats span,
+.section-title > span {
+  display: inline-flex;
+  align-items: center;
+}
+
+#growth-label .metric-icon {
+  color: var(--accent-2);
+}
+
+.danger-icon .metric-icon {
+  width: 20px;
+  height: 20px;
+  margin: 0;
+}
+
+.settings-button .metric-icon {
+  width: 18px;
+  height: 18px;
+  margin: 0;
+  color: var(--accent);
+}
+
+@media (max-width: 720px) {
+  .lobby-brand-mark {
+    width: 46px;
+    height: 46px;
+  }
+
+  .hud-logo .hud-brand-mark {
+    width: 16px;
+    height: 16px;
+  }
+
+  .metric-icon {
+    width: 12px;
+    height: 12px;
+  }
+}
