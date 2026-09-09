@@ -1,6 +1,7 @@
 import { DurableObject } from 'cloudflare:workers';
 
 /*__GAME_LOGIC__*/
+/*__PROTOCOL__*/
 
 const ASSETS = /*__ASSETS__*/;
 const WORLD_BOUNDS = { x: 80, y: 28, z: 80 };
