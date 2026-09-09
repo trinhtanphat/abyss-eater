@@ -26,6 +26,8 @@ export function createGameScene(gameRoot, { theme, quality = 'auto', reducedMoti
   const cameraTarget = new THREE.Vector3();
   const desiredCamera = new THREE.Vector3();
   const lookTarget = new THREE.Vector3();
+  const cameraForward = new THREE.Vector3(0, 0, -1);
+  const worldUp = new THREE.Vector3(0, 1, 0);
 
   function applyQuality(nextQuality) {
     profile = qualityProfile(nextQuality);
@@ -58,19 +60,25 @@ export function createGameScene(gameRoot, { theme, quality = 'auto', reducedMoti
     impulse = Math.min(1.4, Math.max(impulse, amount));
   }
 
-  function follow(target, mass = 1, delta = 1 / 60) {
+  function follow(target, mass = 1, delta = 1 / 60, look = {}) {
     if (!target) {
       lookTarget.set(0, 0, 0);
       camera.lookAt(lookTarget);
       return;
     }
     const zoom = Math.cbrt(Math.max(1, Number(mass) || 1));
-    cameraTarget.copy(target.position || target);
-    desiredCamera.set(
-      cameraTarget.x + 2.6 * zoom,
-      cameraTarget.y + 5.0 * zoom,
-      cameraTarget.z + 13.2 * zoom,
+    const yaw = Number(look.yaw) || 0;
+    const pitch = Number(look.pitch) || 0;
+    const cosPitch = Math.cos(pitch);
+    cameraForward.set(
+      -Math.sin(yaw) * cosPitch,
+      Math.sin(pitch),
+      -Math.cos(yaw) * cosPitch,
     );
+    cameraTarget.copy(target.position || target);
+    desiredCamera.copy(cameraTarget)
+      .addScaledVector(cameraForward, -13.2 * zoom)
+      .addScaledVector(worldUp, 4.2 * zoom);
     const smoothing = 1 - Math.pow(1 - CAMERA.follow, Math.max(1, delta * 60));
     camera.position.lerp(desiredCamera, smoothing);
     if (impulse > 0.001) {
@@ -81,7 +89,7 @@ export function createGameScene(gameRoot, { theme, quality = 'auto', reducedMoti
     } else {
       impulse = 0;
     }
-    lookTarget.copy(cameraTarget);
+    lookTarget.copy(cameraTarget).addScaledVector(cameraForward, 4.5 * zoom);
     camera.lookAt(lookTarget);
   }
 
