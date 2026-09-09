@@ -115,7 +115,14 @@ jobs:
           html="$(curl --fail --show-error --silent --retry 5 --retry-all-errors --max-time 20 "$base/")"
           app="$(curl --fail --show-error --silent --retry 5 --retry-all-errors --max-time 20 "$base/app.js")"
           tts="$(curl --fail --show-error --silent --retry 5 --retry-all-errors --max-time 20 "$base/client-tts.mjs")"
+          progression="$(curl --fail --show-error --silent --retry 5 --retry-all-errors --max-time 20 "$base/client-progression.mjs")"
+          skins="$(curl --fail --show-error --silent --retry 5 --retry-all-errors --max-time 20 "$base/game/skins.js")"
           sw="$(curl --fail --show-error --silent --retry 5 --retry-all-errors --max-time 20 "$base/sw.js")"
+          expected_cache="$(grep -Eo 'abyss-eater-shell-v[0-9]+' public/sw.js | head -n 1)"
+          if [ -z "$expected_cache" ]; then
+            echo "::error::Could not derive expected service-worker cache marker from public/sw.js."
+            exit 1
+          fi
           grep -Fq 'ABYSS' <<<"$html"
           grep -Fq 'Deep Sea' <<<"$html"
           grep -Fq 'id="leaderboard"' <<<"$html"
@@ -127,4 +134,6 @@ jobs:
           grep -Fq "createTtsController" <<<"$app"
           grep -Fq "vi_VN-vais1000-medium" <<<"$tts"
           grep -Fq "@mintplex-labs/piper-tts-web@1.0.5" <<<"$tts"
-          grep -Fq "abyss-eater-shell-v5" <<<"$sw"
+          grep -Fq "createProgressionClient" <<<"$progression"
+          grep -Fq "skinVisual" <<<"$skins"
+          grep -Fq "$expected_cache" <<<"$sw"
