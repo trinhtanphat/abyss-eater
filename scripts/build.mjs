@@ -37,11 +37,6 @@ const assets = {};
 for (const file of await listFiles(PUBLIC_DIR)) {
   assets[routeFor(file)] = { body: await readFile(file, 'utf8'), contentType: contentTypeFor(file) };
 }
-// Camera-relative input remains a source module shared with its Node tests.
-assets['/client-input.mjs'] = {
-  body: await readFile('src/client-input.mjs', 'utf8'),
-  contentType: 'text/javascript; charset=utf-8',
-};
 
 function stripExports(source) {
   return source
