@@ -5,8 +5,12 @@
 ## Public alpha
 
 - Procedural 3D ocean built with Three.js 0.185.1.
-- Desktop controls: pointer-lock mouse look, camera-relative WASD / arrow keys, Space to swim up, Shift to swim down.
+- Premium **Stylized** presentation by default with a live-switchable **Deep Sea** theme.
+- Modular lobby, HUD, leaderboard, depth meter, danger indicator, procedural effects and touch joystick.
+- Desktop controls: pointer-lock mouse look, pointer steering, camera-relative WASD / arrow keys, Space to swim up, Shift to swim down.
 - Touch controls for phones and tablets.
+- Local graphics presets `auto`, `high`, `medium`, `low`; the UI labels `medium` as **Balanced** without introducing a second persisted quality value.
+- Reduced-effects mode plus gesture-gated local Web Audio settings; presentation settings never alter authoritative gameplay.
 - Server-authoritative movement, world bounds, food collection, player eating, score and respawn.
 - Protocol `v=2` with strict message validation and monotonic input sequences.
 - Per-socket flood guard: 25 messages per 1000 ms window.
@@ -16,7 +20,7 @@
 - Disconnected reconnect slots are non-interactive and do not count toward the 20-player active room cap.
 - User room labels are deterministically mapped into a fixed pool of 64 Durable Objects instead of creating unbounded room names.
 - Room snapshots are coalesced to at most 20 Hz. Food is included only when dirty; player-only snapshots reuse the last food state on the client.
-- Shared Three.js geometries/materials reduce GPU resource churn during join/leave and plankton replacement.
+- Shared Three.js resources and explicit disposal reduce GPU churn during join/leave and plankton replacement.
 - Installable PWA metadata, 192/512 icons and an offline application shell.
 - WebSocket Hibernation API; no perpetual Durable Object game-loop timer.
 - Dependency-free Node build and test pipeline.
@@ -52,6 +56,8 @@ Durable Object: GameRoom
   - <=20 Hz versioned snapshots
 ```
 
+The browser client is split into small presentation, scene, environment, fish, input, network, state and UI modules under `public/game` and `public/ui`. Presentation modules can change themes, quality, effects, audio and HUD behavior without changing the server-authoritative simulation contract.
+
 The client renders at display refresh rate and sends movement intent at 10 Hz. Clients never send authoritative position, mass, score, or collision results. Every gameplay WebSocket message carries protocol version `2`; the server rejects malformed, stale, incompatible, or flood traffic before applying simulation work.
 
 Protocol v2 introduced optional food payloads in snapshots so unchanged food does not have to be resent every network update. A v1 browser fails closed on the version mismatch instead of silently misreading the delta format.
@@ -64,7 +70,7 @@ See `docs/runbooks/multiplayer-hardening.md` for the exact protocol, rate, recon
 
 ## PWA behavior
 
-`public/manifest.webmanifest` supplies standalone-install metadata and maskable-capable install icons. `public/sw.js` caches the same-origin application shell and falls back to the cached root page for offline navigation. Multiplayer itself still requires network access, and Three.js remains loaded from the pinned jsDelivr URL.
+`public/manifest.webmanifest` supplies standalone-install metadata and maskable-capable install icons. `public/sw.js` caches the same-origin premium application shell and its local module graph, then falls back to the cached root page for offline navigation. Multiplayer itself still requires network access, and Three.js remains loaded from the pinned jsDelivr URL.
 
 ## Local validation
 
