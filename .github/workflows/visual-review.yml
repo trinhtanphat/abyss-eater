@@ -50,16 +50,14 @@ jobs:
             exit 1
           fi
           set +e
-          timeout 50s "$browser" \
+          timeout 80s "$browser" \
             --headless=new \
             --no-sandbox \
             --no-first-run \
             --no-default-browser-check \
             --disable-dev-shm-usage \
             --user-data-dir=/tmp/abyss-chrome \
-            --use-gl=swiftshader \
             --enable-webgl \
-            --enable-unsafe-swiftshader \
             --ignore-gpu-blocklist \
             --hide-scrollbars \
             --run-all-compositor-stages-before-draw \
