@@ -17,9 +17,16 @@ test('production deploy workflow is manual plus one-shot-on-workflow-file push',
     'https://abyss-eater.qs3d.site/health',
     'id="leaderboard"',
     'id="touch-joystick"',
+    'client-progression.mjs',
+    '/game/skins.js',
+    'expected_cache=',
+    'public/sw.js',
+    'createProgressionClient',
+    'skinVisual',
   ]) {
     assert.ok(workflow.includes(marker), `missing deploy workflow guard: ${marker}`);
   }
   assert.equal(workflow.includes('schedule:'), false, 'production deploy must not run on a recurring schedule');
   assert.equal(workflow.includes('wrangler@latest'), false, 'production deploy must use the repository-pinned Wrangler command');
+  assert.equal(workflow.includes('abyss-eater-shell-v5'), false, 'production verify must not pin a stale shell cache version');
 });
