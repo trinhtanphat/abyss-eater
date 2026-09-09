@@ -12,6 +12,10 @@ on:
       - 'public/game/world-actors.js'
       - 'public/app.js'
       - 'public/styles.css'
+      - 'public/index.html'
+      - 'public/ui/lobby.js'
+      - 'public/game/network.js'
+      - 'public/client-social.mjs'
       - 'review/abyssal-assets.html'
       - '.github/workflows/visual-review.yml'
   workflow_dispatch:
@@ -82,10 +86,38 @@ jobs:
             echo "Browser exited ${browser_status} after producing the PNG; accepting the bounded artifact."
           fi
 
+          set +e
+          timeout 80s "$browser" \
+            --headless=new \
+            --no-sandbox \
+            --no-first-run \
+            --no-default-browser-check \
+            --disable-dev-shm-usage \
+            --user-data-dir=/tmp/abyss-lobby-chrome \
+            --enable-webgl \
+            --ignore-gpu-blocklist \
+            --hide-scrollbars \
+            --run-all-compositor-stages-before-draw \
+            --window-size=1600,1000 \
+            --virtual-time-budget=7000 \
+            --screenshot="$PWD/artifacts/social-lobby.png" \
+            http://127.0.0.1:4173/?visual-review=1 \
+            > /tmp/abyss-lobby-chrome.log 2>&1
+          lobby_status=$?
+          set -e
+          if [ ! -s artifacts/social-lobby.png ]; then
+            cat /tmp/abyss-lobby-chrome.log || true
+            echo "::error::Browser failed to produce social lobby PNG (exit ${lobby_status})."
+            exit 1
+          fi
+          if [ "$lobby_status" -ne 0 ]; then
+            echo "Lobby browser exited ${lobby_status} after producing the PNG; accepting the bounded artifact."
+          fi
+
       - name: Upload visual review
         uses: actions/upload-artifact@v4
         with:
           name: abyssal-assets-visual-review
-          path: artifacts/abyssal-assets.png
+          path: artifacts/*.png
           if-no-files-found: error
           retention-days: 7

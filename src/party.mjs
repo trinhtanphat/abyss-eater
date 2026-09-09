@@ -72,6 +72,19 @@ export function leavePartyState(state, profileId, now = Date.now()) {
   };
 }
 
+export function publicPartyState(state, viewerProfileId) {
+  if (!state || typeof state !== 'object') return null;
+  const viewer = partyProfileId(viewerProfileId);
+  const members = Array.isArray(state.members) ? state.members.slice(0, MAX_PARTY_MEMBERS) : [];
+  return {
+    code: canonicalInviteCode(state.code),
+    room: String(state.room || '').slice(0, 24),
+    memberCount: members.length,
+    members: members.map((member) => ({ displayName: partyDisplayName(member?.displayName) })),
+    isLeader: Boolean(viewer && state.leaderId === viewer),
+  };
+}
+
 export function setPartyRoom(state, profileId, room, now = Date.now()) {
   const id = partyProfileId(profileId);
   if (!state || state.leaderId !== id) return { ok: false, code: 'leader_required', state };
