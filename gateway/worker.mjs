@@ -1,10 +1,10 @@
 const ORIGIN = 'abyss-eater.hikvision.workers.dev';
-const PROXIED_PATHS = new Set(['/ws', '/health']);
 
 export default {
   async fetch(request, env) {
     const url = new URL(request.url);
-    if (!PROXIED_PATHS.has(url.pathname)) {
+    const shouldProxy = url.pathname === '/ws' || url.pathname === '/health';
+    if (!shouldProxy) {
       return env.ASSETS.fetch(request);
     }
 
