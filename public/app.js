@@ -1,326 +1,301 @@
-import * as THREE from 'https://cdn.jsdelivr.net/npm/three@0.185.1/build/three.module.js';
+import { createEffectManager } from './game/effects.js';
+import { createOceanEnvironment } from './game/environment.js';
+import { animateFishRig, applyFishSnapshot, applyFishTheme, applyFoodTheme, createFishRig, createFoodMesh } from './game/fish.js';
+import { createInputController } from './game/input.js';
+import { createNetworkClient } from './game/network.js';
+import { createGameScene } from './game/scene.js';
+import { createClientState } from './game/state.js';
+import { applyDocumentTheme, getTheme, themeIds } from './game/themes.js';
+import { createHud } from './ui/hud.js';
+import { createLobby } from './ui/lobby.js';
+import { createToast } from './ui/toast.js';
 
 const gameRoot = document.querySelector('#game');
-const startScreen = document.querySelector('#start-screen');
-const playButton = document.querySelector('#play-button');
-const nameInput = document.querySelector('#player-name');
-const roomInput = document.querySelector('#room-name');
-const hudMass = document.querySelector('#hud-mass');
-const hudScore = document.querySelector('#hud-score');
-const hudPlayers = document.querySelector('#hud-players');
-const hudPing = document.querySelector('#hud-ping');
-const hudStatus = document.querySelector('#hud-status');
-const hudRoom = document.querySelector('#hud-room');
-const toast = document.querySelector('#toast');
+const fxLayer = document.querySelector('#fx-layer');
+const toastElement = document.querySelector('#toast');
+const reducedMotion = matchMedia('(prefers-reduced-motion: reduce)').matches;
+const showToast = createToast(toastElement);
+const state = createClientState();
+const hud = createHud();
 
-const scene = new THREE.Scene();
-scene.background = new THREE.Color(0x031722);
-scene.fog = new THREE.FogExp2(0x031722, 0.014);
-
-const camera = new THREE.PerspectiveCamera(62, innerWidth / innerHeight, 0.1, 400);
-camera.position.set(0, 7, 17);
-
-const renderer = new THREE.WebGLRenderer({ antialias: true, powerPreference: 'high-performance' });
-renderer.setPixelRatio(Math.min(devicePixelRatio, 2));
-renderer.setSize(innerWidth, innerHeight);
-renderer.outputColorSpace = THREE.SRGBColorSpace;
-gameRoot.appendChild(renderer.domElement);
-
-scene.add(new THREE.HemisphereLight(0x8cecff, 0x001622, 1.25));
-const sun = new THREE.DirectionalLight(0xb5f4ff, 1.1);
-sun.position.set(25, 45, 15);
-scene.add(sun);
-
-const seaFloor = new THREE.Mesh(
-  new THREE.PlaneGeometry(220, 220, 28, 28),
-  new THREE.MeshStandardMaterial({ color: 0x073145, roughness: 1, metalness: 0, wireframe: true, transparent: true, opacity: 0.13 }),
-);
-seaFloor.rotation.x = -Math.PI / 2;
-seaFloor.position.y = -28;
-scene.add(seaFloor);
-
-const bubbleGeometry = new THREE.BufferGeometry();
-const bubblePositions = new Float32Array(360 * 3);
-for (let i = 0; i < bubblePositions.length; i += 3) {
-  bubblePositions[i] = (Math.random() * 2 - 1) * 95;
-  bubblePositions[i + 1] = (Math.random() * 2 - 1) * 35;
-  bubblePositions[i + 2] = (Math.random() * 2 - 1) * 95;
-}
-bubbleGeometry.setAttribute('position', new THREE.BufferAttribute(bubblePositions, 3));
-const bubbles = new THREE.Points(bubbleGeometry, new THREE.PointsMaterial({ color: 0x80eaff, size: 0.16, transparent: true, opacity: 0.38 }));
-scene.add(bubbles);
+let sceneContext = null;
+let environment = null;
+let effects = null;
+let input = null;
+let network = null;
+let activeTheme = getTheme('stylized');
+let activeQuality = 'auto';
+let started = false;
+let connected = false;
+let statusText = 'Ready';
+let pingMs = null;
+let demoFish = null;
+let lastFrameAt = performance.now();
 
 const playerMeshes = new Map();
 const foodMeshes = new Map();
-const inputKeys = new Set();
-const touchState = new Set();
-const tmpVector = new THREE.Vector3();
-const xAxis = new THREE.Vector3(1, 0, 0);
-let socket = null;
-let clientId = null;
-let snapshot = { players: [], food: [] };
-let started = false;
-let inputSeq = 0;
-let pingSentAt = 0;
-let reconnectTimer = null;
-let lastToastTimer = null;
 
-function fishColor(id, isLocal) {
-  if (isLocal) return 0x64edff;
-  let hash = 0;
-  for (const ch of id) hash = ((hash << 5) - hash + ch.charCodeAt(0)) | 0;
-  return new THREE.Color().setHSL(Math.abs(hash % 360) / 360, 0.68, 0.56);
+function renderHud() {
+  const threat = hud.render({
+    snapshot: state.snapshot,
+    clientId: state.clientId,
+    bounds: state.bounds,
+    room: state.room,
+    pingMs,
+    statusText,
+    connected,
+  });
+  effects?.danger(threat.level !== 'safe');
 }
 
-function createFish(id, isLocal = false) {
-  const group = new THREE.Group();
-  const material = new THREE.MeshStandardMaterial({ color: fishColor(id, isLocal), roughness: 0.46, metalness: 0.05 });
-  const body = new THREE.Mesh(new THREE.SphereGeometry(1, 22, 14), material);
-  body.scale.set(1.75, 0.78, 0.72);
-  group.add(body);
+function setTheme(id) {
+  activeTheme = getTheme(id);
+  applyDocumentTheme(activeTheme);
+  sceneContext?.applyTheme(activeTheme);
+  environment?.applyTheme(activeTheme);
+  for (const rig of playerMeshes.values()) applyFishTheme(rig, activeTheme);
+  for (const mesh of foodMeshes.values()) applyFoodTheme(mesh, activeTheme);
+  if (demoFish) applyFishTheme(demoFish, activeTheme);
+}
 
-  const tail = new THREE.Mesh(new THREE.ConeGeometry(0.8, 1.25, 3), material);
-  tail.rotation.z = -Math.PI / 2;
-  tail.position.x = -1.9;
-  tail.scale.z = 0.24;
-  group.add(tail);
+function rebuildEnvironment() {
+  if (!sceneContext) return;
+  environment?.dispose();
+  environment = createOceanEnvironment(sceneContext.scene, {
+    theme: activeTheme,
+    profile: sceneContext.profile,
+  });
+}
 
-  const eyeMaterial = new THREE.MeshBasicMaterial({ color: 0xeaffff });
-  const pupilMaterial = new THREE.MeshBasicMaterial({ color: 0x021018 });
-  for (const z of [-0.52, 0.52]) {
-    const eye = new THREE.Mesh(new THREE.SphereGeometry(0.13, 10, 8), eyeMaterial);
-    eye.position.set(1.35, 0.22, z);
-    group.add(eye);
-    const pupil = new THREE.Mesh(new THREE.SphereGeometry(0.06, 8, 6), pupilMaterial);
-    pupil.position.set(1.43, 0.22, z * 1.02);
-    group.add(pupil);
+function rebuildEffects() {
+  if (!sceneContext) return;
+  effects?.dispose();
+  effects = createEffectManager(sceneContext.scene, {
+    profile: sceneContext.profile,
+    reducedMotion,
+    fxLayer,
+    onCameraKick: (amount) => sceneContext.kickCamera(amount),
+  });
+}
+
+function setQuality(value) {
+  activeQuality = value;
+  if (!sceneContext) return;
+  sceneContext.applyQuality(value);
+  rebuildEnvironment();
+  rebuildEffects();
+}
+
+function ensurePlayerMesh(player) {
+  let rig = playerMeshes.get(player.id);
+  if (!rig) {
+    rig = createFishRig({ id: player.id, isLocal: player.id === state.clientId, theme: activeTheme });
+    rig.position.set(Number(player.position?.x) || 0, Number(player.position?.y) || 0, Number(player.position?.z) || 0);
+    rig.userData.target.copy(rig.position);
+    rig.userData.previousTarget.copy(rig.position);
+    sceneContext.scene.add(rig);
+    playerMeshes.set(player.id, rig);
   }
-
-  group.userData.target = new THREE.Vector3();
-  group.userData.previousTarget = new THREE.Vector3();
-  group.userData.mass = 1;
-  scene.add(group);
-  return group;
+  applyFishSnapshot(rig, player);
+  return rig;
 }
 
-function createFood() {
-  const mesh = new THREE.Mesh(
-    new THREE.IcosahedronGeometry(0.34, 1),
-    new THREE.MeshStandardMaterial({ color: 0x8af8d1, emissive: 0x19a781, emissiveIntensity: 1.7, roughness: 0.25 }),
-  );
-  scene.add(mesh);
+function ensureFoodMesh(food) {
+  let mesh = foodMeshes.get(food.id);
+  if (!mesh) {
+    mesh = createFoodMesh(activeTheme);
+    sceneContext.scene.add(mesh);
+    foodMeshes.set(food.id, mesh);
+  }
+  mesh.position.set(Number(food.position?.x) || 0, Number(food.position?.y) || 0, Number(food.position?.z) || 0);
   return mesh;
 }
 
-function updateSnapshot(next) {
-  if (!next || !Array.isArray(next.players) || !Array.isArray(next.food)) return;
-  snapshot = next;
+function syncSnapshot(changes = null) {
   const livePlayers = new Set();
-  for (const player of snapshot.players) {
+  for (const player of state.snapshot.players) {
     livePlayers.add(player.id);
-    let mesh = playerMeshes.get(player.id);
-    if (!mesh) {
-      mesh = createFish(player.id, player.id === clientId);
-      mesh.position.set(player.position.x, player.position.y, player.position.z);
-      mesh.userData.target.copy(mesh.position);
-      mesh.userData.previousTarget.copy(mesh.position);
-      playerMeshes.set(player.id, mesh);
-    }
-    mesh.userData.previousTarget.copy(mesh.userData.target);
-    mesh.userData.target.set(player.position.x, player.position.y, player.position.z);
-    mesh.userData.mass = player.mass;
+    ensurePlayerMesh(player);
   }
-  for (const [id, mesh] of playerMeshes) {
+  for (const [id, rig] of playerMeshes) {
     if (!livePlayers.has(id)) {
-      scene.remove(mesh);
+      sceneContext.scene.remove(rig);
       playerMeshes.delete(id);
     }
   }
 
   const liveFood = new Set();
-  for (const food of snapshot.food) {
+  for (const food of state.snapshot.food) {
     liveFood.add(food.id);
-    let mesh = foodMeshes.get(food.id);
-    if (!mesh) {
-      mesh = createFood();
-      foodMeshes.set(food.id, mesh);
-    }
-    mesh.position.set(food.position.x, food.position.y, food.position.z);
+    ensureFoodMesh(food);
   }
   for (const [id, mesh] of foodMeshes) {
     if (!liveFood.has(id)) {
-      scene.remove(mesh);
+      sceneContext.scene.remove(mesh);
+      mesh.userData.foodMaterial?.dispose?.();
       foodMeshes.delete(id);
     }
   }
 
-  const me = snapshot.players.find((player) => player.id === clientId);
-  if (me) {
-    hudMass.textContent = Number(me.mass).toFixed(2);
-    hudScore.textContent = String(me.score ?? 0);
+  if (changes?.me && changes.previous) {
+    const localRig = playerMeshes.get(state.clientId);
+    const effectPosition = localRig?.position || new sceneContext.THREE.Vector3(
+      Number(changes.me.position?.x) || 0,
+      Number(changes.me.position?.y) || 0,
+      Number(changes.me.position?.z) || 0,
+    );
+
+    if (changes.scoreDelta > 0) {
+      if (changes.scoreDelta >= 50) {
+        effects?.eat(effectPosition, changes.scoreDelta, activeTheme.fish.local);
+        showToast(`Devoured! +${Math.round(changes.scoreDelta)} score`, 'success', 1250);
+      } else {
+        effects?.food(effectPosition, changes.scoreDelta, activeTheme.food.color);
+      }
+    }
+
+    const previousTier = Math.floor(Math.log2(Math.max(1, Number(changes.previous.mass) || 1)));
+    const currentTier = Math.floor(Math.log2(Math.max(1, Number(changes.me.mass) || 1)));
+    if (changes.massDelta > 0 && currentTier > previousTier) effects?.growth(effectPosition);
+    if (changes.deathDelta > 0) effects?.respawn();
   }
-  hudPlayers.textContent = String(snapshot.players.length);
+
+  renderHud();
 }
 
-function showToast(message) {
-  clearTimeout(lastToastTimer);
-  toast.textContent = message;
-  toast.classList.add('show');
-  lastToastTimer = setTimeout(() => toast.classList.remove('show'), 1800);
-}
-
-function setStatus(message, connected = false) {
-  hudStatus.textContent = message;
-  document.body.classList.toggle('connected', connected);
-}
-
-function sanitized(value, fallback, max) {
-  return (String(value || '').replace(/[^\p{L}\p{N} _.-]/gu, '').replace(/\s+/g, ' ').trim() || fallback).slice(0, max);
-}
-
-function connect() {
-  clearTimeout(reconnectTimer);
-  const name = sanitized(nameInput.value, 'Little Fish', 20);
-  const room = sanitized(roomInput.value, 'ocean-1', 24).toLowerCase();
-  localStorage.setItem('abyss-eater-name', name);
-  localStorage.setItem('abyss-eater-room', room);
-  hudRoom.textContent = room;
-  setStatus('Connecting…');
-
-  const wsUrl = new URL('/ws', location.href);
-  wsUrl.protocol = location.protocol === 'https:' ? 'wss:' : 'ws:';
-  wsUrl.searchParams.set('name', name);
-  wsUrl.searchParams.set('room', room);
-  socket = new WebSocket(wsUrl);
-
-  socket.addEventListener('open', () => setStatus('Online', true));
-  socket.addEventListener('message', (event) => {
-    let message;
-    try { message = JSON.parse(event.data); } catch { return; }
-    if (message.type === 'welcome') {
-      clientId = message.id;
-      hudRoom.textContent = message.room;
-      updateSnapshot(message.snapshot);
-      showToast('You entered the ocean');
-      return;
+const lobby = createLobby({
+  onPlay: (preferences) => {
+    started = true;
+    if (demoFish) {
+      sceneContext.scene.remove(demoFish);
+      demoFish = null;
     }
-    if (message.type === 'snapshot') {
-      updateSnapshot(message);
-      return;
-    }
-    if (message.type === 'pong') {
-      hudPing.textContent = `${Math.max(0, Date.now() - Number(message.t || pingSentAt))} ms`;
-      return;
-    }
-    if (message.type === 'eaten') {
-      showToast(`Eaten by ${message.by || 'a bigger fish'} — respawning`);
-      return;
-    }
-    if (message.type === 'error') showToast(`Server rejected input: ${message.code}`);
-  });
-  socket.addEventListener('close', () => {
-    setStatus('Reconnecting…');
-    clientId = null;
-    if (started) reconnectTimer = setTimeout(connect, 1800);
-  });
-  socket.addEventListener('error', () => setStatus('Connection issue'));
-}
-
-function currentDirection() {
-  const dir = { x: 0, y: 0, z: 0 };
-  if (inputKeys.has('KeyA') || inputKeys.has('ArrowLeft') || touchState.has('left')) dir.x -= 1;
-  if (inputKeys.has('KeyD') || inputKeys.has('ArrowRight') || touchState.has('right')) dir.x += 1;
-  if (inputKeys.has('KeyW') || inputKeys.has('ArrowUp') || touchState.has('forward')) dir.z -= 1;
-  if (inputKeys.has('KeyS') || inputKeys.has('ArrowDown') || touchState.has('back')) dir.z += 1;
-  if (inputKeys.has('Space') || touchState.has('up')) dir.y += 1;
-  if (inputKeys.has('ShiftLeft') || inputKeys.has('ShiftRight') || touchState.has('down')) dir.y -= 1;
-  return dir;
-}
-
-function sendInput() {
-  if (!socket || socket.readyState !== WebSocket.OPEN) return;
-  socket.send(JSON.stringify({ type: 'input', seq: ++inputSeq, dir: currentDirection() }));
-}
-
-function ping() {
-  if (!socket || socket.readyState !== WebSocket.OPEN) return;
-  pingSentAt = Date.now();
-  socket.send(JSON.stringify({ type: 'ping', t: pingSentAt }));
-}
-
-addEventListener('keydown', (event) => {
-  if (['Space', 'ArrowUp', 'ArrowDown', 'ArrowLeft', 'ArrowRight'].includes(event.code)) event.preventDefault();
-  inputKeys.add(event.code);
-});
-addEventListener('keyup', (event) => inputKeys.delete(event.code));
-addEventListener('blur', () => inputKeys.clear());
-
-for (const button of document.querySelectorAll('[data-touch]')) {
-  const key = button.dataset.touch;
-  const press = (event) => { event.preventDefault(); touchState.add(key); };
-  const release = (event) => { event.preventDefault(); touchState.delete(key); };
-  button.addEventListener('pointerdown', press);
-  button.addEventListener('pointerup', release);
-  button.addEventListener('pointercancel', release);
-  button.addEventListener('pointerleave', release);
-}
-
-playButton.addEventListener('click', () => {
-  started = true;
-  document.body.classList.add('playing');
-  startScreen.classList.add('hidden');
-  connect();
+    setTheme(preferences.theme);
+    setQuality(preferences.quality);
+    input.setPointerEnabled(preferences.pointerSteering);
+    input.setEnabled(true);
+    network.connect({ name: preferences.name, room: preferences.room });
+    statusText = 'Connecting…';
+    renderHud();
+  },
+  onTheme: (id) => setTheme(id),
+  onQuality: (quality) => setQuality(quality),
+  onPointer: (enabled) => input?.setPointerEnabled(enabled),
 });
 
-nameInput.value = localStorage.getItem('abyss-eater-name') || nameInput.value;
-roomInput.value = localStorage.getItem('abyss-eater-room') || roomInput.value;
+lobby.setThemeOptions(themeIds());
+const initialPreferences = lobby.preferences();
+activeTheme = getTheme(initialPreferences.theme);
+activeQuality = initialPreferences.quality;
+applyDocumentTheme(activeTheme);
 
-setInterval(sendInput, 100);
-setInterval(ping, 2000);
+sceneContext = createGameScene(gameRoot, {
+  theme: activeTheme,
+  quality: activeQuality,
+  reducedMotion,
+});
+environment = createOceanEnvironment(sceneContext.scene, {
+  theme: activeTheme,
+  profile: sceneContext.profile,
+});
+effects = createEffectManager(sceneContext.scene, {
+  profile: sceneContext.profile,
+  reducedMotion,
+  fxLayer,
+  onCameraKick: (amount) => sceneContext.kickCamera(amount),
+});
+
+input = createInputController({
+  canvas: sceneContext.renderer.domElement,
+  joystick: document.querySelector('#touch-joystick'),
+  joystickKnob: document.querySelector('#joystick-knob'),
+  upButton: document.querySelector('#touch-up'),
+  downButton: document.querySelector('#touch-down'),
+  pointerToggle: document.querySelector('#pointer-steering'),
+});
+input.setPointerEnabled(initialPreferences.pointerSteering);
+
+network = createNetworkClient({
+  onStatus(message, isConnected) {
+    statusText = message;
+    connected = isConnected;
+    renderHud();
+  },
+  onWelcome(message) {
+    const changes = state.welcome(message);
+    syncSnapshot(changes);
+    showToast(`Entered ${message.room || 'the ocean'}`, 'success', 1500);
+  },
+  onSnapshot(message) {
+    const changes = state.applySnapshot(message);
+    syncSnapshot(changes);
+  },
+  onPong(value) {
+    pingMs = value;
+    renderHud();
+  },
+  onEaten(message) {
+    effects?.respawn();
+    showToast(`Eaten by ${message.by || 'a larger fish'} — respawning`, 'danger', 1900);
+  },
+  onError(message) {
+    showToast(`Server rejected input: ${message.code || 'unknown'}`, 'danger', 1800);
+  },
+});
+
+// A lightweight procedural hero fish keeps the lobby alive without loading a model asset.
+demoFish = createFishRig({ id: 'abyss-hero', isLocal: true, theme: activeTheme });
+demoFish.position.set(-1, 1.2, 0);
+demoFish.userData.target.copy(demoFish.position);
+demoFish.userData.previousTarget.copy(demoFish.position);
+demoFish.userData.mass = 2.4;
+sceneContext.scene.add(demoFish);
+
+setInterval(() => {
+  if (started) network.sendInput(input.direction());
+}, 100);
+
+setInterval(() => {
+  if (started) network.ping();
+}, 2000);
 
 function animate(time) {
-  bubbles.rotation.y = time * 0.000015;
-  bubbles.position.y = Math.sin(time * 0.0002) * 1.4;
+  const delta = Math.min(0.05, Math.max(0, (time - lastFrameAt) / 1000));
+  lastFrameAt = time;
+
+  environment?.update(time);
+  effects?.update(delta);
 
   for (const mesh of foodMeshes.values()) {
-    mesh.rotation.x += 0.01;
-    mesh.rotation.y += 0.013;
+    mesh.rotation.x += delta * 0.72;
+    mesh.rotation.y += delta * 0.94;
+    const pulse = 1 + Math.sin(time * 0.0025 + mesh.position.x) * 0.035;
+    mesh.scale.setScalar(pulse);
   }
 
-  for (const [id, mesh] of playerMeshes) {
-    mesh.position.lerp(mesh.userData.target, id === clientId ? 0.24 : 0.16);
-    const scale = Math.cbrt(Math.max(1, mesh.userData.mass));
-    mesh.scale.lerp(new THREE.Vector3(scale, scale, scale), 0.12);
-
-    tmpVector.subVectors(mesh.userData.target, mesh.userData.previousTarget);
-    if (tmpVector.lengthSq() > 0.0001) {
-      tmpVector.normalize();
-      const targetQ = new THREE.Quaternion().setFromUnitVectors(xAxis, tmpVector);
-      mesh.quaternion.slerp(targetQ, 0.18);
-    }
+  for (const [id, rig] of playerMeshes) {
+    animateFishRig(rig, time, id === state.clientId);
   }
 
-  const localMesh = playerMeshes.get(clientId);
-  if (localMesh) {
-    const zoom = Math.cbrt(Math.max(1, localMesh.userData.mass));
-    const desiredCamera = new THREE.Vector3(
-      localMesh.position.x + 2.8 * zoom,
-      localMesh.position.y + 5.2 * zoom,
-      localMesh.position.z + 13.5 * zoom,
+  let cameraTarget = playerMeshes.get(state.clientId) || null;
+  let cameraMass = state.localPlayer()?.mass || 1;
+
+  if (!started && demoFish) {
+    const seconds = time * 0.001;
+    demoFish.userData.previousTarget.copy(demoFish.userData.target);
+    demoFish.userData.target.set(
+      Math.sin(seconds * 0.34) * 2.6 - 0.8,
+      1.2 + Math.sin(seconds * 0.56) * 0.8,
+      Math.cos(seconds * 0.34) * 2.1,
     );
-    camera.position.lerp(desiredCamera, 0.065);
-    camera.lookAt(localMesh.position);
-  } else {
-    camera.lookAt(0, 0, 0);
+    animateFishRig(demoFish, time, true);
+    cameraTarget = demoFish;
+    cameraMass = 2.4;
   }
 
-  renderer.render(scene, camera);
+  sceneContext.follow(cameraTarget, cameraMass, delta);
+  sceneContext.render();
 }
-renderer.setAnimationLoop(animate);
 
-addEventListener('resize', () => {
-  camera.aspect = innerWidth / innerHeight;
-  camera.updateProjectionMatrix();
-  renderer.setSize(innerWidth, innerHeight);
-  renderer.setPixelRatio(Math.min(devicePixelRatio, 2));
-});
+sceneContext.renderer.setAnimationLoop(animate);
+renderHud();
