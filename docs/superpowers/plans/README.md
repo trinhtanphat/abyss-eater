@@ -1,0 +1,3 @@
+# V1 Full A+B+C Execution Order
+
+The approved V1 design is implemented in seven carriers in this order: multiplayer hardening, MVP polish, persistence/progression, world/AI, social/matchmaking, measured scale optimization, release hardening. Carrier 1 has the complete bite-sized implementation plan now. Later carrier plans are finalized against the latest merged tree immediately before coding so paths and interfaces are based on real source, not guesses.
