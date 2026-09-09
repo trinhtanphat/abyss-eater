@@ -6,6 +6,7 @@
 
 - Procedural Three.js 0.185.1 ocean with six presentation biomes: **Sunken Reef**, **Ancient Abyss**, **Twilight Garden**, **Blue Trench**, **Volcanic Rift**, and **Leviathan Depths**. Legacy `stylized` and `deep-sea` settings remain compatible.
 - Server-owned living ecosystem with 24 wildlife fish per room, including prey below starter mass and predators above it.
+- Four server-authoritative gameplay depth biomes add bounded apex AI, 6 jelly hazards and 8 pearl/boost pickups without moving combat authority into the browser.
 - Server-authoritative movement, world bounds, food collection, PvP/wildlife eating, score, growth, death and respawn.
 - Six mass-driven fish evolution silhouettes plus 12 deterministic presentation skin families. A server-verified selected `skinId` always takes precedence over visual fallbacks.
 - Persistent guest progression with opaque signed session credentials, XP, levels, pearls, owned skins, selected skins, best-run stats and durable all-time / UTC-quarter leaderboards.
@@ -25,7 +26,8 @@
 - Spatially bounded deterministic collision candidates; local collision processing stops after respawn to prevent same-input respawn chains.
 - 12-second reconnect grace using a rotated opaque room-scoped resume key in `sessionStorage`.
 - User room labels map deterministically into a fixed pool of 64 Durable Objects; disconnected slots do not count toward the 20-player active cap.
-- Room snapshots are coalesced to at most 20 Hz. Food and wildlife payloads are sent only when dirty and retained client-side across delta snapshots.
+- Room snapshots are coalesced to at most 20 Hz. Food, wildlife, hazards and pickups are sent only when dirty and retained client-side across delta snapshots.
+- Carrier 6 measured the 20-player full snapshot at **9,926 bytes p95**; the evidence decision is **`JSON_KEEP`**, so JSON protocol v2 remains the V1 compatibility baseline.
 - Shared Three.js resources and explicit disposal reduce GPU churn during joins, leaves and food replacement.
 - Installable PWA metadata, 192/512 icons and an offline application shell.
 - WebSocket Hibernation API; no perpetual Durable Object game-loop timer.
@@ -145,4 +147,4 @@ No paid Cloudflare product or paid-plan setting is enabled by this implementatio
 
 ## Still intentionally deferred
 
-Email/OAuth account linking, real-money payments, binary snapshots, deeper client-side prediction, and external authored 3D model packs remain future work. Binary networking stays evidence-gated: V1 will measure the JSON path before adding codec complexity. The public alpha now includes persistent guest profiles, opaque sessions, pearls/XP/levels, canonical cosmetics, four authoritative depth biomes with bounded AI/hazards/pickups, Quick Dive, parties, moderated room chat, local mute/report controls, and durable all-time / seasonal leaderboards.
+Email/OAuth account linking, real-money payments, deeper client-side prediction, external authored GLB/PBR model packs and binary snapshots remain intentionally deferred. Binary networking is evidence-gated rather than missing: Carrier 6 measured a 9,926-byte p95 20-player full snapshot and retained protocol v2 JSON with `JSON_KEEP`.
