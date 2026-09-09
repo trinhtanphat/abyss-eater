@@ -103,6 +103,8 @@ node --check dist/worker.mjs
 
 The production origin bundle is written to `dist/worker.mjs`. GitHub Actions is intentionally **CI-only**: pull requests and `main` run tests, build and syntax checks, while bounded visual-review runs produce screenshot evidence for presentation changes.
 
+After successful CI on the exact current `main`, the **Production smoke** workflow runs a **read-only** verification against both production endpoints. It checks static convergence, health metadata, four-player protocol-v2 realtime input/boost behavior and reconnect/resume without deploying or mutating Cloudflare.
+
 ## Delivery
 
 Production delivery is handled by the connected Cloudflare deployment integration that watches `main`; the repository does not perform production mutation from GitHub Actions.
