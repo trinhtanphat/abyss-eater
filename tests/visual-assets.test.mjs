@@ -1,4 +1,4 @@
-import test from 'node:test';
+﻿import test from 'node:test';
 import assert from 'node:assert/strict';
 import { readFile } from 'node:fs/promises';
 import {
@@ -80,5 +80,5 @@ test('offline shell precaches fish evolution, TTS and progression dependencies',
   assert.ok(sw.includes("'/client-tts.mjs'"), 'reconciled shell must preserve the Vietnamese TTS dependency');
   assert.ok(sw.includes("'/client-progression.mjs'"), 'reconciled shell must cache the progression client');
   assert.ok(sw.includes("'/game/fish-evolution.mjs'"), 'service worker shell must cache the module imported by fish.js');
-  assert.ok(sw.includes("CACHE_NAME = 'abyss-eater-shell-v7'"), 'shell version must advance when its dependency list changes');
+  assert.ok(sw.includes("CACHE_NAME = 'abyss-eater-shell-v8'"), 'shell version must advance when its dependency list changes');
 });

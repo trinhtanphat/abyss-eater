@@ -30,6 +30,14 @@ const SHELL = [
   '/manifest.webmanifest',
   '/icon-192.svg',
   '/icon-512.svg',
+  '/assets/brand/abyss-eater-mark.svg',
+  '/assets/ui/icons/mass.svg',
+  '/assets/ui/icons/crown.svg',
+  '/assets/ui/icons/skull.svg',
+  '/assets/ui/icons/jaw.svg',
+  '/assets/ui/icons/evolution.svg',
+  '/assets/ui/icons/depth.svg',
+  '/assets/ui/icons/settings.svg',
 ];
 
 self.addEventListener('install', (event) => {

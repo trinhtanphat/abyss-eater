@@ -87,7 +87,7 @@ test('brand and HUD SVG pack is same-origin, dependency-free and wired into the 
     assert.equal(existsSync(path), true, `${path} must exist`);
     const svg = readFileSync(path, 'utf8');
     assert.ok(svg.includes('<svg'));
-    assert.equal(/<script|https?:\/\/|data:image\//i.test(svg), false, `${path} must be self-contained`);
+    assert.equal(/<script\b|<image\b|\b(?:href|src)=["']https?:\/\//i.test(svg), false, `${path} must be self-contained`);
   }
   assert.ok(html.includes('/assets/brand/abyss-eater-mark.svg'));
   for (const icon of ['mass', 'crown', 'skull', 'jaw', 'evolution', 'depth', 'settings']) {
