@@ -138,7 +138,7 @@ export function createInputController({ canvas, joystick, joystickKnob, upButton
 
     let verticalAmount = 0;
     if (keys.has('Space') || vertical.has('up')) verticalAmount += 1;
-    if (keys.has('ShiftLeft') || keys.has('ShiftRight') || vertical.has('down')) verticalAmount -= 1;
+    if (keys.has('KeyC') || vertical.has('down')) verticalAmount -= 1;
     return cameraRelativeDirection({ forward, strafe, vertical: verticalAmount }, lookYaw, lookPitch);
   }
 
@@ -168,6 +168,9 @@ export function createInputController({ canvas, joystick, joystickKnob, upButton
 
   return {
     direction,
+    boosting() {
+      return keys.has('ShiftLeft') || keys.has('ShiftRight');
+    },
     setEnabled,
     look() {
       return { yaw: lookYaw, pitch: lookPitch };

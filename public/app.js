@@ -597,7 +597,7 @@ sceneContext.scene.add(demoFish);
 setConnectionState('ready', 'Ready', 'Choose a fish name and dive into the ocean.');
 renderProgression();
 void refreshProgression({ profile: true, leaderboard: true });
-setInterval(() => { if (started) network.sendInput(input.direction()); }, 100);
+setInterval(() => { if (started) network.sendInput(input.direction(), input.boosting()); }, 100);
 setInterval(() => { if (started) network.ping(); }, 2000);
 
 document.addEventListener('visibilitychange', () => {

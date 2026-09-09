@@ -123,9 +123,9 @@ export function createNetworkClient({
     socket = null;
   }
 
-  function sendInput(dir) {
+  function sendInput(dir, boost = false) {
     if (!socket || socket.readyState !== WebSocket.OPEN || protocolBlocked) return false;
-    socket.send(JSON.stringify({ type: 'input', v: PROTOCOL_VERSION, seq: ++inputSeq, dir }));
+    socket.send(JSON.stringify({ type: 'input', v: PROTOCOL_VERSION, seq: ++inputSeq, dir, boost: Boolean(boost) }));
     return true;
   }
 

@@ -8,6 +8,8 @@ export function createGameScene(gameRoot, { theme, quality = 'auto', reducedMoti
 
   const renderer = new THREE.WebGLRenderer({ antialias: true, powerPreference: 'high-performance', alpha: false });
   renderer.outputColorSpace = THREE.SRGBColorSpace;
+  renderer.toneMapping = THREE.ACESFilmicToneMapping;
+  renderer.toneMappingExposure = 1.18;
   renderer.setSize(innerWidth, innerHeight);
   renderer.domElement.setAttribute('aria-hidden', 'true');
   renderer.domElement.className = 'game-canvas';
