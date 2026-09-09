@@ -1,0 +1,82 @@
+name: Deploy production
+
+on:
+  workflow_dispatch:
+  push:
+    branches: [main]
+    paths:
+      - '.github/workflows/deploy-production.yml'
+
+concurrency:
+  group: abyss-eater-production
+  cancel-in-progress: false
+
+permissions:
+  contents: read
+
+jobs:
+  deploy:
+    name: deploy-and-verify
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    env:
+      CF_TELEMETRY_DISABLED: '1'
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+
+      - name: Verify release candidate
+        run: npm run check
+
+      - name: Deploy authoritative game Worker
+        env:
+          CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN_6666 || secrets.CLOUDFLARE_API_TOKEN }}
+        run: |
+          set -euo pipefail
+          if [ -z "${CLOUDFLARE_API_TOKEN:-}" ]; then
+            echo "::error::Missing CLOUDFLARE_API_TOKEN_6666 (or fallback CLOUDFLARE_API_TOKEN)."
+            exit 1
+          fi
+          npm run deploy:game
+
+      - name: Deploy branded gateway Worker and static assets
+        env:
+          CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN_2403 || secrets.CLOUDFLARE_API_TOKEN }}
+        run: |
+          set -euo pipefail
+          if [ -z "${CLOUDFLARE_API_TOKEN:-}" ]; then
+            echo "::error::Missing CLOUDFLARE_API_TOKEN_2403 (or fallback CLOUDFLARE_API_TOKEN)."
+            exit 1
+          fi
+          npm run deploy:gateway
+
+      - name: Verify production health
+        run: |
+          set -euo pipefail
+          for url in \
+            https://abyss-eater.hikvision.workers.dev/health \
+            https://abyss-eater.qs3d.site/health
+          do
+            body="$(curl --fail --show-error --silent --retry 5 --retry-all-errors --max-time 20 "$url")"
+            echo "$url => $body"
+            grep -Fq '"ok":true' <<<"$body"
+            grep -Fq '"version":"0.3.0"' <<<"$body"
+            grep -Fq '"protocolVersion":2' <<<"$body"
+            grep -Fq '"roomPoolSize":64' <<<"$body"
+            grep -Fq '"snapshotHzCap":20' <<<"$body"
+          done
+
+      - name: Verify branded premium shell
+        run: |
+          set -euo pipefail
+          html="$(curl --fail --show-error --silent --retry 5 --retry-all-errors --max-time 20 https://abyss-eater.qs3d.site/)"
+          grep -Fq 'ABYSS' <<<"$html"
+          grep -Fq 'Deep Sea' <<<"$html"
+          grep -Fq 'id="leaderboard"' <<<"$html"
+          grep -Fq 'id="touch-joystick"' <<<"$html"
+          grep -Fq '/bootstrap.js' <<<"$html"
