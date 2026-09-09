@@ -42,3 +42,18 @@ test('embedded client contains pinned 3D renderer, HUD, touch controls and realt
     assert.ok(worker.includes(marker), `client bundle must include ${marker}`);
   }
 });
+
+test('embedded client exposes desktop mouse-look and camera-relative keyboard controls', () => {
+  const result = build();
+  assert.equal(result.status, 0, `build must succeed:\n${result.stdout}\n${result.stderr}`);
+  const worker = readFileSync('dist/worker.mjs', 'utf8');
+  for (const marker of [
+    '"/client-input.mjs":',
+    'cameraRelativeDirection',
+    'requestPointerLock',
+    'pointerLockElement',
+    'Mouse look',
+  ]) {
+    assert.ok(worker.includes(marker), `desktop controls bundle must include ${marker}`);
+  }
+});
