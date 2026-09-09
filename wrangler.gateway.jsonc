@@ -8,7 +8,7 @@
   "assets": {
     "directory": "./public",
     "binding": "ASSETS",
-    "run_worker_first": ["/ws", "/health"]
+    "run_worker_first": ["/ws", "/health", "/api/*"]
   },
   "routes": [
     { "pattern": "abyss-eater.qs3d.site", "custom_domain": true }

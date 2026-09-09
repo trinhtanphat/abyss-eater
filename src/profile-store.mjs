@@ -1,4 +1,4 @@
-import { levelForXp, rewardForSession, skinById } from './progression.mjs';
+import { levelForXp, rewardForSession, seasonForTimestamp, skinById } from './progression.mjs';
 
 function canonicalProfileId(value) {
   const id = typeof value === 'string' ? value.trim() : '';
@@ -227,7 +227,8 @@ export async function applySessionReward(db, profileId, eventId, summary = {}, n
   const score = Math.floor(finiteNonNegative(summary?.score));
   const mass = Math.max(1, finiteNonNegative(summary?.mass) || 1);
   const eaten = Math.floor(finiteNonNegative(summary?.eaten));
-  const season = 'all-time';
+  const season = seasonForTimestamp(now);
+  const allTime = 'all-time';
 
   const insertEvent = db.prepare(`
     INSERT OR IGNORE INTO reward_events
@@ -251,7 +252,7 @@ export async function applySessionReward(db, profileId, eventId, summary = {}, n
       )
   `).bind(reward.xp, reward.pearls, score, mass, eaten, now, id, event, id);
 
-  const upsertLeaderboard = db.prepare(`
+  const leaderboardSql = `
     INSERT INTO leaderboard_entries (profile_id, season, best_score, best_mass, updated_at)
     SELECT ?, ?, ?, ?, ?
     WHERE EXISTS (
@@ -262,7 +263,9 @@ export async function applySessionReward(db, profileId, eventId, summary = {}, n
       best_score = MAX(leaderboard_entries.best_score, excluded.best_score),
       best_mass = MAX(leaderboard_entries.best_mass, excluded.best_mass),
       updated_at = excluded.updated_at
-  `).bind(id, season, score, mass, now, event, id);
+  `;
+  const upsertAllTime = db.prepare(leaderboardSql).bind(id, allTime, score, mass, now, event, id);
+  const upsertSeasonal = db.prepare(leaderboardSql).bind(id, season, score, mass, now, event, id);
 
   const markApplied = db.prepare(`
     UPDATE reward_events
@@ -270,14 +273,16 @@ export async function applySessionReward(db, profileId, eventId, summary = {}, n
     WHERE id = ? AND profile_id = ? AND applied = 0
   `).bind(event, id);
 
-  const results = await db.batch([insertEvent, updateProfile, upsertLeaderboard, markApplied]);
+  const results = await db.batch([insertEvent, updateProfile, upsertAllTime, upsertSeasonal, markApplied]);
   const changes = Number(results?.[1]?.meta?.changes ?? 0);
   return { applied: changes > 0, reward };
 }
 
-export async function readLeaderboard(db, season = 'all-time', limit = 10) {
+export async function readLeaderboard(db, season = 'all-time', limit = 10, nowMs = Date.now()) {
   assertDb(db);
-  const normalizedSeason = canonicalSeason(season);
+  const normalizedSeason = String(season).toLowerCase() === 'seasonal'
+    ? seasonForTimestamp(nowMs)
+    : canonicalSeason(season);
   const normalizedLimit = Math.min(50, Math.max(1, Math.floor(Number(limit) || 10)));
   const response = await db.prepare(`
     SELECT l.profile_id, p.display_name, l.best_score, l.best_mass, l.updated_at
@@ -295,4 +300,52 @@ export async function readLeaderboard(db, season = 'all-time', limit = 10) {
     bestMass: Math.max(1, Number(row.best_mass ?? 1)),
     updatedAt: Number(row.updated_at ?? 0),
   }));
+}
+
+function canonicalSessionId(value) {
+  const id = typeof value === 'string' ? value.trim().toLowerCase() : '';
+  if (!/^[a-f0-9]{64}$/.test(id)) throw new Error('session-id-invalid');
+  return id;
+}
+
+function canonicalSessionVersion(value) {
+  const version = Number(value);
+  if (!Number.isSafeInteger(version) || version < 1) throw new Error('session-version-invalid');
+  return version;
+}
+
+export async function createSession(db, input = {}) {
+  assertDb(db);
+  const sessionId = canonicalSessionId(input.sessionId);
+  const profileId = canonicalProfileId(input.profileId);
+  const createdAt = canonicalTime(input.createdAt);
+  const expiresAt = canonicalTime(input.expiresAt);
+  const sessionVersion = canonicalSessionVersion(input.sessionVersion);
+  if (expiresAt <= createdAt) throw new Error('session-expiry-invalid');
+  const result = await db.prepare(`
+    INSERT INTO sessions (session_id, profile_id, created_at, expires_at, session_version)
+    VALUES (?, ?, ?, ?, ?)
+  `).bind(sessionId, profileId, createdAt, expiresAt, sessionVersion).run();
+  if (result?.success === false) throw new Error('session-create-failed');
+  return { sessionId, profileId, createdAt, expiresAt, sessionVersion };
+}
+
+export async function profileForSession(db, sessionId, nowMs = Date.now()) {
+  assertDb(db);
+  const id = canonicalSessionId(sessionId);
+  const now = canonicalTime(nowMs);
+  const row = await db.prepare(`
+    SELECT p.id, p.display_name, p.created_at, p.updated_at, p.xp, p.level, p.pearls,
+           p.selected_skin_id, p.best_mass, p.best_score, p.games_played, p.total_eaten,
+           p.status, p.session_version
+    FROM sessions s
+    JOIN profiles p ON p.id = s.profile_id
+    WHERE s.session_id = ?
+      AND s.status = 'active'
+      AND s.expires_at > ?
+      AND p.status = 'active'
+      AND s.session_version = p.session_version
+    LIMIT 1
+  `).bind(id, now).first();
+  return mapProfile(row);
 }

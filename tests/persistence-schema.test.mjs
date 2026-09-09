@@ -23,15 +23,15 @@ test('Carrier 3 migration defines durable profile, ownership, rewards and leader
   assert.equal(/DROP\s+TABLE/i.test(sql), false, 'initial migration must not destroy durable state');
 });
 
-test('authoritative Worker uses a Wrangler draft D1 binding without weakening existing Durable Object config', () => {
+test('source Wrangler preserves GameRoom while production D1 binding stays generated', () => {
   const config = JSON.parse(readFileSync('wrangler.jsonc', 'utf8'));
   assert.equal(config.account_id, '6c5207813df3d5b83b9508125e0e9e12');
   assert.ok(config.durable_objects?.bindings?.some((binding) => binding.name === 'GAME_ROOM' && binding.class_name === 'GameRoom'));
   assert.ok(config.migrations?.some((migration) => migration.tag === 'v1'));
-  assert.equal(config.d1_databases?.length, 1);
-  const database = config.d1_databases?.[0];
-  assert.equal(database?.binding, 'DB');
-  assert.equal(database?.database_id, undefined, 'draft binding must not commit an account-specific database id');
+  assert.equal(config.d1_databases, undefined, 'source config must not carry production D1 binding or id');
+  const renderer = readFileSync('scripts/render-production-wrangler.mjs', 'utf8');
+  assert.ok(renderer.includes("binding: 'PROFILE_DB'"));
+  assert.ok(renderer.includes('ABYSS_EATER_D1_DATABASE_ID'));
 });
 
 test('production deployment fails closed on paid Workers and applies D1 migrations before game deploy', () => {
@@ -40,10 +40,12 @@ test('production deployment fails closed on paid Workers and applies D1 migratio
     'Fail closed unless Workers account is free',
     '/subscriptions',
     'Paid Workers subscription detected',
-    'wrangler@4.129.1 d1 migrations apply DB --remote',
+    'wrangler@4.129.1 d1 migrations apply PROFILE_DB --remote',
+    'SESSION_SIGNING_KEY',
+    'dist/wrangler.production.jsonc',
     'npm run deploy:game',
   ]) {
     assert.ok(workflow.includes(marker), `production deploy must include ${marker}`);
   }
-  assert.ok(workflow.indexOf('d1 migrations apply DB --remote') < workflow.indexOf('npm run deploy:game'), 'migration must run before game deploy');
+  assert.ok(workflow.indexOf('d1 migrations apply PROFILE_DB --remote') < workflow.indexOf('npm run deploy:game'), 'migration must run before game deploy');
 });

@@ -44,6 +44,15 @@ function boundedProfileId(value) {
   return /^[A-Za-z0-9._:-]{1,128}$/.test(id) ? id : '';
 }
 
+function boundedSkinId(value) {
+  return skinById(String(value ?? '').trim())?.id || 'reef';
+}
+
+function boundedGameSessionId(value) {
+  const id = String(value ?? '').trim().toLowerCase();
+  return /^[a-f0-9]{64}$/.test(id) ? id : '';
+}
+
 function reconnectStorageKey(resumeKey) {
   return `reconnect:${resumeKey}`;
 }
@@ -112,7 +121,7 @@ function jsonApi(value, status = 200) {
 }
 
 function persistenceUnavailable() {
-  return jsonApi({ ok: false, code: 'persistence_unavailable' }, 503);
+  return jsonApi({ ok: false, code: 'persistence_unavailable', error: 'persistence_unavailable' }, 503);
 }
 
 function bearerFromRequest(request) {
@@ -136,24 +145,22 @@ async function readSmallJson(request) {
 }
 
 function databaseReady(env) {
-  return Boolean(env?.DB && typeof env.DB.prepare === 'function');
+  return Boolean(env?.PROFILE_DB && typeof env.PROFILE_DB.prepare === 'function');
 }
 
 function persistenceReady(env) {
-  return Boolean(databaseReady(env) && typeof env.SESSION_SECRET === 'string' && env.SESSION_SECRET.length >= 16);
+  return Boolean(databaseReady(env) && typeof env.SESSION_SIGNING_KEY === 'string' && env.SESSION_SIGNING_KEY.length >= 16);
 }
 
 async function authenticatedProfile(request, env, now = Date.now()) {
   if (!persistenceReady(env)) return { response: persistenceUnavailable() };
   const token = bearerFromRequest(request);
   if (!token) return { response: jsonApi({ ok: false, code: 'unauthorized' }, 401) };
-  const session = await verifySession(token, env.SESSION_SECRET, now);
+  const session = await verifySession(token, env.SESSION_SIGNING_KEY, now);
   if (!session) return { response: jsonApi({ ok: false, code: 'unauthorized' }, 401) };
   try {
-    const profile = await readProfile(env.DB, session.profileId);
-    if (!profile || profile.status !== 'active' || profile.sessionVersion !== session.version) {
-      return { response: jsonApi({ ok: false, code: 'unauthorized' }, 401) };
-    }
+    const profile = await profileForSession(env.PROFILE_DB, session.sessionId, now);
+    if (!profile) return { response: jsonApi({ ok: false, code: 'unauthorized' }, 401) };
     return { session, profile };
   } catch {
     return { response: persistenceUnavailable() };
@@ -163,11 +170,9 @@ async function authenticatedProfile(request, env, now = Date.now()) {
 async function profileForSessionToken(token, env, now = Date.now()) {
   if (!token || !persistenceReady(env)) return null;
   try {
-    const session = await verifySession(token, env.SESSION_SECRET, now);
+    const session = await verifySession(token, env.SESSION_SIGNING_KEY, now);
     if (!session) return null;
-    const profile = await readProfile(env.DB, session.profileId);
-    if (!profile || profile.status !== 'active' || profile.sessionVersion !== session.version) return null;
-    return profile;
+    return await profileForSession(env.PROFILE_DB, session.sessionId, now);
   } catch {
     return null;
   }
@@ -181,24 +186,18 @@ async function handleSessionApi(request, env) {
   const now = Date.now();
 
   try {
-    let profile = null;
-    const existingToken = bearerFromRequest(request);
-    if (existingToken) {
-      const session = await verifySession(existingToken, env.SESSION_SECRET, now);
-      if (session) {
-        const existing = await readProfile(env.DB, session.profileId);
-        if (existing?.status === 'active' && existing.sessionVersion === session.version) profile = existing;
-      }
-    }
-
-    if (!profile) profile = await createGuestProfile(env.DB, body.displayName, now, crypto.randomUUID());
-
-    const ownedSkins = await readOwnedSkins(env.DB, profile.id);
-    const token = await signSession({
+    const profile = await createGuestProfile(env.PROFILE_DB, body.displayName, now, crypto.randomUUID());
+    const sessionId = newSessionId();
+    const expiresAt = now + SESSION_TTL_MS;
+    await createSession(env.PROFILE_DB, {
+      sessionId,
       profileId: profile.id,
-      version: profile.sessionVersion,
-      expiresAt: now + SESSION_TTL_MS,
-    }, env.SESSION_SECRET, now);
+      createdAt: now,
+      expiresAt,
+      sessionVersion: profile.sessionVersion,
+    });
+    const ownedSkins = await readOwnedSkins(env.PROFILE_DB, profile.id);
+    const token = await signSession({ sessionId, version: profile.sessionVersion, expiresAt }, env.SESSION_SIGNING_KEY, now);
     return jsonApi({ ok: true, token, profile, ownedSkins, catalog: SKIN_CATALOG }, 200);
   } catch {
     return persistenceUnavailable();
@@ -210,7 +209,7 @@ async function handleProfileApi(request, env) {
   const auth = await authenticatedProfile(request, env);
   if (auth.response) return auth.response;
   try {
-    const ownedSkins = await readOwnedSkins(env.DB, auth.profile.id);
+    const ownedSkins = await readOwnedSkins(env.PROFILE_DB, auth.profile.id);
     return jsonApi({ ok: true, profile: auth.profile, ownedSkins, catalog: SKIN_CATALOG });
   } catch {
     return persistenceUnavailable();
@@ -221,13 +220,19 @@ async function handleLeaderboardApi(request, env, url) {
   if (request.method !== 'GET') return jsonApi({ ok: false, code: 'method_not_allowed' }, 405);
   if (!databaseReady(env)) return persistenceUnavailable();
   try {
-    const season = url.searchParams.get('season') || 'all-time';
+    const scope = url.searchParams.get('scope') || url.searchParams.get('season') || 'all-time';
     const limit = Number(url.searchParams.get('limit') || 10);
-    const leaderboard = await readLeaderboard(env.DB, season, limit);
-    return jsonApi({ ok: true, season: 'all-time', leaderboard });
+    const leaderboard = await readLeaderboard(env.PROFILE_DB, scope, limit);
+    return jsonApi({ ok: true, scope: scope === 'seasonal' ? 'seasonal' : 'all-time', leaderboard });
   } catch {
     return persistenceUnavailable();
   }
+}
+
+async function handleSkinsApi(request, env) {
+  if (request.method !== 'GET') return jsonApi({ ok: false, code: 'method_not_allowed' }, 405);
+  if (!databaseReady(env)) return persistenceUnavailable();
+  return jsonApi({ ok: true, catalog: SKIN_CATALOG });
 }
 
 function shopStatus(result) {
@@ -245,10 +250,10 @@ async function handleShopPurchaseApi(request, env) {
   const body = await readSmallJson(request);
   if (!body || typeof body.skinId !== 'string') return jsonApi({ ok: false, code: 'invalid_request' }, 400);
   try {
-    const result = await purchaseSkin(env.DB, auth.profile.id, body.skinId, Date.now());
+    const result = await purchaseSkin(env.PROFILE_DB, auth.profile.id, body.skinId, Date.now());
     if (!result.ok) return jsonApi(result, shopStatus(result));
-    const profile = await readProfile(env.DB, auth.profile.id);
-    const ownedSkins = await readOwnedSkins(env.DB, auth.profile.id);
+    const profile = await readProfile(env.PROFILE_DB, auth.profile.id);
+    const ownedSkins = await readOwnedSkins(env.PROFILE_DB, auth.profile.id);
     return jsonApi({ ...result, profile, ownedSkins, catalog: SKIN_CATALOG });
   } catch {
     return persistenceUnavailable();
@@ -262,9 +267,9 @@ async function handleSelectSkinApi(request, env) {
   const body = await readSmallJson(request);
   if (!body || typeof body.skinId !== 'string') return jsonApi({ ok: false, code: 'invalid_request' }, 400);
   try {
-    const result = await selectSkin(env.DB, auth.profile.id, body.skinId, Date.now());
+    const result = await selectSkin(env.PROFILE_DB, auth.profile.id, body.skinId, Date.now());
     if (!result.ok) return jsonApi(result, shopStatus(result));
-    const profile = await readProfile(env.DB, auth.profile.id);
+    const profile = await readProfile(env.PROFILE_DB, auth.profile.id);
     return jsonApi({ ...result, profile, catalog: SKIN_CATALOG });
   } catch {
     return persistenceUnavailable();
@@ -330,16 +335,30 @@ export class GameRoom extends DurableObject {
     }
   }
 
-  async settleDeath(player, now) {
-    if (!player?.profileId || !databaseReady(this.env)) return;
-    const rewardEventId = `death:${player.room}:${player.id}:${player.deaths + 1}`;
+  async settleCheckpoint(player, now) {
+    if (!player?.profileId || !databaseReady(this.env)) return player;
+    const scoreDelta = Math.max(0, player.score - player.checkpointScore);
+    const massDelta = Math.max(0, player.mass - player.checkpointMass);
+    const eatenDelta = Math.max(0, player.eaten - player.checkpointEaten);
+    if (scoreDelta <= 0 && massDelta <= 0 && eatenDelta <= 0) return player;
+    const rewardEventId = `${player.gameSessionId}:${player.checkpointSeq + 1}`;
     try {
-      await applySessionReward(this.env.DB, player.profileId, rewardEventId, {
-        score: player.score,
-        mass: player.mass,
-        eaten: player.eaten || 0,
+      await applySessionReward(this.env.PROFILE_DB, player.profileId, rewardEventId, {
+        score: scoreDelta,
+        mass: 1 + massDelta,
+        eaten: eatenDelta,
       }, now);
-    } catch {}
+      return {
+        ...player,
+        checkpointSeq: player.checkpointSeq + 1,
+        checkpointScore: player.score,
+        checkpointMass: player.mass,
+        checkpointEaten: player.eaten,
+        checkpointStartedAt: now,
+      };
+    } catch {
+      return player;
+    }
   }
 
   async readReconnectIndex() {
@@ -428,6 +447,7 @@ export class GameRoom extends DurableObject {
     const requestedResume = boundedResumeKey(url.searchParams.get('resume'));
     const requestedProfileId = boundedProfileId(url.searchParams.get('profile'));
     const requestedSkinId = skinById(url.searchParams.get('skin'))?.id || '';
+    const requestedGameSessionId = boundedGameSessionId(url.searchParams.get('gameSession'));
     const now = Date.now();
     await this.cleanupReconnectSlots(now);
 
@@ -436,7 +456,7 @@ export class GameRoom extends DurableObject {
     if (requestedResume) {
       const slot = await this.takeReconnectSlot(requestedResume, now);
       const activeIds = new Set(activePlayers.map(({ player: active }) => active.id));
-      if (slot?.id && !activeIds.has(slot.id)) {
+      if (slot?.id && !activeIds.has(slot.id) && String(slot.profileId || '') === requestedProfileId) {
         player = {
           ...slot,
           room,
@@ -459,6 +479,12 @@ export class GameRoom extends DurableObject {
         room,
         profileId: requestedProfileId,
         skinId: requestedSkinId,
+        gameSessionId: requestedGameSessionId || newSessionId(),
+        checkpointSeq: 0,
+        checkpointScore: 0,
+        checkpointMass: START_MASS,
+        checkpointEaten: 0,
+        checkpointStartedAt: now,
         position: spawnPoint(),
         mass: START_MASS,
         score: 0,
@@ -563,8 +589,15 @@ export class GameRoom extends DurableObject {
         this.wildlife[i] = respawnWildlife(actor, spawnPoint);
         this.wildlifeDirty = true;
       } else if (winner === 'b') {
-        await this.settleDeath(player, now);
-        player = { ...respawnPlayer(player, spawnPoint()), eaten: 0 };
+        player = await this.settleCheckpoint(player, now);
+        player = {
+          ...respawnPlayer(player, spawnPoint()),
+          eaten: 0,
+          checkpointScore: 0,
+          checkpointMass: START_MASS,
+          checkpointEaten: 0,
+          checkpointStartedAt: now,
+        };
         player.lastAt = now;
         playerWasEaten = true;
         ws.send(JSON.stringify({
@@ -603,8 +636,15 @@ export class GameRoom extends DurableObject {
             score: player.score + Math.max(1, Math.round(other.mass * 100)),
             eaten: Math.max(0, Number(player.eaten || 0)) + 1,
           };
-          await this.settleDeath(other, now);
-          other = { ...respawnPlayer(other, spawnPoint()), eaten: 0 };
+          other = await this.settleCheckpoint(other, now);
+          other = {
+            ...respawnPlayer(other, spawnPoint()),
+            eaten: 0,
+            checkpointScore: 0,
+            checkpointMass: START_MASS,
+            checkpointEaten: 0,
+            checkpointStartedAt: now,
+          };
           other.lastAt = now;
           peer.socket.serializeAttachment(other);
           peer.socket.send(JSON.stringify({
@@ -620,8 +660,15 @@ export class GameRoom extends DurableObject {
             eaten: Math.max(0, Number(other.eaten || 0)) + 1,
           };
           peer.socket.serializeAttachment(other);
-          await this.settleDeath(player, now);
-          player = { ...respawnPlayer(player, spawnPoint()), eaten: 0 };
+          player = await this.settleCheckpoint(player, now);
+          player = {
+            ...respawnPlayer(player, spawnPoint()),
+            eaten: 0,
+            checkpointScore: 0,
+            checkpointMass: START_MASS,
+            checkpointEaten: 0,
+            checkpointStartedAt: now,
+          };
           player.lastAt = now;
           playerWasEaten = true;
           ws.send(JSON.stringify({
@@ -643,11 +690,13 @@ export class GameRoom extends DurableObject {
   }
 
   async detachPlayer(ws) {
-    const player = ws.deserializeAttachment();
+    let player = ws.deserializeAttachment();
     if (!player?.id || player.interactive === false) return;
+    const now = Date.now();
+    player = await this.settleCheckpoint(player, now);
     const detached = { ...player, interactive: false };
     ws.serializeAttachment(detached);
-    await this.saveReconnectSlot(detached, Date.now());
+    await this.saveReconnectSlot(detached, now);
     this.broadcastSnapshot(true);
   }
 
@@ -674,11 +723,11 @@ export default {
         roomPoolSize: ROOM_POOL_SIZE,
         snapshotHzCap: Math.round(1000 / SNAPSHOT_MIN_INTERVAL_MS),
         wildlifePerRoom: WILDLIFE_COUNT,
-        persistence: databaseReady(env) ? 'configured' : 'unavailable',
+        persistence: persistenceReady(env) ? 'configured' : 'unavailable',
       });
     }
 
-    if (url.pathname === '/api/session') {
+    if (url.pathname === '/api/session' || url.pathname === '/api/session/guest') {
       return handleSessionApi(request, env);
     }
 
@@ -690,11 +739,15 @@ export default {
       return handleLeaderboardApi(request, env, url);
     }
 
-    if (url.pathname === '/api/shop/purchase') {
+    if (url.pathname === '/api/skins') {
+      return handleSkinsApi(request, env);
+    }
+
+    if (url.pathname === '/api/shop/purchase' || url.pathname === '/api/skins/buy') {
       return handleShopPurchaseApi(request, env);
     }
 
-    if (url.pathname === '/api/profile/skin') {
+    if (url.pathname === '/api/profile/skin' || url.pathname === '/api/skins/select') {
       return handleSelectSkinApi(request, env);
     }
 
@@ -708,11 +761,14 @@ export default {
       url.searchParams.delete('session');
       url.searchParams.delete('profile');
       url.searchParams.delete('skin');
+      url.searchParams.delete('gameSession');
       const profile = await profileForSessionToken(sessionToken, env);
-      if (profile) {
+      const gameSessionId = newSessionId();
+      if (profile?.id) {
         url.searchParams.set('profile', profile.id);
         if (skinById(profile.selectedSkinId)) url.searchParams.set('skin', profile.selectedSkinId);
       }
+      url.searchParams.set('gameSession', gameSessionId);
       url.searchParams.set('room', room);
       const stub = env.GAME_ROOM.getByName(room);
       return stub.fetch(new Request(url.toString(), request));

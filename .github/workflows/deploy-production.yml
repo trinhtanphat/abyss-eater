@@ -66,16 +66,36 @@ jobs:
           console.log(workerPlans.length ? `Confirmed free Workers plan: ${workerPlans.join(', ')}` : 'No paid Workers subscription found; default Workers Free plan accepted.');
           NODE
 
+      - name: Render persistence production config
+        env:
+          ABYSS_EATER_D1_DATABASE_ID: ${{ secrets.ABYSS_EATER_D1_DATABASE_ID }}
+        run: |
+          set -euo pipefail
+          if [ -z "${ABYSS_EATER_D1_DATABASE_ID:-}" ]; then
+            echo "::error::Missing ABYSS_EATER_D1_DATABASE_ID for an existing free-tier D1 database."
+            exit 1
+          fi
+          node scripts/render-production-wrangler.mjs
+
+      - name: Verify existing session signing secret
+        env:
+          CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN_6666 || secrets.CLOUDFLARE_API_TOKEN }}
+        run: |
+          set -euo pipefail
+          npx --yes wrangler@4.129.1 secret list --config dist/wrangler.production.jsonc | tee /tmp/worker-secrets.txt
+          grep -Fq 'SESSION_SIGNING_KEY' /tmp/worker-secrets.txt || { echo "::error::SESSION_SIGNING_KEY must already exist on the Worker."; exit 1; }
+
       - name: Apply Carrier 3 D1 migrations
         env:
           CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN_6666 || secrets.CLOUDFLARE_API_TOKEN }}
         run: |
           set -euo pipefail
-          npx --yes wrangler@4.129.1 d1 migrations apply DB --remote --config wrangler.jsonc
+          npx --yes wrangler@4.129.1 d1 migrations apply PROFILE_DB --remote --config dist/wrangler.production.jsonc
 
       - name: Deploy authoritative game Worker
         env:
           CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN_6666 || secrets.CLOUDFLARE_API_TOKEN }}
+          ABYSS_EATER_D1_DATABASE_ID: ${{ secrets.ABYSS_EATER_D1_DATABASE_ID }}
         run: |
           set -euo pipefail
           npm run deploy:game
@@ -106,12 +126,15 @@ jobs:
             grep -Fq '"roomPoolSize":64' <<<"$body"
             grep -Fq '"snapshotHzCap":20' <<<"$body"
             grep -Fq '"wildlifePerRoom":24' <<<"$body"
+            grep -Fq '"persistence":"configured"' <<<"$body"
           done
 
       - name: Verify branded premium shell and Vietnamese TTS
         run: |
           set -euo pipefail
           base=https://abyss-eater.qs3d.site
+          skin_api="$(curl --fail --show-error --silent --retry 5 --retry-all-errors --max-time 20 "$base/api/skins")"
+          ranks="$(curl --fail --show-error --silent --retry 5 --retry-all-errors --max-time 20 "$base/api/leaderboard?season=all-time&limit=5")"
           html="$(curl --fail --show-error --silent --retry 5 --retry-all-errors --max-time 20 "$base/")"
           app="$(curl --fail --show-error --silent --retry 5 --retry-all-errors --max-time 20 "$base/app.js")"
           tts="$(curl --fail --show-error --silent --retry 5 --retry-all-errors --max-time 20 "$base/client-tts.mjs")"
@@ -123,6 +146,8 @@ jobs:
             echo "::error::Could not derive expected service-worker cache marker from public/sw.js."
             exit 1
           fi
+          grep -Fq '"ok":true' <<<"$skin_api"
+          grep -Fq '"ok":true' <<<"$ranks"
           grep -Fq 'ABYSS' <<<"$html"
           grep -Fq 'Deep Sea' <<<"$html"
           grep -Fq 'id="leaderboard"' <<<"$html"
