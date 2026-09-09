@@ -4,6 +4,9 @@ import { DurableObject } from 'cloudflare:workers';
 /*__PROTOCOL__*/
 /*__SPATIAL_GRID__*/
 /*__ROOM_STATE__*/
+/*__PROGRESSION__*/
+/*__SESSION_TOKEN__*/
+/*__PROFILE_STORE__*/
 
 const ASSETS = /*__ASSETS__*/;
 const WORLD_BOUNDS = { x: 80, y: 28, z: 80 };
@@ -18,6 +21,8 @@ const RECONNECT_INDEX_KEY = 'reconnect:index';
 const MAX_RECONNECT_SLOTS = MAX_PLAYERS * 2;
 const SNAPSHOT_MIN_INTERVAL_MS = 50;
 const ROOM_POOL_SIZE = 64;
+const SESSION_TTL_MS = 30 * 24 * 60 * 60 * 1000;
+const MAX_API_BODY_BYTES = 2048;
 
 function boundedText(value, fallback, maxLength) {
   const normalized = String(value ?? '')
@@ -77,6 +82,107 @@ function securityHeaders(contentType) {
     'permissions-policy': 'camera=(), microphone=(), geolocation=()',
     'content-security-policy': "default-src 'self'; script-src 'self' https://cdn.jsdelivr.net; style-src 'self' 'unsafe-inline'; connect-src 'self' ws: wss:; img-src 'self' data:; font-src 'self'; worker-src 'self'; object-src 'none'; base-uri 'none'; frame-ancestors 'none'",
   };
+}
+
+function jsonApi(value, status = 200) {
+  return new Response(JSON.stringify(value), {
+    status,
+    headers: {
+      ...securityHeaders('application/json; charset=utf-8'),
+      'cache-control': 'no-store',
+    },
+  });
+}
+
+function persistenceUnavailable() {
+  return jsonApi({ ok: false, code: 'persistence_unavailable' }, 503);
+}
+
+function bearerFromRequest(request) {
+  const header = request.headers.get('Authorization') || '';
+  if (!header.startsWith('Bearer ')) return '';
+  return header.slice('Bearer '.length).trim().slice(0, 4096);
+}
+
+async function readSmallJson(request) {
+  const declared = Number(request.headers.get('content-length') || 0);
+  if (Number.isFinite(declared) && declared > MAX_API_BODY_BYTES) return null;
+  const text = await request.text();
+  if (new TextEncoder().encode(text).byteLength > MAX_API_BODY_BYTES) return null;
+  if (!text) return {};
+  try {
+    const value = JSON.parse(text);
+    return value && typeof value === 'object' && !Array.isArray(value) ? value : null;
+  } catch {
+    return null;
+  }
+}
+
+function persistenceReady(env) {
+  return Boolean(env?.DB && typeof env.DB.prepare === 'function' && typeof env.SESSION_SECRET === 'string' && env.SESSION_SECRET.length >= 16);
+}
+
+async function authenticatedProfile(request, env, now = Date.now()) {
+  if (!persistenceReady(env)) return { response: persistenceUnavailable() };
+  const token = bearerFromRequest(request);
+  if (!token) return { response: jsonApi({ ok: false, code: 'unauthorized' }, 401) };
+  const session = await verifySession(token, env.SESSION_SECRET, now);
+  if (!session) return { response: jsonApi({ ok: false, code: 'unauthorized' }, 401) };
+  try {
+    const profile = await readProfile(env.DB, session.profileId);
+    if (!profile || profile.status !== 'active' || profile.sessionVersion !== session.version) {
+      return { response: jsonApi({ ok: false, code: 'unauthorized' }, 401) };
+    }
+    return { session, profile };
+  } catch {
+    return { response: persistenceUnavailable() };
+  }
+}
+
+async function handleSessionApi(request, env) {
+  if (request.method !== 'POST') return jsonApi({ ok: false, code: 'method_not_allowed' }, 405);
+  if (!persistenceReady(env)) return persistenceUnavailable();
+  const body = await readSmallJson(request);
+  if (!body) return jsonApi({ ok: false, code: 'invalid_request' }, 400);
+  const now = Date.now();
+
+  try {
+    let profile = null;
+    const existingToken = bearerFromRequest(request);
+    if (existingToken) {
+      const session = await verifySession(existingToken, env.SESSION_SECRET, now);
+      if (session) {
+        const existing = await readProfile(env.DB, session.profileId);
+        if (existing?.status === 'active' && existing.sessionVersion === session.version) profile = existing;
+      }
+    }
+
+    if (!profile) {
+      profile = await createGuestProfile(env.DB, body.displayName, now, crypto.randomUUID());
+    }
+
+    const ownedSkins = await readOwnedSkins(env.DB, profile.id);
+    const token = await signSession({
+      profileId: profile.id,
+      version: profile.sessionVersion,
+      expiresAt: now + SESSION_TTL_MS,
+    }, env.SESSION_SECRET, now);
+    return jsonApi({ ok: true, token, profile, ownedSkins, catalog: SKIN_CATALOG }, 200);
+  } catch {
+    return persistenceUnavailable();
+  }
+}
+
+async function handleProfileApi(request, env) {
+  if (request.method !== 'GET') return jsonApi({ ok: false, code: 'method_not_allowed' }, 405);
+  const auth = await authenticatedProfile(request, env);
+  if (auth.response) return auth.response;
+  try {
+    const ownedSkins = await readOwnedSkins(env.DB, auth.profile.id);
+    return jsonApi({ ok: true, profile: auth.profile, ownedSkins, catalog: SKIN_CATALOG });
+  } catch {
+    return persistenceUnavailable();
+  }
 }
 
 export class GameRoom extends DurableObject {
@@ -417,6 +523,14 @@ export default {
         roomPoolSize: ROOM_POOL_SIZE,
         snapshotHzCap: Math.round(1000 / SNAPSHOT_MIN_INTERVAL_MS),
       });
+    }
+
+    if (url.pathname === '/api/session') {
+      return handleSessionApi(request, env);
+    }
+
+    if (url.pathname === '/api/profile') {
+      return handleProfileApi(request, env);
     }
 
     if (url.pathname === '/ws') {
