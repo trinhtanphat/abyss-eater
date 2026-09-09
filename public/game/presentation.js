@@ -1,4 +1,4 @@
-const THEMES = new Set(['stylized', 'deep-sea']);
+const THEMES = new Set(['stylized', 'deep-sea', 'twilight-garden', 'blue-trench', 'volcanic-rift', 'leviathan-depths']);
 const QUALITIES = new Set(['auto', 'high', 'medium', 'low']);
 
 function normalizedToken(value) {
