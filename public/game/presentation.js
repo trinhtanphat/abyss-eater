@@ -18,8 +18,8 @@ export function normalizeQuality(value) {
 export function growthProgress(mass) {
   const value = Number(mass);
   if (!Number.isFinite(value) || value <= 1) return 0;
-  if (value >= 64) return 1;
-  return Math.max(0, Math.min(1, Math.log2(value) / 6));
+  if (value >= 32) return 1;
+  return Math.max(0, Math.min(1, Math.log2(value) / 5));
 }
 
 function numeric(value, fallback = 0) {
@@ -42,6 +42,7 @@ export function leaderboard(players, clientId, limit = 5) {
       name: String(player?.name || shortId(player?.id)),
       score: numeric(player?.score),
       mass: Math.max(0, numeric(player?.mass, 1)),
+      fishLevel: Math.max(1, Math.min(6, Math.trunc(numeric(player?.fishLevel, 1)))),
       rank: index + 1,
       isLocal: String(player?.id ?? '') === String(clientId ?? ''),
     }));

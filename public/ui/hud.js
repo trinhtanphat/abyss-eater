@@ -33,7 +33,7 @@ export function createHud(root = document) {
       place.textContent = `#${row.rank}`;
       const name = document.createElement('span');
       name.className = 'leader-name';
-      name.textContent = row.name;
+      name.textContent = `${row.name} · Lv.${row.fishLevel}`;
       const value = document.createElement('strong');
       value.className = 'leader-score';
       value.textContent = String(row.score);
@@ -52,6 +52,7 @@ export function createHud(root = document) {
     const myRank = allRows.find((row) => row.id === clientId)?.rank || '—';
     const topRows = allRows.slice(0, 5);
     const ecosystem = ecosystemSummary(entities, clientId);
+    const fishLevel = me ? Math.max(1, Math.min(6, Math.trunc(Number(me.fishLevel) || 1))) : 1;
 
     text(mass, me ? Number(me.mass || 1).toFixed(2) : '1.00');
     text(score, me ? Math.max(0, Math.round(Number(me.score) || 0)) : 0);
@@ -65,7 +66,7 @@ export function createHud(root = document) {
 
     const progressValue = growthProgress(me?.mass || 1);
     if (progress) progress.style.width = `${(progressValue * 100).toFixed(1)}%`;
-    text(progressLabel, `${Math.round(progressValue * 100)}% evolution`);
+    text(progressLabel, `Fish Lv.${fishLevel} · ${Math.round(progressValue * 100)}% evolution`);
 
     const topY = Math.max(1, Math.abs(Number(bounds?.y) || 28));
     const playerY = Number(me?.position?.y) || 0;

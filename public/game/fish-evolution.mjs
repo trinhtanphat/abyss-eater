@@ -74,18 +74,33 @@ export const EVOLUTION_TIERS = Object.freeze([
   }),
 ]);
 
+export const FISH_LEVEL_MAX = EVOLUTION_TIERS.length;
+
 function normalizedMass(mass) {
   const value = Number(mass);
   return Number.isFinite(value) && value >= 1 ? value : 1;
 }
 
-export function evolutionTierForMass(mass) {
+export function fishLevelForMass(mass) {
   const value = normalizedMass(mass);
-  const index = Math.min(EVOLUTION_TIERS.length - 1, Math.max(0, Math.floor(Math.log2(value))));
+  return Math.min(FISH_LEVEL_MAX, Math.max(1, Math.floor(Math.log2(value)) + 1));
+}
+
+export function evolutionTierForLevel(level) {
+  const value = Number(level);
+  const index = Number.isFinite(value) ? Math.min(FISH_LEVEL_MAX - 1, Math.max(0, Math.trunc(value) - 1)) : 0;
   return EVOLUTION_TIERS[index].id;
 }
 
-export function silhouetteForMass(mass) {
-  const id = evolutionTierForMass(mass);
+export function evolutionTierForMass(mass) {
+  return evolutionTierForLevel(fishLevelForMass(mass));
+}
+
+export function silhouetteForLevel(level) {
+  const id = evolutionTierForLevel(level);
   return EVOLUTION_TIERS.find((tier) => tier.id === id) || EVOLUTION_TIERS[0];
+}
+
+export function silhouetteForMass(mass) {
+  return silhouetteForLevel(fishLevelForMass(mass));
 }
