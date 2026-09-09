@@ -36,6 +36,8 @@
     import { createFishRig, applyFishSnapshot, animateFishRig, createFoodMesh } from '../public/game/fish.js';
     import { createEffectManager } from '../public/game/effects.js';
 
+    const ciMode = new URLSearchParams(location.search).get('ci') === '1';
+
     const theme = {
       fish: {
         local: 0x52efff,
@@ -135,13 +137,14 @@
     const effects = createEffectManager(scene, { profile: { effectParticles: 18 }, reducedMotion: false });
     effects.growth(new THREE.Vector3(-9.3, .3, 0));
     effects.eat(new THREE.Vector3(8.8, -5.7, 0), 320, 0x69efff);
-    setInterval(() => {
+    if (!ciMode) setInterval(() => {
       effects.growth(new THREE.Vector3(-9.3, .3, 0));
       effects.eat(new THREE.Vector3(8.8, -5.7, 0), 320, 0x69efff);
     }, 900);
 
     const projected = new THREE.Vector3();
     let last = performance.now();
+    let frameCount = 0;
     function frame(now) {
       const delta = Math.min(.05, (now - last) / 1000);
       last = now;
@@ -159,7 +162,9 @@
       bubbles.rotation.z += delta * .012;
       effects.update(delta);
       renderer.render(scene, camera);
-      requestAnimationFrame(frame);
+      frameCount += 1;
+      if (!ciMode || frameCount < 12) requestAnimationFrame(frame);
+      else window.__ABYSS_VISUAL_REVIEW_READY__ = true;
     }
     requestAnimationFrame(frame);
 
@@ -169,7 +174,7 @@
       renderer.setSize(innerWidth, innerHeight);
     });
 
-    window.__ABYSS_VISUAL_REVIEW_READY__ = true;
+    window.__ABYSS_VISUAL_REVIEW_READY__ = !ciMode;
   </script>
 </body>
 </html>
