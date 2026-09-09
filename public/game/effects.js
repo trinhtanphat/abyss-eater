@@ -1,19 +1,54 @@
 import * as THREE from 'https://cdn.jsdelivr.net/npm/three@0.185.1/build/three.module.js';
 
 const PARTICLE_GEOMETRY = new THREE.IcosahedronGeometry(0.075, 0);
+const RING_GEOMETRY = new THREE.TorusGeometry(0.68, 0.035, 6, 32);
 
 export function createEffectManager(scene, { profile, reducedMotion = false, fxLayer = null, onCameraKick = () => {} } = {}) {
   const root = new THREE.Group();
   root.name = 'transient-effects';
   scene.add(root);
   const particles = [];
+  const rings = [];
   const maxParticles = Math.max(24, (profile?.effectParticles || 24) * 4);
+  const maxRings = 8;
 
   function removeParticle(particle) {
     root.remove(particle.mesh);
     particle.mesh.material.dispose();
     const index = particles.indexOf(particle);
     if (index >= 0) particles.splice(index, 1);
+  }
+
+  function removeRing(ring) {
+    root.remove(ring.mesh);
+    ring.mesh.material.dispose();
+    const index = rings.indexOf(ring);
+    if (index >= 0) rings.splice(index, 1);
+  }
+
+  function pulseRing(position, color = 0x66efff, intensity = 1) {
+    if (reducedMotion) return;
+    while (rings.length >= maxRings) removeRing(rings[0]);
+
+    const material = new THREE.MeshBasicMaterial({
+      color,
+      transparent: true,
+      opacity: 0.58,
+      blending: THREE.AdditiveBlending,
+      depthWrite: false,
+      side: THREE.DoubleSide,
+    });
+    const mesh = new THREE.Mesh(RING_GEOMETRY, material);
+    mesh.position.copy(position);
+    mesh.scale.setScalar(0.5 + intensity * 0.12);
+    root.add(mesh);
+    rings.push({
+      mesh,
+      age: 0,
+      life: 0.34 + Math.min(1.6, Math.max(0.5, intensity)) * 0.12,
+      startScale: mesh.scale.x,
+      growth: 2.1 + intensity * 1.25,
+    });
   }
 
   function burst(position, color = 0x8fffe1, intensity = 1) {
@@ -48,12 +83,14 @@ export function createEffectManager(scene, { profile, reducedMotion = false, fxL
 
   function eat(position, points = 100, color = 0x66efff) {
     burst(position, color, 1.75);
+    pulseRing(position, color, 1.75);
     popText(`DEVOUR +${Math.max(1, Math.round(points))}`, 'eat');
     onCameraKick(reducedMotion ? 0 : 0.7);
   }
 
   function growth(position) {
     burst(position, 0xb9ffe9, 1.1);
+    pulseRing(position, 0xb9ffe9, 1.1);
     popText('GROWTH!', 'growth');
   }
 
@@ -83,10 +120,25 @@ export function createEffectManager(scene, { profile, reducedMotion = false, fxL
       particle.mesh.material.opacity = t * 0.9;
       particle.mesh.scale.setScalar(0.6 + t * 1.4);
     }
+
+    for (const ring of [...rings]) {
+      ring.age += dt;
+      if (ring.age >= ring.life) {
+        removeRing(ring);
+        continue;
+      }
+      const progress = ring.age / ring.life;
+      const scale = ring.startScale + progress * ring.growth;
+      ring.mesh.scale.setScalar(scale);
+      ring.mesh.material.opacity = (1 - progress) * 0.58;
+      ring.mesh.rotation.x += dt * 0.55;
+      ring.mesh.rotation.z -= dt * 0.32;
+    }
   }
 
   function dispose() {
     for (const particle of [...particles]) removeParticle(particle);
+    for (const ring of [...rings]) removeRing(ring);
     scene.remove(root);
   }
 
