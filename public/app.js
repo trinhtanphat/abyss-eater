@@ -29,6 +29,11 @@ const hudPlayers = document.querySelector('#hud-players');
 const hudPing = document.querySelector('#hud-ping');
 const hudStatus = document.querySelector('#hud-status');
 const hudRoom = document.querySelector('#hud-room');
+const connectionBanner = document.querySelector('#connection-banner');
+const connectionBannerTitle = document.querySelector('#connection-banner-title');
+const connectionBannerMessage = document.querySelector('#connection-banner-message');
+const respawnCard = document.querySelector('#respawn-card');
+const respawnMessage = document.querySelector('#respawn-message');
 const toast = document.querySelector('#toast');
 
 function readClientSettings() {
@@ -120,6 +125,7 @@ let inputSeq = 0;
 let pingSentAt = 0;
 let reconnectTimer = null;
 let lastToastTimer = null;
+let respawnTimer = null;
 let lookYaw = 0;
 let lookPitch = -0.12;
 let protocolBlocked = false;
@@ -240,6 +246,31 @@ function setStatus(message, connected = false) {
   document.body.classList.toggle('connected', connected);
 }
 
+const CONNECTION_COPY = {
+  connecting: ['Connecting', 'Reaching the ocean server…'],
+  reconnecting: ['Reconnecting', 'Keeping your fish for the reconnect grace window…'],
+  'upgrade-required': ['Upgrade required', 'Reload this page to match the server protocol.'],
+  offline: ['You are offline', 'Restore your network connection to return to the ocean.'],
+};
+
+function setConnectionState(state, message, connected = false) {
+  document.body.dataset.connectionState = state;
+  setStatus(message, connected);
+  const copy = CONNECTION_COPY[state];
+  connectionBanner.hidden = !copy;
+  if (copy) {
+    connectionBannerTitle.textContent = copy[0];
+    connectionBannerMessage.textContent = copy[1];
+  }
+}
+
+function showRespawn(by) {
+  clearTimeout(respawnTimer);
+  respawnMessage.textContent = `Eaten by ${by || 'a bigger fish'}.`;
+  respawnCard.hidden = false;
+  respawnTimer = setTimeout(() => { respawnCard.hidden = true; }, 1600);
+}
+
 function updateVolumeOutputs() {
   masterVolumeValue.textContent = `${Math.round(settings.master * 100)}%`;
   musicVolumeValue.textContent = `${Math.round(settings.music * 100)}%`;
@@ -285,6 +316,8 @@ function persistSettingsFromControls(changedControl) {
 
 function openSettings() {
   syncSettingsControls();
+  inputKeys.clear();
+  touchState.clear();
   if (document.pointerLockElement) document.exitPointerLock?.();
   void audio.unlock().then((unlocked) => { if (unlocked) audio.playUi(); });
   if (!settingsDialog.open) settingsDialog.showModal();
@@ -296,6 +329,7 @@ settingsDialog?.addEventListener('input', (event) => persistSettingsFromControls
 settingsDialog?.addEventListener('change', (event) => persistSettingsFromControls(event.target));
 settingsDialog?.addEventListener('close', () => audio.playUi());
 syncSettingsControls();
+setConnectionState('ready', 'Ready');
 
 function sanitized(value, fallback, max) {
   return (String(value || '').replace(/[^\p{L}\p{N} _.-]/gu, '').replace(/\s+/g, ' ').trim() || fallback).slice(0, max);
@@ -324,6 +358,7 @@ function blockForProtocolMismatch() {
   protocolBlocked = true;
   clearTimeout(reconnectTimer);
   setStatus('Upgrade required');
+  setConnectionState('upgrade-required', 'Upgrade required');
   showToast('Upgrade required · reload the game');
   if (socket && socket.readyState < WebSocket.CLOSING) socket.close(1002, 'protocol-version');
 }
@@ -332,6 +367,7 @@ function connect() {
   clearTimeout(reconnectTimer);
   if (protocolBlocked) {
     setStatus('Upgrade required');
+    setConnectionState('upgrade-required', 'Upgrade required');
     return;
   }
 
@@ -341,7 +377,7 @@ function connect() {
   localStorage.setItem('abyss-eater-name', name);
   localStorage.setItem('abyss-eater-room', room);
   hudRoom.textContent = room;
-  setStatus('Connecting…');
+  setConnectionState('connecting', 'Connecting…');
 
   const wsUrl = new URL('/ws', location.href);
   wsUrl.protocol = location.protocol === 'https:' ? 'wss:' : 'ws:';
@@ -350,7 +386,7 @@ function connect() {
   if (resumeKey) wsUrl.searchParams.set('resume', resumeKey);
   socket = new WebSocket(wsUrl);
 
-  socket.addEventListener('open', () => setStatus('Online', true));
+  socket.addEventListener('open', () => setConnectionState('online', 'Online', true));
   socket.addEventListener('message', (event) => {
     let message;
     try { message = JSON.parse(event.data); } catch { return; }
@@ -379,6 +415,7 @@ function connect() {
     }
     if (message.type === 'eaten') {
       audio.playDeath();
+      showRespawn(message.by);
       showToast(`Eaten by ${message.by || 'a bigger fish'} — respawning`);
       return;
     }
@@ -390,12 +427,17 @@ function connect() {
     lastLocalScore = null;
     if (protocolBlocked) {
       setStatus('Upgrade required');
+      setConnectionState('upgrade-required', 'Upgrade required');
       return;
     }
-    setStatus('Reconnecting…');
+    if (navigator.onLine === false) setConnectionState('offline', 'Offline');
+    else setConnectionState('reconnecting', 'Reconnecting…');
     if (started) reconnectTimer = setTimeout(connect, 1800);
   });
-  socket.addEventListener('error', () => setStatus('Connection issue'));
+  socket.addEventListener('error', () => {
+    if (navigator.onLine === false) setConnectionState('offline', 'Offline');
+    else setConnectionState('reconnecting', 'Connection issue');
+  });
 }
 
 function currentDirection() {
@@ -420,13 +462,26 @@ function ping() {
   socket.send(JSON.stringify({ type: 'ping', v: PROTOCOL_VERSION, t: pingSentAt }));
 }
 
+function eventTargetsMenuControl(event) {
+  return event.target?.matches('input, select, button, textarea') === true;
+}
+
 addEventListener('keydown', (event) => {
-  if (!started) return;
+  if (!started || settingsDialog?.open || eventTargetsMenuControl(event)) return;
   if (['Space', 'ArrowUp', 'ArrowDown', 'ArrowLeft', 'ArrowRight'].includes(event.code)) event.preventDefault();
   inputKeys.add(event.code);
 });
 addEventListener('keyup', (event) => inputKeys.delete(event.code));
 addEventListener('blur', () => inputKeys.clear());
+
+addEventListener('offline', () => {
+  if (started && !protocolBlocked) setConnectionState('offline', 'Offline');
+});
+addEventListener('online', () => {
+  if (!started || protocolBlocked) return;
+  if (socket?.readyState === WebSocket.OPEN) setConnectionState('online', 'Online', true);
+  else setConnectionState('reconnecting', 'Reconnecting…');
+});
 
 document.addEventListener('visibilitychange', () => {
   void audio.setSuspended(document.hidden);
