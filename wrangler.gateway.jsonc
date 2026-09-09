@@ -1,0 +1,10 @@
+{
+  "name": "abyss-eater-gateway",
+  "main": "gateway/worker.mjs",
+  "account_id": "50afb4fd3c4c7a1f3e1bdb7f22d4af7f",
+  "compatibility_date": "2026-09-09",
+  "workers_dev": false,
+  "routes": [
+    { "pattern": "abyss-eater.qs3d.site", "custom_domain": true }
+  ]
+}
