@@ -49,6 +49,17 @@ test('fish renderer applies evolution silhouettes and localized bioluminescence 
   assert.ok(fish.includes('Math.cbrt(Math.max(0.2, data.mass))'), 'render scale must preserve the sub-one predator-loop hierarchy');
 });
 
+test('fish renderer consumes deterministic palettes without creating per-frame materials', async () => {
+  const fish = await readFile('public/game/fish.js', 'utf8');
+  assert.ok(fish.includes("import { skinFamilyForId, skinPaletteFor } from './fish-skins.mjs';"));
+  assert.ok(fish.includes('skinPaletteFor(id, theme)'));
+  assert.ok(fish.includes('skinFamilyId'));
+  const animateStart = fish.indexOf('export function animateFishRig');
+  const themeStart = fish.indexOf('export function applyFishTheme');
+  const animateBody = fish.slice(animateStart, themeStart);
+  assert.equal(animateBody.includes('new THREE.MeshStandardMaterial'), false, 'animation loop must not allocate skin materials');
+});
+
 test('food renderer uses a grouped marine silhouette instead of a standalone polyhedron', async () => {
   const fish = await readFile('public/game/fish.js', 'utf8');
   const start = fish.indexOf('export function createFoodMesh');
@@ -75,10 +86,11 @@ test('effect manager owns bounded disposable eat and growth pulse rings', async 
   assert.ok(effects.includes('if (reducedMotion) return;'), 'pulse rings must respect reduced-effects mode');
 });
 
-test('offline shell precaches fish evolution, TTS and progression dependencies', async () => {
+test('offline shell precaches fish evolution, skins, TTS and progression dependencies', async () => {
   const sw = await readFile('public/sw.js', 'utf8');
   assert.ok(sw.includes("'/client-tts.mjs'"), 'reconciled shell must preserve the Vietnamese TTS dependency');
   assert.ok(sw.includes("'/client-progression.mjs'"), 'reconciled shell must cache the progression client');
   assert.ok(sw.includes("'/game/fish-evolution.mjs'"), 'service worker shell must cache the module imported by fish.js');
-  assert.ok(sw.includes("CACHE_NAME = 'abyss-eater-shell-v7'"), 'shell version must advance when its dependency list changes');
+  assert.ok(sw.includes("'/game/fish-skins.mjs'"), 'service worker shell must cache the deterministic skin module imported by fish.js');
+  assert.ok(sw.includes("CACHE_NAME = 'abyss-eater-shell-v8'"), 'shell version must advance when its dependency list changes');
 });
