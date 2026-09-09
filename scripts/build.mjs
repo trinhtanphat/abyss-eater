@@ -3,9 +3,12 @@ import { mkdir, readFile, writeFile } from 'node:fs/promises';
 const assetFiles = {
   '/': ['public/index.html', 'text/html; charset=utf-8'],
   '/app.js': ['public/app.js', 'text/javascript; charset=utf-8'],
-  '/client-input.mjs': ['src/client-input.mjs', 'text/javascript; charset=utf-8'],
+  '/client-input.mjs': ['public/client-input.mjs', 'text/javascript; charset=utf-8'],
   '/styles.css': ['public/styles.css', 'text/css; charset=utf-8'],
   '/manifest.webmanifest': ['public/manifest.webmanifest', 'application/manifest+json; charset=utf-8'],
+  '/sw.js': ['public/sw.js', 'text/javascript; charset=utf-8'],
+  '/icon-192.svg': ['public/icon-192.svg', 'image/svg+xml'],
+  '/icon-512.svg': ['public/icon-512.svg', 'image/svg+xml'],
 };
 
 const assets = {};
