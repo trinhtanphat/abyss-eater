@@ -89,6 +89,6 @@ test('PWA exposes an offline shell plus 192 and 512 maskable install icons', () 
   assert.ok(iconSizes.has('192x192'));
   assert.ok(iconSizes.has('512x512'));
   assert.ok((manifest.icons ?? []).some((icon) => String(icon.purpose ?? '').includes('maskable')));
-  const client = readFileSync('public/app.js', 'utf8');
-  assert.ok(client.includes("navigator.serviceWorker.register('/sw.js')"));
+  const bootstrap = readFileSync('public/bootstrap.js', 'utf8');
+  assert.ok(bootstrap.includes("navigator.serviceWorker.register('/sw.js'"));
 });

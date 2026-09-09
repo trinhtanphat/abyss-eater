@@ -8,8 +8,9 @@ test('client fails closed instead of reconnecting forever on protocol mismatch',
     'let protocolBlocked = false;',
     'VERSIONED_MESSAGE_TYPES',
     'blockForProtocolMismatch()',
-    "setStatus('Upgrade required')",
+    "setConnectionState('upgrade-required'",
     'if (protocolBlocked)',
+    "socket.close(1002, 'protocol-version')",
   ]) {
     assert.ok(source.includes(marker), `missing fail-closed protocol marker: ${marker}`);
   }

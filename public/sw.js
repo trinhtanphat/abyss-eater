@@ -1,9 +1,13 @@
-const CACHE_NAME = 'abyss-eater-shell-v1';
+const CACHE_NAME = 'abyss-eater-shell-v2';
 const SHELL = [
   '/',
   '/styles.css',
+  '/bootstrap.js',
   '/app.js',
   '/client-input.mjs',
+  '/client-settings.mjs',
+  '/client-audio.mjs',
+  '/client-capabilities.mjs',
   '/manifest.webmanifest',
   '/icon-192.svg',
   '/icon-512.svg',

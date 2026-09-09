@@ -1,12 +1,26 @@
 import * as THREE from 'https://cdn.jsdelivr.net/npm/three@0.185.1/build/three.module.js';
 import { cameraRelativeDirection, updateLook } from '/client-input.mjs';
+import { DEFAULT_SETTINGS, normalizeSettings, resolveQualityPreset } from '/client-settings.mjs';
+import { createAudioController } from '/client-audio.mjs';
 
 const PROTOCOL_VERSION = 2;
 const VERSIONED_MESSAGE_TYPES = new Set(['welcome', 'snapshot', 'pong', 'eaten', 'error']);
+const SETTINGS_STORAGE_KEY = 'abyss-eater-settings-v1';
 
 const gameRoot = document.querySelector('#game');
 const startScreen = document.querySelector('#start-screen');
 const playButton = document.querySelector('#play-button');
+const settingsButton = document.querySelector('#settings-button');
+const hudSettingsButton = document.querySelector('#hud-settings-button');
+const settingsDialog = document.querySelector('#settings-dialog');
+const qualitySetting = document.querySelector('#quality-setting');
+const reducedEffectsSetting = document.querySelector('#reduced-effects-setting');
+const masterVolume = document.querySelector('#master-volume');
+const musicVolume = document.querySelector('#music-volume');
+const sfxVolume = document.querySelector('#sfx-volume');
+const masterVolumeValue = document.querySelector('#master-volume-value');
+const musicVolumeValue = document.querySelector('#music-volume-value');
+const sfxVolumeValue = document.querySelector('#sfx-volume-value');
 const nameInput = document.querySelector('#player-name');
 const roomInput = document.querySelector('#room-name');
 const hudMass = document.querySelector('#hud-mass');
@@ -15,7 +29,41 @@ const hudPlayers = document.querySelector('#hud-players');
 const hudPing = document.querySelector('#hud-ping');
 const hudStatus = document.querySelector('#hud-status');
 const hudRoom = document.querySelector('#hud-room');
+const connectionBanner = document.querySelector('#connection-banner');
+const connectionBannerTitle = document.querySelector('#connection-banner-title');
+const connectionBannerMessage = document.querySelector('#connection-banner-message');
+const respawnCard = document.querySelector('#respawn-card');
+const respawnMessage = document.querySelector('#respawn-message');
 const toast = document.querySelector('#toast');
+
+function readClientSettings() {
+  try {
+    const stored = localStorage.getItem(SETTINGS_STORAGE_KEY);
+    return normalizeSettings(stored ? JSON.parse(stored) : DEFAULT_SETTINGS);
+  } catch {
+    return { ...DEFAULT_SETTINGS };
+  }
+}
+
+function writeClientSettings(value) {
+  try {
+    localStorage.setItem(SETTINGS_STORAGE_KEY, JSON.stringify(value));
+  } catch {
+    // Local presentation settings are optional and never gate gameplay.
+  }
+}
+
+function qualityEnvironment() {
+  return {
+    width: innerWidth,
+    devicePixelRatio,
+    coarsePointer: matchMedia('(pointer: coarse)').matches,
+  };
+}
+
+let settings = readClientSettings();
+let qualityPreset = resolveQualityPreset(settings, qualityEnvironment());
+const audio = createAudioController({ getSettings: () => settings });
 
 const scene = new THREE.Scene();
 scene.background = new THREE.Color(0x031722);
@@ -25,14 +73,16 @@ const camera = new THREE.PerspectiveCamera(62, innerWidth / innerHeight, 0.1, 40
 camera.position.set(0, 7, 17);
 
 const renderer = new THREE.WebGLRenderer({ antialias: true, powerPreference: 'high-performance' });
-renderer.setPixelRatio(Math.min(devicePixelRatio, 2));
+renderer.setPixelRatio(Math.min(devicePixelRatio, qualityPreset.pixelRatioCap));
 renderer.setSize(innerWidth, innerHeight);
 renderer.outputColorSpace = THREE.SRGBColorSpace;
+renderer.shadowMap.enabled = qualityPreset.shadows;
 gameRoot.appendChild(renderer.domElement);
 
 scene.add(new THREE.HemisphereLight(0x8cecff, 0x001622, 1.25));
 const sun = new THREE.DirectionalLight(0xb5f4ff, 1.1);
 sun.position.set(25, 45, 15);
+sun.castShadow = qualityPreset.shadows;
 scene.add(sun);
 
 const seaFloor = new THREE.Mesh(
@@ -43,15 +93,22 @@ seaFloor.rotation.x = -Math.PI / 2;
 seaFloor.position.y = -28;
 scene.add(seaFloor);
 
-const bubbleGeometry = new THREE.BufferGeometry();
-const bubblePositions = new Float32Array(360 * 3);
-for (let i = 0; i < bubblePositions.length; i += 3) {
-  bubblePositions[i] = (Math.random() * 2 - 1) * 95;
-  bubblePositions[i + 1] = (Math.random() * 2 - 1) * 35;
-  bubblePositions[i + 2] = (Math.random() * 2 - 1) * 95;
+function makeBubblePositions(count) {
+  const positions = new Float32Array(Math.max(0, count) * 3);
+  for (let i = 0; i < positions.length; i += 3) {
+    positions[i] = (Math.random() * 2 - 1) * 95;
+    positions[i + 1] = (Math.random() * 2 - 1) * 35;
+    positions[i + 2] = (Math.random() * 2 - 1) * 95;
+  }
+  return positions;
 }
-bubbleGeometry.setAttribute('position', new THREE.BufferAttribute(bubblePositions, 3));
-const bubbles = new THREE.Points(bubbleGeometry, new THREE.PointsMaterial({ color: 0x80eaff, size: 0.16, transparent: true, opacity: 0.38 }));
+
+const bubbleGeometry = new THREE.BufferGeometry();
+bubbleGeometry.setAttribute('position', new THREE.BufferAttribute(makeBubblePositions(qualityPreset.bubbles), 3));
+const bubbles = new THREE.Points(
+  bubbleGeometry,
+  new THREE.PointsMaterial({ color: 0x80eaff, size: 0.16, transparent: true, opacity: settings.reducedEffects ? 0.22 : 0.38 }),
+);
 scene.add(bubbles);
 
 const fishBodyGeometry = new THREE.SphereGeometry(1, 22, 14);
@@ -81,9 +138,12 @@ let inputSeq = 0;
 let pingSentAt = 0;
 let reconnectTimer = null;
 let lastToastTimer = null;
+let respawnTimer = null;
 let lookYaw = 0;
 let lookPitch = -0.12;
 let protocolBlocked = false;
+let lastLocalMass = null;
+let lastLocalScore = null;
 
 function fishColor(id, isLocal) {
   if (isLocal) return 0x64edff;
@@ -179,7 +239,12 @@ function updateSnapshot(next) {
 
   const me = snapshot.players.find((player) => player.id === clientId);
   if (me) {
-    hudMass.textContent = Number(me.mass).toFixed(2);
+    const nextMass = Number(me.mass) || 0;
+    const nextScore = Number(me.score) || 0;
+    if (lastLocalMass !== null && (nextMass > lastLocalMass || nextScore > lastLocalScore)) audio.playEat();
+    lastLocalMass = nextMass;
+    lastLocalScore = nextScore;
+    hudMass.textContent = nextMass.toFixed(2);
     hudScore.textContent = String(me.score ?? 0);
   }
   hudPlayers.textContent = String(snapshot.players.length);
@@ -196,6 +261,80 @@ function setStatus(message, connected = false) {
   hudStatus.textContent = message;
   document.body.classList.toggle('connected', connected);
 }
+
+function setConnectionState(state, title, message, connected = false) {
+  document.body.dataset.connectionState = state;
+  setStatus(title, connected);
+  if (connectionBannerTitle) connectionBannerTitle.textContent = title;
+  if (connectionBannerMessage) connectionBannerMessage.textContent = message;
+  if (connectionBanner) connectionBanner.hidden = state === 'ready' || state === 'online';
+}
+
+function showRespawn(by) {
+  clearTimeout(respawnTimer);
+  if (respawnMessage) respawnMessage.textContent = `Eaten by ${by || 'a bigger fish'}.`;
+  if (respawnCard) respawnCard.hidden = false;
+  respawnTimer = setTimeout(() => {
+    if (respawnCard) respawnCard.hidden = true;
+  }, settings.reducedEffects ? 900 : 1500);
+}
+
+function updateVolumeOutputs() {
+  masterVolumeValue.textContent = `${Math.round(settings.master * 100)}%`;
+  musicVolumeValue.textContent = `${Math.round(settings.music * 100)}%`;
+  sfxVolumeValue.textContent = `${Math.round(settings.sfx * 100)}%`;
+}
+
+function syncSettingsControls() {
+  qualitySetting.value = settings.quality;
+  reducedEffectsSetting.checked = settings.reducedEffects;
+  masterVolume.value = String(settings.master);
+  musicVolume.value = String(settings.music);
+  sfxVolume.value = String(settings.sfx);
+  updateVolumeOutputs();
+}
+
+function applyVisualSettings() {
+  qualityPreset = resolveQualityPreset(settings, qualityEnvironment());
+  renderer.setPixelRatio(Math.min(devicePixelRatio, qualityPreset.pixelRatioCap));
+  renderer.shadowMap.enabled = qualityPreset.shadows;
+  sun.castShadow = qualityPreset.shadows;
+  bubbles.geometry.setAttribute('position', new THREE.BufferAttribute(makeBubblePositions(qualityPreset.bubbles), 3));
+  bubbles.material.opacity = settings.reducedEffects ? 0.22 : 0.38;
+}
+
+function persistSettingsFromControls(changedControl) {
+  const previous = settings;
+  settings = normalizeSettings({
+    quality: qualitySetting.value,
+    reducedEffects: reducedEffectsSetting.checked,
+    master: Number(masterVolume.value),
+    music: Number(musicVolume.value),
+    sfx: Number(sfxVolume.value),
+  });
+  writeClientSettings(settings);
+  updateVolumeOutputs();
+  if (changedControl === qualitySetting || changedControl === reducedEffectsSetting
+    || previous.quality !== settings.quality || previous.reducedEffects !== settings.reducedEffects) {
+    applyVisualSettings();
+  }
+  audio.stopAmbience();
+  audio.startAmbience();
+}
+
+function openSettings() {
+  syncSettingsControls();
+  if (document.pointerLockElement) document.exitPointerLock?.();
+  void audio.unlock().then((unlocked) => { if (unlocked) audio.playUi(); });
+  if (!settingsDialog.open) settingsDialog.showModal();
+}
+
+settingsButton?.addEventListener('click', openSettings);
+hudSettingsButton?.addEventListener('click', openSettings);
+settingsDialog?.addEventListener('input', (event) => persistSettingsFromControls(event.target));
+settingsDialog?.addEventListener('change', (event) => persistSettingsFromControls(event.target));
+settingsDialog?.addEventListener('close', () => audio.playUi());
+syncSettingsControls();
 
 function sanitized(value, fallback, max) {
   return (String(value || '').replace(/[^\p{L}\p{N} _.-]/gu, '').replace(/\s+/g, ' ').trim() || fallback).slice(0, max);
@@ -223,7 +362,7 @@ function writeResumeKey(room, resumeKey) {
 function blockForProtocolMismatch() {
   protocolBlocked = true;
   clearTimeout(reconnectTimer);
-  setStatus('Upgrade required');
+  setConnectionState('upgrade-required', 'Upgrade required', 'Reload the game to use the current multiplayer protocol.');
   showToast('Upgrade required · reload the game');
   if (socket && socket.readyState < WebSocket.CLOSING) socket.close(1002, 'protocol-version');
 }
@@ -231,7 +370,7 @@ function blockForProtocolMismatch() {
 function connect() {
   clearTimeout(reconnectTimer);
   if (protocolBlocked) {
-    setStatus('Upgrade required');
+    setConnectionState('upgrade-required', 'Upgrade required', 'Reload the game to use the current multiplayer protocol.');
     return;
   }
 
@@ -241,7 +380,7 @@ function connect() {
   localStorage.setItem('abyss-eater-name', name);
   localStorage.setItem('abyss-eater-room', room);
   hudRoom.textContent = room;
-  setStatus('Connecting…');
+  setConnectionState('connecting', 'Connecting', 'Reaching the ocean server…');
 
   const wsUrl = new URL('/ws', location.href);
   wsUrl.protocol = location.protocol === 'https:' ? 'wss:' : 'ws:';
@@ -250,7 +389,7 @@ function connect() {
   if (resumeKey) wsUrl.searchParams.set('resume', resumeKey);
   socket = new WebSocket(wsUrl);
 
-  socket.addEventListener('open', () => setStatus('Online', true));
+  socket.addEventListener('open', () => setConnectionState('online', 'Online', 'Connected to the ocean.', true));
   socket.addEventListener('message', (event) => {
     let message;
     try { message = JSON.parse(event.data); } catch { return; }
@@ -266,6 +405,7 @@ function connect() {
         writeResumeKey(room, message.resumeKey);
       }
       updateSnapshot(message.snapshot);
+      setConnectionState('online', 'Online', message.resumed ? 'Your fish was resumed.' : 'You entered the ocean.', true);
       showToast(message.resumed ? 'Reconnected to your fish' : 'You entered the ocean');
       return;
     }
@@ -278,6 +418,8 @@ function connect() {
       return;
     }
     if (message.type === 'eaten') {
+      audio.playDeath();
+      showRespawn(message.by);
       showToast(`Eaten by ${message.by || 'a bigger fish'} — respawning`);
       return;
     }
@@ -285,14 +427,18 @@ function connect() {
   });
   socket.addEventListener('close', () => {
     clientId = null;
+    lastLocalMass = null;
+    lastLocalScore = null;
     if (protocolBlocked) {
-      setStatus('Upgrade required');
+      setConnectionState('upgrade-required', 'Upgrade required', 'Reload the game to use the current multiplayer protocol.');
       return;
     }
-    setStatus('Reconnecting…');
+    setConnectionState('reconnecting', 'Reconnecting', 'Trying to restore your fish…');
     if (started) reconnectTimer = setTimeout(connect, 1800);
   });
-  socket.addEventListener('error', () => setStatus('Connection issue'));
+  socket.addEventListener('error', () => {
+    setConnectionState('offline', 'Connection issue', 'The realtime connection is temporarily unavailable.');
+  });
 }
 
 function currentDirection() {
@@ -318,20 +464,24 @@ function ping() {
 }
 
 addEventListener('keydown', (event) => {
-  if (!started) return;
+  if (!started || settingsDialog?.open || event.target?.matches('input, select, button, textarea')) return;
   if (['Space', 'ArrowUp', 'ArrowDown', 'ArrowLeft', 'ArrowRight'].includes(event.code)) event.preventDefault();
   inputKeys.add(event.code);
 });
 addEventListener('keyup', (event) => inputKeys.delete(event.code));
 addEventListener('blur', () => inputKeys.clear());
 
+document.addEventListener('visibilitychange', () => {
+  void audio.setSuspended(document.hidden);
+});
+
 renderer.domElement.addEventListener('click', () => {
-  if (!started || !matchMedia('(pointer: fine)').matches) return;
+  if (!started || settingsDialog?.open || !matchMedia('(pointer: fine)').matches) return;
   renderer.domElement.requestPointerLock?.();
 });
 
 addEventListener('mousemove', (event) => {
-  if (!started || document.pointerLockElement !== renderer.domElement) return;
+  if (!started || settingsDialog?.open || document.pointerLockElement !== renderer.domElement) return;
   const nextLook = updateLook({ yaw: lookYaw, pitch: lookPitch }, event.movementX, event.movementY);
   lookYaw = nextLook.yaw;
   lookPitch = nextLook.pitch;
@@ -341,7 +491,7 @@ document.addEventListener('pointerlockchange', () => {
   if (!started) return;
   if (document.pointerLockElement === renderer.domElement) {
     showToast('Mouse look active · Esc releases cursor');
-  } else if (matchMedia('(pointer: fine)').matches) {
+  } else if (!settingsDialog?.open && matchMedia('(pointer: fine)').matches) {
     showToast('Mouse released · click the ocean to resume');
   }
 });
@@ -360,29 +510,32 @@ playButton.addEventListener('click', () => {
   started = true;
   document.body.classList.add('playing');
   startScreen.classList.add('hidden');
+  void audio.unlock().then((unlocked) => {
+    if (unlocked) {
+      audio.playUi();
+      audio.startAmbience();
+    }
+  });
   connect();
-  if (matchMedia('(pointer: fine)').matches) renderer.domElement.requestPointerLock?.();
+  if (!settingsDialog?.open && matchMedia('(pointer: fine)').matches) renderer.domElement.requestPointerLock?.();
 });
 
 nameInput.value = localStorage.getItem('abyss-eater-name') || nameInput.value;
 roomInput.value = localStorage.getItem('abyss-eater-room') || roomInput.value;
-
-if ('serviceWorker' in navigator) {
-  addEventListener('load', () => {
-    navigator.serviceWorker.register('/sw.js').catch(() => {});
-  });
-}
+setConnectionState('ready', 'Ready', 'Choose a name and dive into the ocean.');
 
 setInterval(sendInput, 100);
 setInterval(ping, 2000);
 
 function animate(time) {
-  bubbles.rotation.y = time * 0.000015;
-  bubbles.position.y = Math.sin(time * 0.0002) * 1.4;
+  if (!settings.reducedEffects || Math.floor(time / 50) % 2 === 0) {
+    bubbles.rotation.y = time * 0.000015;
+    bubbles.position.y = Math.sin(time * 0.0002) * 1.4;
 
-  for (const mesh of foodMeshes.values()) {
-    mesh.rotation.x += 0.01;
-    mesh.rotation.y += 0.013;
+    for (const mesh of foodMeshes.values()) {
+      mesh.rotation.x += 0.01;
+      mesh.rotation.y += 0.013;
+    }
   }
 
   for (const [id, mesh] of playerMeshes) {
@@ -422,5 +575,6 @@ addEventListener('resize', () => {
   camera.aspect = innerWidth / innerHeight;
   camera.updateProjectionMatrix();
   renderer.setSize(innerWidth, innerHeight);
-  renderer.setPixelRatio(Math.min(devicePixelRatio, 2));
+  qualityPreset = resolveQualityPreset(settings, qualityEnvironment());
+  renderer.setPixelRatio(Math.min(devicePixelRatio, qualityPreset.pixelRatioCap));
 });

@@ -1,5 +1,5 @@
 <!doctype html>
-<html lang="en">
+<html lang="en" data-app-state="loading">
 <head>
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
@@ -9,8 +9,28 @@
   <link rel="stylesheet" href="/styles.css">
   <title>Abyss Eater: Ocean Survival</title>
 </head>
-<body>
+<body data-connection-state="ready">
   <div id="game"></div>
+
+  <section id="loading-screen" class="system-screen" role="status" aria-live="polite">
+    <div class="system-card panel">
+      <div class="brand-mark" aria-hidden="true">◉</div>
+      <p class="eyebrow">ABYSS EATER</p>
+      <h2>Preparing the ocean…</h2>
+      <p>Checking 3D graphics and loading the game client.</p>
+      <div class="loading-bar" aria-hidden="true"><span></span></div>
+    </div>
+  </section>
+
+  <section id="unsupported-screen" class="system-screen" role="alert" hidden>
+    <div class="system-card panel">
+      <div class="brand-mark" aria-hidden="true">!</div>
+      <p class="eyebrow">ABYSS EATER</p>
+      <h2 id="unsupported-title">Game unavailable</h2>
+      <p id="unsupported-message">This browser could not start the 3D game client.</p>
+      <button id="reload-button" type="button">Reload</button>
+    </div>
+  </section>
 
   <section id="start-screen" class="panel start-panel" aria-label="Start game">
     <div class="brand-mark" aria-hidden="true">◉</div>
@@ -26,6 +46,7 @@
       <input id="room-name" maxlength="24" value="ocean-1">
     </label>
     <button id="play-button" type="button">Dive into the abyss</button>
+    <button id="settings-button" class="secondary-button" type="button">Settings</button>
     <p class="controls-hint">Mouse look · WASD / arrows swim · Space up · Shift down · Esc cursor</p>
   </section>
 
@@ -39,7 +60,55 @@
     </div>
     <div class="hud-status"><span id="connection-dot"></span><span id="hud-status">Ready</span></div>
     <div class="hud-room">Room: <strong id="hud-room">ocean-1</strong></div>
+    <button id="hud-settings-button" class="hud-button" type="button">Settings</button>
   </aside>
+
+  <div id="connection-banner" class="connection-banner panel" role="status" aria-live="polite" hidden>
+    <strong id="connection-banner-title">Connecting</strong>
+    <span id="connection-banner-message">Reaching the ocean server…</span>
+  </div>
+
+  <div id="respawn-card" class="respawn-card panel" role="status" aria-live="polite" hidden>
+    <p class="eyebrow">RESPAWN</p>
+    <strong id="respawn-message">A bigger fish got you.</strong>
+    <span>The server has already placed you back in the ocean.</span>
+  </div>
+
+  <dialog id="settings-dialog" class="settings-dialog" aria-labelledby="settings-title">
+    <form method="dialog" class="settings-card panel">
+      <div class="settings-heading">
+        <div>
+          <p class="eyebrow">PRESENTATION</p>
+          <h2 id="settings-title">Settings</h2>
+        </div>
+        <button id="settings-close" class="icon-button" type="submit" value="close" aria-label="Close settings">×</button>
+      </div>
+
+      <label for="quality-setting">Quality</label>
+      <select id="quality-setting" name="quality">
+        <option value="auto">Auto</option>
+        <option value="low">Low</option>
+        <option value="medium">Medium</option>
+        <option value="high">High</option>
+      </select>
+
+      <label class="checkbox-row" for="reduced-effects-setting">
+        <input id="reduced-effects-setting" name="reducedEffects" type="checkbox">
+        <span>Reduced effects</span>
+      </label>
+
+      <label for="master-volume">Master volume <output id="master-volume-value">65%</output></label>
+      <input id="master-volume" name="master" type="range" min="0" max="1" step="0.05" value="0.65">
+
+      <label for="music-volume">Music volume <output id="music-volume-value">35%</output></label>
+      <input id="music-volume" name="music" type="range" min="0" max="1" step="0.05" value="0.35">
+
+      <label for="sfx-volume">SFX volume <output id="sfx-volume-value">75%</output></label>
+      <input id="sfx-volume" name="sfx" type="range" min="0" max="1" step="0.05" value="0.75">
+
+      <p class="settings-note">Quality and audio settings are local to this browser and never change server-authoritative gameplay.</p>
+    </form>
+  </dialog>
 
   <div id="toast" class="toast" role="status" aria-live="polite"></div>
 
@@ -59,6 +128,6 @@
   </div>
 
   <noscript>Abyss Eater requires JavaScript.</noscript>
-  <script type="module" src="/app.js"></script>
+  <script type="module" src="/bootstrap.js"></script>
 </body>
 </html>
