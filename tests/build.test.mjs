@@ -66,15 +66,32 @@ test('embedded client negotiates protocol v1 and resumes the same room presence'
     'const PROTOCOL_VERSION = 1;',
     'sessionStorage',
     "wsUrl.searchParams.set('resume'",
-    "v: PROTOCOL_VERSION",
-    "message.v !== PROTOCOL_VERSION",
-    "message.resumeKey",
-    "message.resumed",
+    'v: PROTOCOL_VERSION',
+    'message.v !== PROTOCOL_VERSION',
+    'message.resumeKey',
+    'message.resumed',
     'inputSeq: player.seq',
     'message.inputSeq',
     'Reconnected to your fish',
     'Upgrade required',
   ]) {
     assert.ok(worker.includes(marker), `versioned reconnect client must include ${marker}`);
+  }
+});
+
+test('embedded client uses a capability-aware bootstrap with explicit system states', () => {
+  const result = build();
+  assert.equal(result.status, 0, `build must succeed:\n${result.stdout}\n${result.stderr}`);
+  const worker = readFileSync('dist/worker.mjs', 'utf8');
+  for (const marker of [
+    'data-app-state=\\"loading\\"',
+    'id=\\"loading-screen\\"',
+    'id=\\"unsupported-screen\\"',
+    '"/bootstrap.js":',
+    '"/client-capabilities.mjs":',
+    "await import('/app.js')",
+    'webgl_unavailable',
+  ]) {
+    assert.ok(worker.includes(marker), `capability bootstrap bundle must include ${marker}`);
   }
 });
