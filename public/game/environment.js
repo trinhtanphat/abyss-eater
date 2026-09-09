@@ -83,6 +83,8 @@ export function createOceanEnvironment(scene, { theme, profile }) {
   const kelpMaterial = new THREE.MeshStandardMaterial({ color: theme.decor.kelp, roughness: 0.72, side: THREE.DoubleSide });
   const coralMaterial = new THREE.MeshStandardMaterial({ color: theme.decor.coral, roughness: 0.64, emissive: theme.decor.coral, emissiveIntensity: 0.08 });
   const coralAltMaterial = new THREE.MeshStandardMaterial({ color: theme.decor.coralAlt, roughness: 0.67, emissive: theme.decor.coralAlt, emissiveIntensity: 0.06 });
+  const accentMaterial = new THREE.MeshStandardMaterial({ color: theme.decor.accent, roughness: 0.58, emissive: theme.decor.accent, emissiveIntensity: 0.12 });
+  const accentAltMaterial = new THREE.MeshStandardMaterial({ color: theme.decor.accentAlt, roughness: 0.68, emissive: theme.decor.accentAlt, emissiveIntensity: 0.08, side: THREE.DoubleSide });
 
   const rocks = createInstancedDecor(new THREE.DodecahedronGeometry(1.3, 0), rockMaterial, profile.rocks, WORLD_VISUAL_RADIUS, -28.2, [0.7, 2.5], 7);
   root.add(rocks);
@@ -96,6 +98,30 @@ export function createOceanEnvironment(scene, { theme, profile }) {
   const coral = createInstancedDecor(coralGeometry, coralMaterial, Math.ceil(profile.coral * 0.55), WORLD_VISUAL_RADIUS * 0.86, -27.8, [0.65, 1.45], 17);
   const coralAlt = createInstancedDecor(new THREE.OctahedronGeometry(0.72, 0), coralAltMaterial, Math.floor(profile.coral * 0.45), WORLD_VISUAL_RADIUS * 0.9, -27.9, [0.55, 1.3], 23);
   root.add(coral, coralAlt);
+
+  const accentGeometry = new THREE.CylinderGeometry(0.28, 0.52, 2.6, 7, 1, true);
+  accentGeometry.translate(0, 1.3, 0);
+  const accentAltGeometry = new THREE.TorusGeometry(0.62, 0.11, 5, 16, Math.PI * 1.45);
+  const accentDecor = createInstancedDecor(
+    accentGeometry,
+    accentMaterial,
+    Math.max(3, Math.ceil(profile.coral * 0.26)),
+    WORLD_VISUAL_RADIUS * 0.82,
+    -29,
+    [0.55, 1.35],
+    67,
+  );
+  const accentAltDecor = createInstancedDecor(
+    accentAltGeometry,
+    accentAltMaterial,
+    Math.max(3, Math.floor(profile.rocks * 0.18)),
+    WORLD_VISUAL_RADIUS * 0.78,
+    -27.8,
+    [0.55, 1.25],
+    73,
+  );
+  accentAltDecor.rotation.x = Math.PI / 2;
+  root.add(accentDecor, accentAltDecor);
 
   const bubbles = createPointCloud(profile.bubbles, WORLD_VISUAL_RADIUS, -27, 29, theme.water.bubble, theme.atmosphere.bubbleSize, theme.atmosphere.bubbleOpacity);
   const plankton = createPointCloud(profile.plankton, WORLD_VISUAL_RADIUS, -27, 29, theme.water.plankton, theme.atmosphere.planktonSize, theme.atmosphere.planktonOpacity);
@@ -147,6 +173,12 @@ export function createOceanEnvironment(scene, { theme, profile }) {
     coralAltMaterial.color.setHex(nextTheme.decor.coralAlt);
     coralAltMaterial.emissive.setHex(nextTheme.decor.coralAlt);
     coralAltMaterial.emissiveIntensity = nextTheme.id === 'deep-sea' ? 0.012 : 0.06;
+    accentMaterial.color.setHex(nextTheme.decor.accent);
+    accentMaterial.emissive.setHex(nextTheme.decor.accent);
+    accentMaterial.emissiveIntensity = nextTheme.id === 'leviathan-depths' ? 0.2 : 0.12;
+    accentAltMaterial.color.setHex(nextTheme.decor.accentAlt);
+    accentAltMaterial.emissive.setHex(nextTheme.decor.accentAlt);
+    accentAltMaterial.emissiveIntensity = nextTheme.id === 'volcanic-rift' ? 0.14 : 0.08;
     bubbles.material.color.setHex(nextTheme.water.bubble);
     bubbles.material.size = nextTheme.atmosphere.bubbleSize;
     plankton.material.color.setHex(nextTheme.water.plankton);
@@ -165,6 +197,8 @@ export function createOceanEnvironment(scene, { theme, profile }) {
     plankton.rotation.z = Math.sin(seconds * 0.08) * 0.02 * atmosphere.sway;
     shafts.rotation.y = Math.sin(seconds * 0.05) * 0.08 * atmosphere.sway;
     kelp.rotation.y = Math.sin(seconds * 0.22) * 0.006 * atmosphere.sway;
+    accentDecor.rotation.y = Math.sin(seconds * 0.13) * 0.008 * atmosphere.sway;
+    accentAltDecor.rotation.z = Math.sin(seconds * 0.11) * 0.015 * atmosphere.sway;
   }
 
   function dispose() {

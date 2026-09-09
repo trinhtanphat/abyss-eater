@@ -20,16 +20,15 @@ function validateSecret(secret) {
 }
 
 function canonicalPayload(payload, nowMs) {
-  const profileId = typeof payload?.profileId === 'string' ? payload.profileId.trim() : '';
+  const sessionId = typeof payload?.sessionId === 'string' ? payload.sessionId.trim().toLowerCase() : '';
   const version = Number(payload?.version);
   const expiresAt = Number(payload?.expiresAt);
   const now = Number(nowMs);
-  if (!profileId || profileId.length > 128) throw new Error('session-profile-invalid');
+  if (!/^[a-f0-9]{64}$/.test(sessionId)) throw new Error('session-id-invalid');
   if (!Number.isSafeInteger(version) || version < 1) throw new Error('session-version-invalid');
   if (!Number.isSafeInteger(expiresAt) || !Number.isFinite(now) || expiresAt <= now) throw new Error('session-expiry-invalid');
-  return { profileId, version, expiresAt };
+  return { sessionId, version, expiresAt };
 }
-
 async function importHmacKey(secret, usages) {
   return crypto.subtle.importKey(
     'raw',
@@ -38,6 +37,12 @@ async function importHmacKey(secret, usages) {
     false,
     usages,
   );
+}
+
+export function newSessionId() {
+  const bytes = new Uint8Array(32);
+  crypto.getRandomValues(bytes);
+  return Array.from(bytes, (byte) => byte.toString(16).padStart(2, '0')).join('');
 }
 
 export async function signSession(payload, secret, nowMs = Date.now()) {

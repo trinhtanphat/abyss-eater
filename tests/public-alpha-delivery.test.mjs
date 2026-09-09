@@ -62,16 +62,17 @@ test('modular client accepts player-only delta snapshots and reuses GPU resource
   }
 });
 
-test('branded gateway serves static assets and runs code only for realtime/health routes', () => {
+test('branded gateway serves static assets and runs code only for realtime/health/API routes', () => {
   const config = JSON.parse(readFileSync('wrangler.gateway.jsonc', 'utf8'));
   assert.equal(config.account_id, '50afb4fd3c4c7a1f3e1bdb7f22d4af7f');
   assert.equal(config.assets?.directory, './public');
   assert.equal(config.assets?.binding, 'ASSETS');
-  assert.deepEqual(config.assets?.run_worker_first, ['/ws', '/health']);
+  assert.deepEqual(config.assets?.run_worker_first, ['/ws', '/health', '/api/*']);
 
   const gateway = readFileSync('gateway/worker.mjs', 'utf8');
   assert.ok(gateway.includes("url.pathname === '/ws'"));
   assert.ok(gateway.includes("url.pathname === '/health'"));
+  assert.ok(gateway.includes("url.pathname.startsWith('/api/')"));
   assert.ok(gateway.includes('env.ASSETS.fetch(request)'));
 });
 

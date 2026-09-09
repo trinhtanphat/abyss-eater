@@ -29,3 +29,12 @@ export function skinById(id) {
   if (typeof id !== 'string') return null;
   return SKIN_CATALOG.find((skin) => skin.id === id) ?? null;
 }
+
+export function seasonForTimestamp(value) {
+  const timestamp = Number(value);
+  const safe = Number.isFinite(timestamp) && timestamp >= 0 ? Math.floor(timestamp) : 0;
+  const date = new Date(safe);
+  const year = date.getUTCFullYear();
+  const quarter = Math.floor(date.getUTCMonth() / 3) + 1;
+  return `${year}-q${quarter}`;
+}
