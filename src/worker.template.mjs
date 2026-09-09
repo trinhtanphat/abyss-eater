@@ -545,6 +545,9 @@ export class GameRoom extends DurableObject {
     player.biome = biomeForPosition(player.position, WORLD_BOUNDS);
     player.slowUntil = Number.isFinite(player.slowUntil) ? player.slowUntil : 0;
     player.speedBoostUntil = Number.isFinite(player.speedBoostUntil) ? player.speedBoostUntil : 0;
+    player.manualBoostActive = false;
+    player.manualBoostStartedAt = 0;
+    player.manualBoostDrained = 0;
     player.bonusPearls = Number.isFinite(player.bonusPearls) ? Math.max(0, Math.min(100, Math.floor(player.bonusPearls))) : 0;
     player.checkpointBonusPearls = Number.isFinite(player.checkpointBonusPearls) ? Math.max(0, Math.min(player.bonusPearls, Math.floor(player.checkpointBonusPearls))) : 0;
     player.resumeKey = makeResumeKey();
@@ -602,6 +605,7 @@ export class GameRoom extends DurableObject {
       return;
     }
 
+    player = updateManualBoostState(player, message.boost, now);
     player = advancePlayer(player, message.dir, (now - player.lastAt) / 1000, WORLD_BOUNDS, now);
     player.biome = biomeForPosition(player.position, WORLD_BOUNDS);
     player.seq = message.seq;
