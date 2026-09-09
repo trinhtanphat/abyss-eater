@@ -6,7 +6,7 @@ Generated from `npm run profile:scale` on the Carrier 6 qualification host using
 
 **`JSON_KEEP`** — retain protocol v2 JSON snapshots and do not add a binary codec for V1.
 
-The binary-evaluation trigger is either a 20-player full-snapshot p95 above **32 KiB** or serialization cost above **2.5 ms per snapshot**. The measured 20-player full case was **9,926 bytes p95** and approximately **0.1636 ms per snapshot**, below both thresholds.
+The binary-evaluation trigger is either a 20-player full-snapshot p95 above **32 KiB** or serialization cost above **2.5 ms per snapshot**. The measured 20-player full case was **9,926 bytes p95** and approximately **0.1785 ms per snapshot**, below both thresholds.
 
 ## Measured workload
 
