@@ -39,11 +39,19 @@ jobs:
           mkdir -p artifacts
           python3 -m http.server 4173 --bind 127.0.0.1 > /tmp/abyss-review-http.log 2>&1 &
           server_pid=$!
-          trap 'kill "$server_pid" 2>/dev/null || true' EXIT
+          python3 -m http.server 4174 --bind 127.0.0.1 --directory public > /tmp/abyss-lobby-http.log 2>&1 &
+          lobby_server_pid=$!
+          trap 'kill "$server_pid" "$lobby_server_pid" 2>/dev/null || true' EXIT
           ready=0
+          lobby_ready=0
           for attempt in $(seq 1 20); do
             if curl --fail --silent http://127.0.0.1:4173/review/abyssal-assets.html?ci=1 >/dev/null; then
               ready=1
+            fi
+            if curl --fail --silent http://127.0.0.1:4174/?visual-review=1 >/dev/null; then
+              lobby_ready=1
+            fi
+            if [ "$ready" -eq 1 ] && [ "$lobby_ready" -eq 1 ]; then
               break
             fi
             sleep 0.25
@@ -51,6 +59,11 @@ jobs:
           if [ "$ready" -ne 1 ]; then
             cat /tmp/abyss-review-http.log || true
             echo '::error::Visual review HTTP server did not become ready.'
+            exit 1
+          fi
+          if [ "$lobby_ready" -ne 1 ]; then
+            cat /tmp/abyss-lobby-http.log || true
+            echo '::error::Social lobby HTTP server did not become ready.'
             exit 1
           fi
           browser="$(command -v google-chrome || command -v chromium || command -v chromium-browser || true)"
@@ -101,7 +114,7 @@ jobs:
             --window-size=1600,1000 \
             --virtual-time-budget=7000 \
             --screenshot="$PWD/artifacts/social-lobby.png" \
-            http://127.0.0.1:4173/?visual-review=1 \
+            http://127.0.0.1:4174/?visual-review=1 \
             > /tmp/abyss-lobby-chrome.log 2>&1
           lobby_status=$?
           set -e
