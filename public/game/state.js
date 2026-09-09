@@ -17,9 +17,10 @@ export function createClientState() {
   }
 
   function applySnapshot(next) {
-    if (!next || !Array.isArray(next.players) || !Array.isArray(next.food)) return null;
+    if (!next || !Array.isArray(next.players)) return null;
     const before = previousLocal;
-    snapshot = next;
+    const nextFood = Array.isArray(next.food) ? next.food : snapshot.food;
+    snapshot = { ...next, food: nextFood };
     const me = localPlayer();
     const changes = {
       me,
