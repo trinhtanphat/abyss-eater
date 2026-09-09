@@ -4,6 +4,8 @@ export const DEFAULT_SETTINGS = Object.freeze({
   master: 0.65,
   music: 0.35,
   sfx: 0.75,
+  ttsEnabled: false,
+  tts: 0.8,
 });
 
 const QUALITY_VALUES = new Set(['auto', 'low', 'medium', 'high']);
@@ -21,6 +23,8 @@ export function normalizeSettings(value = {}) {
     master: boundedVolume(source.master, DEFAULT_SETTINGS.master),
     music: boundedVolume(source.music, DEFAULT_SETTINGS.music),
     sfx: boundedVolume(source.sfx, DEFAULT_SETTINGS.sfx),
+    ttsEnabled: source.ttsEnabled === true,
+    tts: boundedVolume(source.tts, DEFAULT_SETTINGS.tts),
   };
 }
 
