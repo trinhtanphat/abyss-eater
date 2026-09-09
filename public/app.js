@@ -52,11 +52,21 @@ bubbleGeometry.setAttribute('position', new THREE.BufferAttribute(bubblePosition
 const bubbles = new THREE.Points(bubbleGeometry, new THREE.PointsMaterial({ color: 0x80eaff, size: 0.16, transparent: true, opacity: 0.38 }));
 scene.add(bubbles);
 
+const fishBodyGeometry = new THREE.SphereGeometry(1, 22, 14);
+const fishTailGeometry = new THREE.ConeGeometry(0.8, 1.25, 3);
+const fishEyeGeometry = new THREE.SphereGeometry(0.13, 10, 8);
+const fishPupilGeometry = new THREE.SphereGeometry(0.06, 8, 6);
+const fishEyeMaterial = new THREE.MeshBasicMaterial({ color: 0xeaffff });
+const fishPupilMaterial = new THREE.MeshBasicMaterial({ color: 0x021018 });
+const foodGeometry = new THREE.IcosahedronGeometry(0.34, 1);
+const foodMaterial = new THREE.MeshStandardMaterial({ color: 0x8af8d1, emissive: 0x19a781, emissiveIntensity: 1.7, roughness: 0.25 });
+
 const playerMeshes = new Map();
 const foodMeshes = new Map();
 const inputKeys = new Set();
 const touchState = new Set();
 const tmpVector = new THREE.Vector3();
+const tmpScale = new THREE.Vector3(1, 1, 1);
 const xAxis = new THREE.Vector3(1, 0, 0);
 const desiredCamera = new THREE.Vector3();
 const cameraForward = new THREE.Vector3(0, 0, -1);
@@ -81,24 +91,22 @@ function fishColor(id, isLocal) {
 
 function createFish(id, isLocal = false) {
   const group = new THREE.Group();
-  const material = new THREE.MeshStandardMaterial({ color: fishColor(id, isLocal), roughness: 0.46, metalness: 0.05 });
-  const body = new THREE.Mesh(new THREE.SphereGeometry(1, 22, 14), material);
+  const bodyMaterial = new THREE.MeshStandardMaterial({ color: fishColor(id, isLocal), roughness: 0.46, metalness: 0.05 });
+  const body = new THREE.Mesh(fishBodyGeometry, bodyMaterial);
   body.scale.set(1.75, 0.78, 0.72);
   group.add(body);
 
-  const tail = new THREE.Mesh(new THREE.ConeGeometry(0.8, 1.25, 3), material);
+  const tail = new THREE.Mesh(fishTailGeometry, bodyMaterial);
   tail.rotation.z = -Math.PI / 2;
   tail.position.x = -1.9;
   tail.scale.z = 0.24;
   group.add(tail);
 
-  const eyeMaterial = new THREE.MeshBasicMaterial({ color: 0xeaffff });
-  const pupilMaterial = new THREE.MeshBasicMaterial({ color: 0x021018 });
   for (const z of [-0.52, 0.52]) {
-    const eye = new THREE.Mesh(new THREE.SphereGeometry(0.13, 10, 8), eyeMaterial);
+    const eye = new THREE.Mesh(fishEyeGeometry, fishEyeMaterial);
     eye.position.set(1.35, 0.22, z);
     group.add(eye);
-    const pupil = new THREE.Mesh(new THREE.SphereGeometry(0.06, 8, 6), pupilMaterial);
+    const pupil = new THREE.Mesh(fishPupilGeometry, fishPupilMaterial);
     pupil.position.set(1.43, 0.22, z * 1.02);
     group.add(pupil);
   }
@@ -106,22 +114,27 @@ function createFish(id, isLocal = false) {
   group.userData.target = new THREE.Vector3();
   group.userData.previousTarget = new THREE.Vector3();
   group.userData.mass = 1;
+  group.userData.bodyMaterial = bodyMaterial;
   scene.add(group);
   return group;
 }
 
+function disposeFishMesh(mesh) {
+  scene.remove(mesh);
+  mesh.userData.bodyMaterial?.dispose();
+}
+
 function createFood() {
-  const mesh = new THREE.Mesh(
-    new THREE.IcosahedronGeometry(0.34, 1),
-    new THREE.MeshStandardMaterial({ color: 0x8af8d1, emissive: 0x19a781, emissiveIntensity: 1.7, roughness: 0.25 }),
-  );
+  const mesh = new THREE.Mesh(foodGeometry, foodMaterial);
   scene.add(mesh);
   return mesh;
 }
 
 function updateSnapshot(next) {
-  if (!next || !Array.isArray(next.players) || !Array.isArray(next.food)) return;
-  snapshot = next;
+  if (!next || !Array.isArray(next.players)) return;
+  const nextFood = Array.isArray(next.food) ? next.food : snapshot.food;
+  snapshot = { ...next, food: nextFood };
+
   const livePlayers = new Set();
   for (const player of snapshot.players) {
     livePlayers.add(player.id);
@@ -139,7 +152,7 @@ function updateSnapshot(next) {
   }
   for (const [id, mesh] of playerMeshes) {
     if (!livePlayers.has(id)) {
-      scene.remove(mesh);
+      disposeFishMesh(mesh);
       playerMeshes.delete(id);
     }
   }
@@ -320,6 +333,12 @@ playButton.addEventListener('click', () => {
 nameInput.value = localStorage.getItem('abyss-eater-name') || nameInput.value;
 roomInput.value = localStorage.getItem('abyss-eater-room') || roomInput.value;
 
+if ('serviceWorker' in navigator) {
+  addEventListener('load', () => {
+    navigator.serviceWorker.register('/sw.js').catch(() => {});
+  });
+}
+
 setInterval(sendInput, 100);
 setInterval(ping, 2000);
 
@@ -335,7 +354,8 @@ function animate(time) {
   for (const [id, mesh] of playerMeshes) {
     mesh.position.lerp(mesh.userData.target, id === clientId ? 0.24 : 0.16);
     const scale = Math.cbrt(Math.max(1, mesh.userData.mass));
-    mesh.scale.lerp(new THREE.Vector3(scale, scale, scale), 0.12);
+    tmpScale.set(scale, scale, scale);
+    mesh.scale.lerp(tmpScale, 0.12);
 
     tmpVector.subVectors(mesh.userData.target, mesh.userData.previousTarget);
     if (tmpVector.lengthSq() > 0.0001) {
