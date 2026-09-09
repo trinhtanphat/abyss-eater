@@ -38,9 +38,7 @@ test('Worker coalesces snapshots, carries food dirtiness, canonicalizes rooms an
     'roomIdFor',
     'playerWasEaten',
     'if (playerWasEaten) break',
-  ]) {
-    assert.ok(worker.includes(marker), `worker template must include ${marker}`);
-  }
+  ]) assert.ok(worker.includes(marker), `worker template must include ${marker}`);
 });
 
 test('modular client accepts player-only delta snapshots and reuses/disposes GPU resources', () => {
@@ -66,7 +64,6 @@ test('branded gateway serves static assets and runs code only for realtime/healt
   assert.equal(config.assets?.directory, './public');
   assert.equal(config.assets?.binding, 'ASSETS');
   assert.deepEqual(config.assets?.run_worker_first, ['/ws', '/health']);
-
   const gateway = readFileSync('gateway/worker.mjs', 'utf8');
   assert.ok(gateway.includes("url.pathname === '/ws'"));
   assert.ok(gateway.includes("url.pathname === '/health'"));
@@ -83,23 +80,26 @@ test('Cloudflare deployment is account-pinned and Wrangler is version-pinned', (
   assert.match(pkg.scripts?.['deploy:gateway'] ?? '', /wrangler@4\.129\.1/);
 });
 
-test('PWA exposes a modular offline shell plus 192 and 512 maskable install icons', () => {
-  assert.equal(existsSync('public/sw.js'), true, 'public/sw.js must exist');
-  assert.equal(existsSync('public/icon-192.svg'), true, '192 icon must exist');
-  assert.equal(existsSync('public/icon-512.svg'), true, '512 icon must exist');
+test('PWA exposes capability bootstrap, modular offline shell and maskable install icons', () => {
+  for (const path of [
+    'public/bootstrap.js',
+    'public/client-settings.mjs',
+    'public/client-audio.mjs',
+    'public/client-capabilities.mjs',
+    'public/sw.js',
+    'public/icon-192.svg',
+    'public/icon-512.svg',
+  ]) assert.equal(existsSync(path), true, `${path} must exist`);
   const manifest = JSON.parse(readFileSync('public/manifest.webmanifest', 'utf8'));
   const iconSizes = new Set((manifest.icons ?? []).map((icon) => icon.sizes));
   assert.ok(iconSizes.has('192x192'));
   assert.ok(iconSizes.has('512x512'));
   assert.ok((manifest.icons ?? []).some((icon) => String(icon.purpose ?? '').includes('maskable')));
-  const client = readFileSync('public/app.js', 'utf8');
-  assert.ok(client.includes("navigator.serviceWorker.register('/sw.js')"));
+  const bootstrap = readFileSync('public/bootstrap.js', 'utf8');
+  assert.ok(bootstrap.includes("navigator.serviceWorker.register('/sw.js'"));
   const serviceWorker = readFileSync('public/sw.js', 'utf8');
   for (const route of [
-    "'/themes.css'",
-    "'/game/themes.js'",
-    "'/game/state.js'",
-    "'/ui/hud.js'",
-    "'/ui/lobby.js'",
+    "'/bootstrap.js'", "'/client-settings.mjs'", "'/client-audio.mjs'", "'/client-capabilities.mjs'",
+    "'/themes.css'", "'/polish.css'", "'/game/themes.js'", "'/game/state.js'", "'/ui/client-polish.js'", "'/ui/hud.js'", "'/ui/lobby.js'",
   ]) assert.ok(serviceWorker.includes(route), `offline shell must cache ${route}`);
 });
