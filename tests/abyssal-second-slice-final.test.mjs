@@ -92,13 +92,14 @@ test('renderer preserves server-verified cosmetic authority and uses determinist
 
 test('brand and HUD SVG pack is same-origin, dependency-free and wired into the shell', () => {
   const html = readFileSync('public/index.html', 'utf8');
-  const css = readFileSync('public/styles.css', 'utf8');
+  const css = readFileSync('public/asset-icons.css', 'utf8');
   for (const path of HUD_ASSETS) {
     assert.equal(existsSync(path), true, `${path} must exist`);
     const svg = readFileSync(path, 'utf8');
     assert.ok(svg.includes('<svg'));
     assert.equal(/<script|https?:\/\/|data:image\//i.test(svg), false, `${path} must be self-contained`);
   }
+  assert.ok(html.includes('/asset-icons.css'), 'HUD asset stylesheet must be loaded');
   assert.ok(html.includes('/assets/brand/abyss-eater-mark.svg'));
   for (const icon of ['mass', 'crown', 'skull', 'jaw', 'evolution', 'depth', 'settings']) {
     assert.ok(html.includes(`/assets/ui/icons/${icon}.svg`), `${icon} icon must be referenced by markup`);
@@ -114,6 +115,7 @@ test('offline shell v8 closes over verified cosmetics, presentation skins and ne
   const sw = readFileSync('public/sw.js', 'utf8');
   assert.ok(sw.includes("CACHE_NAME = 'abyss-eater-shell-v8'"));
   for (const dependency of [
+    '/asset-icons.css',
     '/client-progression.mjs',
     '/client-tts.mjs',
     '/game/fish-evolution.mjs',
