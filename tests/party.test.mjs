@@ -6,6 +6,7 @@ import {
   createPartyState,
   joinPartyState,
   leavePartyState,
+  publicPartyState,
 } from '../src/party.mjs';
 
 const member = (id, name = id) => ({ profileId: id, displayName: name });
@@ -40,4 +41,20 @@ test('leader leave promotes the oldest remaining member and empty party closes',
   const last = leavePartyState(second, 'p3', 600);
   assert.equal(last.ok, true);
   assert.equal(last.state, null);
+});
+
+
+test('public party state hides persistent profile identifiers', () => {
+  let state = createPartyState('ABC234', member('p1', 'Leader'), 100);
+  state = joinPartyState(state, member('p2', 'Friend'), 200).state;
+  state = { ...state, room: 'public-sea-1' };
+  assert.deepEqual(publicPartyState(state, 'p1'), {
+    code: 'ABC234',
+    room: 'public-sea-1',
+    memberCount: 2,
+    members: [{ displayName: 'Leader' }, { displayName: 'Friend' }],
+    isLeader: true,
+  });
+  assert.equal(JSON.stringify(publicPartyState(state, 'p2')).includes('profileId'), false);
+  assert.equal(JSON.stringify(publicPartyState(state, 'p2')).includes('leaderId'), false);
 });

@@ -17,3 +17,11 @@ test('original MVP plan is clearly historical and completed', async () => {
   assert.ok(plan.includes('abyss-eater.qs3d.site'));
   assert.ok(plan.includes('connected Cloudflare deployment integration'));
 });
+
+
+test('README distinguishes presentation themes from authoritative gameplay biomes', async () => {
+  const readme = await readFile('README.md', 'utf8');
+  assert.ok(readme.includes('four gameplay depth biomes') || readme.includes('four authoritative depth biomes'));
+  assert.equal(readme.includes('The six ocean biomes are presentation-only.'), false);
+  assert.ok(readme.includes('social') || readme.includes('Quick Dive'));
+});

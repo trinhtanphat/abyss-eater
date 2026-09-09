@@ -26,3 +26,12 @@ test('visual review triggers for Carrier 4 biome and world presentation changes'
     assert.ok(workflow.includes(`- '${path}'`), `visual review must watch ${path}`);
   }
 });
+
+test('visual review covers Carrier 5 social lobby changes', async () => {
+  const workflow = await readFile('.github/workflows/visual-review.yml', 'utf8');
+  for (const path of ['public/index.html','public/ui/lobby.js','public/game/network.js','public/client-social.mjs']) {
+    assert.ok(workflow.includes(`- '${path}'`), `visual review must watch ${path}`);
+  }
+  assert.ok(workflow.includes('artifacts/social-lobby.png'));
+  assert.ok(workflow.includes('http://127.0.0.1:4173/?visual-review=1'));
+});
