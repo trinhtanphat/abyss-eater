@@ -1,13 +1,16 @@
 {
   "name": "abyss-eater",
-  "version": "0.1.0",
+  "version": "0.3.0",
   "private": true,
   "type": "module",
   "description": "Abyss Eater: Ocean Survival — server-authoritative 3D multiplayer fish survival on Cloudflare Workers.",
   "scripts": {
     "test": "node --test tests/*.test.mjs",
     "build": "node scripts/build.mjs",
-    "check": "npm test && npm run build && node --check dist/worker.mjs"
+    "check": "npm test && npm run build && node --check dist/worker.mjs",
+    "deploy:game": "npm run build && npx --yes wrangler@4.129.1 deploy --config wrangler.jsonc",
+    "deploy:gateway": "npx --yes wrangler@4.129.1 deploy --config wrangler.gateway.jsonc",
+    "deploy": "npm run deploy:game && npm run deploy:gateway"
   },
   "engines": {
     "node": ">=22"
