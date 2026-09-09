@@ -1,55 +1,55 @@
 export const WILDLIFE_COUNT = 24;
 export const WILDLIFE_STEP_MS = 250;
 
-const MASS_TIERS = [0.45, 0.6, 0.7, 0.82, 1.05, 1.25, 1.5, 1.8, 2.4, 3.2, 4.6, 6.2];
-const NAMES = ['Silver Fry', 'Reef Dart', 'Glass Minnow', 'Coral Runner', 'Blue Scout', 'Reef Grazer', 'Amber Snapper', 'Barracuda', 'Needle Hunter', 'Deep Fang', 'Abyss Hunter', 'Voidjaw'];
-const MAX_STEP_SECONDS = 0.25;
+const WILDLIFE_MASS_TIERS = [0.45, 0.6, 0.7, 0.82, 1.05, 1.25, 1.5, 1.8, 2.4, 3.2, 4.6, 6.2];
+const WILDLIFE_NAMES = ['Silver Fry', 'Reef Dart', 'Glass Minnow', 'Coral Runner', 'Blue Scout', 'Reef Grazer', 'Amber Snapper', 'Barracuda', 'Needle Hunter', 'Deep Fang', 'Abyss Hunter', 'Voidjaw'];
+const WILDLIFE_MAX_STEP_SECONDS = 0.25;
 
-function finite(value) {
+function wildlifeFinite(value) {
   return Number.isFinite(value) ? value : 0;
 }
 
-function clamp(value, min, max) {
+function wildlifeClamp(value, min, max) {
   return Math.max(min, Math.min(max, value));
 }
 
-function normalized(vector) {
+function wildlifeNormalized(vector) {
   const raw = {
-    x: finite(vector?.x),
-    y: finite(vector?.y),
-    z: finite(vector?.z),
+    x: wildlifeFinite(vector?.x),
+    y: wildlifeFinite(vector?.y),
+    z: wildlifeFinite(vector?.z),
   };
   const length = Math.hypot(raw.x, raw.y, raw.z);
   if (length <= 1e-9) return { x: 1, y: 0, z: 0 };
   return { x: raw.x / length, y: raw.y / length, z: raw.z / length };
 }
 
-function seededHeading(seed, time = 0) {
-  const phase = finite(seed) * 1.61803398875 + finite(time) * 0.00013;
-  return normalized({
+function wildlifeSeededHeading(seed, time = 0) {
+  const phase = wildlifeFinite(seed) * 1.61803398875 + wildlifeFinite(time) * 0.00013;
+  return wildlifeNormalized({
     x: Math.cos(phase),
     y: Math.sin(phase * 0.57) * 0.35,
     z: Math.sin(phase),
   });
 }
 
-function positionOf(value) {
+function wildlifePositionOf(value) {
   return value?.position || { x: 0, y: 0, z: 0 };
 }
 
-function distance3(a, b) {
+function wildlifeDistance3(a, b) {
   return Math.hypot(
-    finite(a?.x) - finite(b?.x),
-    finite(a?.y) - finite(b?.y),
-    finite(a?.z) - finite(b?.z),
+    wildlifeFinite(a?.x) - wildlifeFinite(b?.x),
+    wildlifeFinite(a?.y) - wildlifeFinite(b?.y),
+    wildlifeFinite(a?.z) - wildlifeFinite(b?.z),
   );
 }
 
-function nearestMatching(actor, players, predicate, maxDistance) {
+function nearestWildlifeMatch(actor, players, predicate, maxDistance) {
   let nearest = null;
   for (const player of Array.isArray(players) ? players : []) {
     if (!player?.position || !Number.isFinite(player.mass) || !predicate(player)) continue;
-    const distance = distance3(actor.position, player.position);
+    const distance = wildlifeDistance3(actor.position, player.position);
     if (distance > maxDistance) continue;
     if (!nearest || distance < nearest.distance) nearest = { player, distance };
   }
@@ -57,13 +57,13 @@ function nearestMatching(actor, players, predicate, maxDistance) {
 }
 
 function speedForWildlife(mass) {
-  const size = Math.cbrt(Math.max(0.2, finite(mass) || 1));
-  return clamp(7.4 / size, 2.8, 8.4);
+  const size = Math.cbrt(Math.max(0.2, wildlifeFinite(mass) || 1));
+  return wildlifeClamp(7.4 / size, 2.8, 8.4);
 }
 
-function tierFor(index) {
-  const tierIndex = Math.abs(Math.trunc(index)) % MASS_TIERS.length;
-  return { mass: MASS_TIERS[tierIndex], name: NAMES[tierIndex] };
+function wildlifeTierFor(index) {
+  const tierIndex = Math.abs(Math.trunc(index)) % WILDLIFE_MASS_TIERS.length;
+  return { mass: WILDLIFE_MASS_TIERS[tierIndex], name: WILDLIFE_NAMES[tierIndex] };
 }
 
 export function makeWildlifePopulation(spawnPoint, idFactory) {
@@ -73,7 +73,7 @@ export function makeWildlifePopulation(spawnPoint, idFactory) {
     return () => `wild-${++id}`;
   })();
   return Array.from({ length: WILDLIFE_COUNT }, (_, index) => {
-    const tier = tierFor(index);
+    const tier = wildlifeTierFor(index);
     const seed = index + 1;
     return {
       id: String(makeId()),
@@ -81,7 +81,7 @@ export function makeWildlifePopulation(spawnPoint, idFactory) {
       name: tier.name,
       mass: tier.mass,
       position: { ...spawn() },
-      heading: seededHeading(seed),
+      heading: wildlifeSeededHeading(seed),
       seed,
     };
   });
@@ -89,71 +89,71 @@ export function makeWildlifePopulation(spawnPoint, idFactory) {
 
 export function respawnWildlife(actor, spawnPoint) {
   const spawn = typeof spawnPoint === 'function' ? spawnPoint() : spawnPoint;
-  const seed = Math.max(1, Math.trunc(finite(actor?.seed)) + 17);
+  const seed = Math.max(1, Math.trunc(wildlifeFinite(actor?.seed)) + 17);
   return {
     ...actor,
     kind: 'wildlife',
     position: {
-      x: finite(spawn?.x),
-      y: finite(spawn?.y),
-      z: finite(spawn?.z),
+      x: wildlifeFinite(spawn?.x),
+      y: wildlifeFinite(spawn?.y),
+      z: wildlifeFinite(spawn?.z),
     },
-    heading: seededHeading(seed),
+    heading: wildlifeSeededHeading(seed),
     seed,
   };
 }
 
 export function stepWildlife(population, players, dt, bounds, now = 0) {
-  const step = clamp(finite(dt), 0, MAX_STEP_SECONDS);
+  const step = wildlifeClamp(wildlifeFinite(dt), 0, WILDLIFE_MAX_STEP_SECONDS);
   const safeBounds = {
-    x: Math.max(1, Math.abs(finite(bounds?.x)) || 80),
-    y: Math.max(1, Math.abs(finite(bounds?.y)) || 28),
-    z: Math.max(1, Math.abs(finite(bounds?.z)) || 80),
+    x: Math.max(1, Math.abs(wildlifeFinite(bounds?.x)) || 80),
+    y: Math.max(1, Math.abs(wildlifeFinite(bounds?.y)) || 28),
+    z: Math.max(1, Math.abs(wildlifeFinite(bounds?.z)) || 80),
   };
 
   return (Array.isArray(population) ? population : []).map((actor, index) => {
-    const mass = Math.max(0.2, finite(actor?.mass) || 1);
-    const position = positionOf(actor);
-    const threat = nearestMatching(
+    const mass = Math.max(0.2, wildlifeFinite(actor?.mass) || 1);
+    const position = wildlifePositionOf(actor);
+    const threat = nearestWildlifeMatch(
       actor,
       players,
       (player) => player.mass >= mass * 1.15,
       22,
     );
-    const prey = nearestMatching(
+    const prey = nearestWildlifeMatch(
       actor,
       players,
       (player) => mass >= player.mass * 1.15,
       24,
     );
 
-    let desired = seededHeading(finite(actor?.seed) || index + 1, now);
+    let desired = wildlifeSeededHeading(wildlifeFinite(actor?.seed) || index + 1, now);
     if (threat && mass <= 1.5) {
-      desired = normalized({
-        x: finite(position.x) - finite(threat.player.position.x),
-        y: finite(position.y) - finite(threat.player.position.y),
-        z: finite(position.z) - finite(threat.player.position.z),
+      desired = wildlifeNormalized({
+        x: wildlifeFinite(position.x) - wildlifeFinite(threat.player.position.x),
+        y: wildlifeFinite(position.y) - wildlifeFinite(threat.player.position.y),
+        z: wildlifeFinite(position.z) - wildlifeFinite(threat.player.position.z),
       });
     } else if (prey && mass >= 1.5) {
-      desired = normalized({
-        x: finite(prey.player.position.x) - finite(position.x),
-        y: finite(prey.player.position.y) - finite(position.y),
-        z: finite(prey.player.position.z) - finite(position.z),
+      desired = wildlifeNormalized({
+        x: wildlifeFinite(prey.player.position.x) - wildlifeFinite(position.x),
+        y: wildlifeFinite(prey.player.position.y) - wildlifeFinite(position.y),
+        z: wildlifeFinite(prey.player.position.z) - wildlifeFinite(position.z),
       });
     } else if (actor?.heading) {
-      const wander = seededHeading(finite(actor.seed) || index + 1, now);
-      desired = normalized({
-        x: finite(actor.heading.x) * 0.78 + wander.x * 0.22,
-        y: finite(actor.heading.y) * 0.78 + wander.y * 0.22,
-        z: finite(actor.heading.z) * 0.78 + wander.z * 0.22,
+      const wander = wildlifeSeededHeading(wildlifeFinite(actor.seed) || index + 1, now);
+      desired = wildlifeNormalized({
+        x: wildlifeFinite(actor.heading.x) * 0.78 + wander.x * 0.22,
+        y: wildlifeFinite(actor.heading.y) * 0.78 + wander.y * 0.22,
+        z: wildlifeFinite(actor.heading.z) * 0.78 + wander.z * 0.22,
       });
     }
 
     const margin = Math.min(4, 0.12 * Math.min(safeBounds.x, safeBounds.y, safeBounds.z));
-    if (Math.abs(finite(position.x)) > safeBounds.x - margin) desired.x -= Math.sign(finite(position.x)) * 1.4;
-    if (Math.abs(finite(position.y)) > safeBounds.y - margin) desired.y -= Math.sign(finite(position.y)) * 1.4;
-    if (Math.abs(finite(position.z)) > safeBounds.z - margin) desired.z -= Math.sign(finite(position.z)) * 1.4;
-    desired = normalized(desired);
+    if (Math.abs(wildlifeFinite(position.x)) > safeBounds.x - margin) desired.x -= Math.sign(wildlifeFinite(position.x)) * 1.4;
+    if (Math.abs(wildlifeFinite(position.y)) > safeBounds.y - margin) desired.y -= Math.sign(wildlifeFinite(position.y)) * 1.4;
+    if (Math.abs(wildlifeFinite(position.z)) > safeBounds.z - margin) desired.z -= Math.sign(wildlifeFinite(position.z)) * 1.4;
+    desired = wildlifeNormalized(desired);
 
     const speed = speedForWildlife(mass);
     return {
@@ -162,9 +162,9 @@ export function stepWildlife(population, players, dt, bounds, now = 0) {
       mass,
       heading: desired,
       position: {
-        x: clamp(finite(position.x) + desired.x * speed * step, -safeBounds.x, safeBounds.x),
-        y: clamp(finite(position.y) + desired.y * speed * step, -safeBounds.y, safeBounds.y),
-        z: clamp(finite(position.z) + desired.z * speed * step, -safeBounds.z, safeBounds.z),
+        x: wildlifeClamp(wildlifeFinite(position.x) + desired.x * speed * step, -safeBounds.x, safeBounds.x),
+        y: wildlifeClamp(wildlifeFinite(position.y) + desired.y * speed * step, -safeBounds.y, safeBounds.y),
+        z: wildlifeClamp(wildlifeFinite(position.z) + desired.z * speed * step, -safeBounds.z, safeBounds.z),
       },
     };
   });
