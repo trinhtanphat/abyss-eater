@@ -100,3 +100,11 @@ test('lobby CTA keeps its arrow encoding portable', async () => {
   assert.ok(html.includes('aria-hidden="true">&rarr;</b>'));
   assert.ok(!html.includes('â†’'));
 });
+
+
+test('README documents Shift boost and C descend without the stale binding', async () => {
+  const readme = await readFile('README.md', 'utf8');
+  assert.match(readme, /Shift[^\n]*boost/i);
+  assert.match(readme, /C[^\n]*(descend|swim down)/i);
+  assert.doesNotMatch(readme, /Shift to swim down/i);
+});
