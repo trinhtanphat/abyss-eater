@@ -67,7 +67,16 @@
         <div class="skin-section"><div class="section-title"><span>SKIN LOADOUT</span><small>Cosmetic only</small></div><div id="skin-grid" class="skin-grid" aria-live="polite"></div></div>
         <div class="persistent-ranking"><div class="section-title"><span>ALL-TIME</span><small>Best score</small></div><ol id="persistent-leaderboard" aria-label="Persistent leaderboard"></ol></div>
       </section>
-      <button id="play-button" type="button"><span>DIVE IN</span><b aria-hidden="true">â†’</b></button>
+      <section id="party-panel" class="social-panel party-panel" aria-label="Party">
+        <div class="section-title"><span>PARTY</span><small id="party-status">Solo</small></div>
+        <div class="party-actions"><button id="party-create" type="button">Create</button><input id="party-code" maxlength="6" placeholder="Invite code" aria-label="Party invite code"><button id="party-join" type="button">Join</button></div>
+        <ul id="party-members" aria-live="polite"></ul>
+        <div class="party-actions"><button id="party-start" type="button">Party Quick Dive</button><button id="party-leave" type="button">Leave</button></div>
+      </section>
+      <div class="dive-actions">
+        <button id="quick-dive-button" type="button"><span>QUICK DIVE</span><b aria-hidden="true">↯</b></button>
+      <button id="play-button" type="button"><span>PRIVATE DIVE</span><b aria-hidden="true">â†’</b></button>
+      </div>
       <div class="controls-legend" aria-label="Controls"><span><kbd>WASD</kbd> Swim</span><span><kbd>SPACE</kbd> Rise</span><span><kbd>SHIFT</kbd> Descend</span><span><kbd>MOUSE</kbd> Steer</span></div>
     </section>
   </main>
@@ -89,6 +98,11 @@
       <p class="room-line">Current <strong id="hud-room">ocean-1</strong> &middot; <span id="hud-biome">Reef</span></p>
     </div>
     <aside class="leaderboard-card panel-mini" aria-label="Leaderboard"><div class="section-title"><span><i class="metric-icon" style="--metric-icon:url('/assets/ui/icons/crown.svg')"></i>TOP PREDATORS</span><small>Score</small></div><ol id="leaderboard"></ol></aside>
+    <aside id="chat-panel" class="chat-panel panel-mini" aria-label="Room chat" data-no-steer>
+      <div class="section-title"><span>ROOM CHAT</span><small>Local mute + report</small></div>
+      <div id="chat-log" class="chat-log" role="log" aria-live="polite"></div>
+      <form id="chat-form" class="chat-form"><input id="chat-input" maxlength="160" autocomplete="off" placeholder="Say something…" aria-label="Chat message"><button id="chat-send" type="submit">Send</button></form>
+    </aside>
     <div class="depth-card panel-mini"><div class="section-title"><span><i class="metric-icon" style="--metric-icon:url('/assets/ui/icons/depth.svg')"></i>DEPTH</span><strong id="depth-value">28 m</strong></div><div id="depth-meter" class="depth-meter" role="progressbar" aria-label="Ocean depth" aria-valuemin="0" aria-valuemax="56" aria-valuenow="28"><i></i><b></b></div></div>
     <div id="danger-indicator" class="danger-indicator" data-level="safe" hidden><span class="danger-icon"><i class="metric-icon" style="--metric-icon:url('/assets/ui/icons/skull.svg')"></i></span><span><strong>APEX NEARBY</strong><small id="danger-text">Water is clear</small></span></div>
     <button id="settings-button" class="icon-button settings-button" type="button" aria-label="Game settings" aria-expanded="false" data-no-steer><i class="metric-icon" style="--metric-icon:url('/assets/ui/icons/settings.svg')"></i></button>

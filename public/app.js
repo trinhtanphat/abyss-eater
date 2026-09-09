@@ -15,6 +15,7 @@ import { DEFAULT_SETTINGS, normalizeSettings } from '/client-settings.mjs';
 import { createAudioController } from '/client-audio.mjs';
 import { createTtsController } from '/client-tts.mjs';
 import { createProgressionClient, profileProgress, skinAction } from '/client-progression.mjs';
+import { createSocialClient, loadMutedIds, saveMutedIds, toggleMutedId } from '/client-social.mjs';
 
 const SETTINGS_STORAGE_KEY = 'abyss-eater-settings-v1';
 const gameRoot = document.querySelector('#game');
@@ -43,6 +44,17 @@ const profileStatus = document.querySelector('#profile-status');
 const skinGrid = document.querySelector('#skin-grid');
 const persistentLeaderboard = document.querySelector('#persistent-leaderboard');
 const hudBiome = document.querySelector('#hud-biome');
+const partyCodeInput = document.querySelector('#party-code');
+const partyMembers = document.querySelector('#party-members');
+const partyStatus = document.querySelector('#party-status');
+const partyCreateButton = document.querySelector('#party-create');
+const partyJoinButton = document.querySelector('#party-join');
+const partyLeaveButton = document.querySelector('#party-leave');
+const partyStartButton = document.querySelector('#party-start');
+const chatLog = document.querySelector('#chat-log');
+const chatForm = document.querySelector('#chat-form');
+const chatInput = document.querySelector('#chat-input');
+
 const systemReducedMotion = matchMedia('(prefers-reduced-motion: reduce)').matches;
 
 function readClientSettings() {
@@ -62,6 +74,10 @@ let settings = readClientSettings();
 const audio = createAudioController({ getSettings: () => settings });
 const tts = createTtsController({ getSettings: () => settings });
 const progression = createProgressionClient();
+const social = createSocialClient({ getToken: () => progression.token });
+let mutedIds = loadMutedIds();
+let activePartyCode = '';
+
 const showToast = createToast(toastElement);
 const state = createClientState();
 const hud = createHud();
@@ -462,38 +478,144 @@ function syncSnapshot(changes = null) {
   renderHud();
 }
 
-const lobby = createLobby({
-  onPlay: (preferences) => {
-    started = true;
-    if (demoFish) {
-      sceneContext.scene.remove(demoFish);
-      disposeFishRig(demoFish);
-      demoFish = null;
-    }
-    setTheme(preferences.theme);
-    setQuality(preferences.quality);
-    input.setPointerEnabled(preferences.pointerSteering);
-    input.setEnabled(true);
-    void audio.unlock().then((unlocked) => {
-      if (unlocked) {
-        audio.playUi();
-        audio.startAmbience();
+function socialErrorLabel(code) {
+  const labels = {
+    unauthorized: 'Persistent profile required',
+    party_full: 'Party is full',
+    party_not_found: 'Party not found',
+    not_member: 'You are not in that party',
+    leader_required: 'Only the party leader can start',
+    matchmaker_unavailable: 'Quick Dive is temporarily unavailable',
+  };
+  return labels[code] || 'Social service unavailable';
+}
+
+async function ensureSocialSession() {
+  const name = document.querySelector('#player-name')?.value || 'Little Fish';
+  await progression.ensureSession(name);
+  renderProgression();
+  return progression.token;
+}
+
+function renderParty(party) {
+  const value = party && typeof party === 'object' ? party : null;
+  activePartyCode = value?.code || '';
+  if (partyCodeInput && activePartyCode) partyCodeInput.value = activePartyCode;
+  if (partyStatus) partyStatus.textContent = value ? `${value.members?.length || 0}/4 · ${activePartyCode}` : 'Solo';
+  if (!partyMembers) return;
+  const fragment = document.createDocumentFragment();
+  for (const member of value?.members || []) {
+    const row = document.createElement('li');
+    const name = document.createElement('span');
+    const role = document.createElement('small');
+    name.textContent = member.displayName || 'Little Fish';
+    role.textContent = member.profileId === value.leaderId ? 'Leader' : 'Member';
+    row.append(name, role);
+    fragment.append(row);
+  }
+  partyMembers.replaceChildren(fragment);
+}
+
+function appendChat(message) {
+  const id = String(message?.id || '');
+  if (!chatLog || !id || mutedIds.includes(id)) return;
+  const row = document.createElement('div');
+  row.className = 'chat-message';
+  const line = document.createElement('p');
+  const author = document.createElement('strong');
+  const text = document.createElement('span');
+  author.textContent = message?.name || 'Fish';
+  text.textContent = String(message?.text || '').slice(0, 160);
+  line.append(author, text);
+  row.append(line);
+
+  if (id !== state.clientId) {
+    const actions = document.createElement('div');
+    actions.className = 'chat-actions';
+    const mute = document.createElement('button');
+    mute.type = 'button';
+    mute.textContent = 'Mute';
+    mute.addEventListener('click', () => {
+      mutedIds = saveMutedIds(toggleMutedId(mutedIds, id));
+      row.remove();
+      showToast(`${author.textContent} muted locally`, 'info', 1400);
+    });
+    const report = document.createElement('button');
+    report.type = 'button';
+    report.textContent = 'Report';
+    report.addEventListener('click', async () => {
+      try {
+        await ensureSocialSession();
+        await social.report({ targetPlayerId: id, room: state.room || network?.credentials?.room, reason: 'abuse' });
+        showToast('Report submitted', 'success', 1400);
+      } catch (error) {
+        showToast(socialErrorLabel(error?.code), 'danger', 1800);
       }
     });
-    void progression.ensureSession(preferences.name)
-      .then(() => {
-        renderProgression();
-        network.connect({ name: preferences.name, room: preferences.room, session: progression.token });
-      })
-      .catch((error) => {
-        renderProgression();
-        showToast(progressionErrorLabel(error?.code), 'info', 1800);
-        network.connect({ name: preferences.name, room: preferences.room, session: '' });
-      });
-    statusText = 'Connecting…';
-    setConnectionState('connecting', 'Connecting', 'Reaching the ocean server…');
-    renderHud();
-  },
+    actions.append(mute, report);
+    row.append(actions);
+  }
+  chatLog.append(row);
+  while (chatLog.children.length > 50) chatLog.firstElementChild?.remove();
+  chatLog.scrollTop = chatLog.scrollHeight;
+}
+
+function configureDivePresentation(preferences) {
+  started = true;
+  if (demoFish) {
+    sceneContext.scene.remove(demoFish);
+    disposeFishRig(demoFish);
+    demoFish = null;
+  }
+  setTheme(preferences.theme);
+  setQuality(preferences.quality);
+  input.setPointerEnabled(preferences.pointerSteering);
+  input.setEnabled(true);
+  void audio.unlock().then((unlocked) => {
+    if (unlocked) { audio.playUi(); audio.startAmbience(); }
+  });
+}
+
+async function beginDive(preferences, { quick = false, roomOverride = '', requireSession = false } = {}) {
+  lobby.hide();
+  configureDivePresentation(preferences);
+  statusText = quick ? 'Matchmaking…' : 'Connecting…';
+  setConnectionState('connecting', quick ? 'Finding ocean' : 'Connecting', quick ? 'Selecting a nearby room…' : 'Reaching the ocean server…');
+  renderHud();
+
+  let session = '';
+  try {
+    await progression.ensureSession(preferences.name);
+    renderProgression();
+    session = progression.token;
+  } catch (error) {
+    renderProgression();
+    if (requireSession) {
+      started = false;
+      lobby.show();
+      showToast(progressionErrorLabel(error?.code), 'danger', 1800);
+      return;
+    }
+    showToast(progressionErrorLabel(error?.code), 'info', 1800);
+  }
+
+  let room = roomOverride || preferences.room;
+  if (quick && !roomOverride) {
+    try {
+      const placement = await social.quickDive();
+      room = String(placement?.room || '');
+      if (!room) throw Object.assign(new Error('matchmaker_unavailable'), { code: 'matchmaker_unavailable' });
+    } catch (error) {
+      room = 'ocean-1';
+      showToast(`${socialErrorLabel(error?.code)} · using fallback room`, 'info', 1800);
+    }
+  }
+  network.connect({ name: preferences.name, room, session });
+}
+
+const lobby = createLobby({
+  onPlay: (preferences) => { void beginDive(preferences); },
+  onQuickDive: (preferences) => { void beginDive(preferences, { quick: true }); },
   onTheme: (id) => setTheme(id),
   onQuality: (quality) => setQuality(quality),
   onPointer: (enabled) => input?.setPointerEnabled(enabled),
@@ -576,14 +698,66 @@ network = createNetworkClient({
     showToast(`Eaten by ${message.by || 'a larger fish'} — respawning`, 'danger', 1900);
     void tts.speak(`Bạn đã bị ${message.by || 'một con cá lớn hơn'} ăn. Đang hồi sinh.`);
   },
+  onChat(message) {
+    appendChat(message);
+  },
   onError(message) {
-    showToast(`Server rejected input: ${message.code || 'unknown'}`, 'danger', 1800);
+    const chatErrors = { chat_empty: 'Chat message is empty', chat_prohibited: 'Chat message blocked', chat_duplicate: 'Duplicate chat blocked', chat_rate_limited: 'Chat rate limited' };
+    showToast(chatErrors[message.code] || `Server rejected input: ${message.code || 'unknown'}`, 'danger', 1800);
   },
   onProtocolMismatch() {
     input.setEnabled(false);
     setConnectionState('upgrade-required', 'Upgrade required', 'Reload the game to use the current multiplayer protocol.');
     showToast('Upgrade required · reload the game', 'danger', 3200);
   },
+});
+
+chatForm?.addEventListener('submit', (event) => {
+  event.preventDefault();
+  const text = String(chatInput?.value || '').trim();
+  if (!text || !network?.sendChat(text)) return;
+  chatInput.value = '';
+});
+
+partyCreateButton?.addEventListener('click', async () => {
+  try {
+    await ensureSocialSession();
+    const result = await social.partyCreate();
+    renderParty(result.party);
+    showToast(`Party ${result.party?.code || ''} created`, 'success', 1500);
+  } catch (error) { showToast(socialErrorLabel(error?.code), 'danger', 1800); }
+});
+
+partyJoinButton?.addEventListener('click', async () => {
+  try {
+    await ensureSocialSession();
+    const result = await social.partyJoin(partyCodeInput?.value);
+    renderParty(result.party);
+    showToast('Joined party', 'success', 1400);
+  } catch (error) { showToast(socialErrorLabel(error?.code), 'danger', 1800); }
+});
+
+partyLeaveButton?.addEventListener('click', async () => {
+  const code = activePartyCode || partyCodeInput?.value;
+  if (!code) return;
+  try {
+    await ensureSocialSession();
+    await social.partyLeave(code);
+    renderParty(null);
+    if (partyCodeInput) partyCodeInput.value = '';
+    showToast('Left party', 'info', 1400);
+  } catch (error) { showToast(socialErrorLabel(error?.code), 'danger', 1800); }
+});
+
+partyStartButton?.addEventListener('click', async () => {
+  const code = activePartyCode || partyCodeInput?.value;
+  if (!code) return showToast('Create or join a party first', 'info', 1500);
+  try {
+    await ensureSocialSession();
+    const placement = await social.partyQuickDive(code);
+    renderParty(placement.party);
+    await beginDive(lobby.persist(), { roomOverride: placement.room, requireSession: true });
+  } catch (error) { showToast(socialErrorLabel(error?.code), 'danger', 1800); }
 });
 
 // Lightweight procedural hero fish: no binary model asset or paid dependency.
