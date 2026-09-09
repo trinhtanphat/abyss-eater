@@ -11,6 +11,7 @@ import { createLobby } from './ui/lobby.js';
 import { createToast } from './ui/toast.js';
 import { DEFAULT_SETTINGS, normalizeSettings } from '/client-settings.mjs';
 import { createAudioController } from '/client-audio.mjs';
+import { createTtsController } from '/client-tts.mjs';
 
 const SETTINGS_STORAGE_KEY = 'abyss-eater-settings-v1';
 const gameRoot = document.querySelector('#game');
@@ -25,9 +26,12 @@ const reducedEffectsSetting = document.querySelector('#reduced-effects-setting')
 const masterVolume = document.querySelector('#master-volume');
 const musicVolume = document.querySelector('#music-volume');
 const sfxVolume = document.querySelector('#sfx-volume');
+const ttsEnabledSetting = document.querySelector('#tts-enabled-setting');
+const ttsVolume = document.querySelector('#tts-volume');
 const masterVolumeValue = document.querySelector('#master-volume-value');
 const musicVolumeValue = document.querySelector('#music-volume-value');
 const sfxVolumeValue = document.querySelector('#sfx-volume-value');
+const ttsVolumeValue = document.querySelector('#tts-volume-value');
 const systemReducedMotion = matchMedia('(prefers-reduced-motion: reduce)').matches;
 
 function readClientSettings() {
@@ -45,6 +49,7 @@ function writeClientSettings(value) {
 
 let settings = readClientSettings();
 const audio = createAudioController({ getSettings: () => settings });
+const tts = createTtsController({ getSettings: () => settings });
 const showToast = createToast(toastElement);
 const state = createClientState();
 const hud = createHud();
@@ -94,10 +99,13 @@ function syncVolumeOutputs() {
   if (masterVolume) masterVolume.value = String(settings.master);
   if (musicVolume) musicVolume.value = String(settings.music);
   if (sfxVolume) sfxVolume.value = String(settings.sfx);
+  if (ttsEnabledSetting) ttsEnabledSetting.checked = settings.ttsEnabled;
+  if (ttsVolume) ttsVolume.value = String(settings.tts);
   if (reducedEffectsSetting) reducedEffectsSetting.checked = settings.reducedEffects;
   if (masterVolumeValue) masterVolumeValue.textContent = `${Math.round(settings.master * 100)}%`;
   if (musicVolumeValue) musicVolumeValue.textContent = `${Math.round(settings.music * 100)}%`;
   if (sfxVolumeValue) sfxVolumeValue.textContent = `${Math.round(settings.sfx * 100)}%`;
+  if (ttsVolumeValue) ttsVolumeValue.textContent = `${Math.round(settings.tts * 100)}%`;
 }
 
 function updateLocalSettings() {
@@ -108,16 +116,19 @@ function updateLocalSettings() {
     master: Number(masterVolume?.value),
     music: Number(musicVolume?.value),
     sfx: Number(sfxVolume?.value),
+    ttsEnabled: Boolean(ttsEnabledSetting?.checked),
+    tts: Number(ttsVolume?.value),
   });
   writeClientSettings(settings);
   syncVolumeOutputs();
+  if (!settings.ttsEnabled) tts.stop();
   sceneContext?.setReducedMotion(effectiveReducedMotion());
   rebuildEffects();
   audio.stopAmbience();
   audio.startAmbience();
 }
 
-for (const control of [reducedEffectsSetting, masterVolume, musicVolume, sfxVolume]) {
+for (const control of [reducedEffectsSetting, masterVolume, musicVolume, sfxVolume, ttsEnabledSetting, ttsVolume]) {
   control?.addEventListener('input', updateLocalSettings);
   control?.addEventListener('change', updateLocalSettings);
 }
@@ -266,6 +277,7 @@ function syncSnapshot(changes = null) {
       if (changes.scoreDelta >= 50) {
         effects?.eat(effectPosition, changes.scoreDelta, activeTheme.fish.local);
         showToast(`Devoured! +${Math.round(changes.scoreDelta)} score`, 'success', 1250);
+        void tts.speak(`Nuốt cá thành công. Cộng ${Math.round(changes.scoreDelta)} điểm.`);
       } else {
         effects?.food(effectPosition, changes.scoreDelta, activeTheme.food.color);
       }
@@ -364,6 +376,7 @@ network = createNetworkClient({
     syncSnapshot(changes);
     setConnectionState('online', 'Online', message.resumed ? 'Your fish was resumed.' : 'You entered the ocean.', true);
     showToast(message.resumed ? 'Reconnected to your fish' : `Entered ${message.room || 'the ocean'}`, 'success', 1500);
+    void tts.speak(message.resumed ? 'Đã kết nối lại với cá của bạn.' : 'Đã kết nối. Bạn đã vào đại dương.');
   },
   onSnapshot(message) {
     const changes = state.applySnapshot(message);
@@ -378,6 +391,7 @@ network = createNetworkClient({
     effects?.respawn();
     showRespawn(message.by);
     showToast(`Eaten by ${message.by || 'a larger fish'} — respawning`, 'danger', 1900);
+    void tts.speak(`Bạn đã bị ${message.by || 'một con cá lớn hơn'} ăn. Đang hồi sinh.`);
   },
   onError(message) {
     showToast(`Server rejected input: ${message.code || 'unknown'}`, 'danger', 1800);
@@ -403,6 +417,7 @@ setInterval(() => { if (started) network.ping(); }, 2000);
 
 document.addEventListener('visibilitychange', () => {
   void audio.setSuspended(document.hidden);
+  if (document.hidden) tts.stop();
 });
 
 function animate(time) {
