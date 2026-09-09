@@ -14,7 +14,7 @@
     .sub { color: #8eb7c6; font-size: 13px; }
     .legend { position: fixed; z-index: 3; right: 32px; top: 28px; padding: 12px 15px; border: 1px solid rgba(105,226,255,.22); border-radius: 12px; background: rgba(3,16,26,.68); backdrop-filter: blur(12px); font-size: 12px; line-height: 1.6; color: #a8cdd7; }
     .legend b { color: #e6fbff; }
-    .label { position: fixed; z-index: 2; transform: translate(-50%, 16px); min-width: 118px; padding: 5px 8px; border: 1px solid rgba(115,226,255,.18); border-radius: 7px; background: rgba(1,11,18,.72); text-align: center; pointer-events: none; box-shadow: 0 6px 22px rgba(0,0,0,.24); }
+    .label { position: fixed; z-index: 2; transform: translate(-50%, 22px); min-width: 118px; padding: 5px 8px; border: 1px solid rgba(115,226,255,.18); border-radius: 7px; background: rgba(1,11,18,.76); text-align: center; pointer-events: none; box-shadow: 0 6px 22px rgba(0,0,0,.24); }
     .label strong { display: block; font-size: 10px; letter-spacing: .12em; color: #dffaff; }
     .label span { font-size: 9px; color: #73dff5; }
     .label.prey { border-color: rgba(113,255,187,.35); }
@@ -39,12 +39,12 @@
     const theme = {
       fish: {
         local: 0x52efff,
-        saturation: 0.68,
-        lightness: 0.56,
-        emissiveBoost: 0.42,
-        roughness: 0.48,
+        saturation: 0.78,
+        lightness: 0.62,
+        emissiveBoost: 0.5,
+        roughness: 0.44,
         metalness: 0.08,
-        eye: 0xc8fbff,
+        eye: 0xd8fbff,
         pupil: 0x04131d,
       },
       food: {
@@ -59,51 +59,51 @@
     renderer.setSize(innerWidth, innerHeight);
     renderer.outputColorSpace = THREE.SRGBColorSpace;
     renderer.toneMapping = THREE.ACESFilmicToneMapping;
-    renderer.toneMappingExposure = 1.12;
+    renderer.toneMappingExposure = 1.18;
     document.body.prepend(renderer.domElement);
 
     const scene = new THREE.Scene();
     scene.background = new THREE.Color(0x020b13);
-    scene.fog = new THREE.FogExp2(0x06131d, 0.026);
+    scene.fog = new THREE.FogExp2(0x06131d, 0.021);
 
-    const camera = new THREE.PerspectiveCamera(42, innerWidth / innerHeight, 0.1, 100);
-    camera.position.set(0, 0.5, 35);
-    camera.lookAt(0, 0, 0);
+    const camera = new THREE.PerspectiveCamera(42, innerWidth / innerHeight, 0.1, 110);
+    camera.position.set(0, 0.4, 42);
+    camera.lookAt(0, -0.2, 0);
 
-    scene.add(new THREE.HemisphereLight(0x8deaff, 0x05101a, 2.15));
-    const key = new THREE.DirectionalLight(0xc8f7ff, 3.1);
+    scene.add(new THREE.HemisphereLight(0x9befff, 0x05101a, 2.45));
+    const key = new THREE.DirectionalLight(0xd8faff, 3.4);
     key.position.set(7, 10, 16);
     scene.add(key);
-    const rim = new THREE.PointLight(0x704cff, 36, 34, 1.8);
-    rim.position.set(-11, -3, 10);
+    const rim = new THREE.PointLight(0x704cff, 40, 40, 1.8);
+    rim.position.set(-12, -3, 11);
     scene.add(rim);
-    const warm = new THREE.PointLight(0xff7b47, 22, 22, 1.8);
-    warm.position.set(9, -7, 8);
+    const warm = new THREE.PointLight(0xff7b47, 25, 26, 1.8);
+    warm.position.set(11, -7, 10);
     scene.add(warm);
 
     const seabed = new THREE.Mesh(
-      new THREE.PlaneGeometry(70, 34),
+      new THREE.PlaneGeometry(80, 38),
       new THREE.MeshStandardMaterial({ color: 0x061a22, roughness: 1, metalness: 0 }),
     );
     seabed.rotation.x = -Math.PI / 2;
-    seabed.position.y = -10.2;
+    seabed.position.y = -11.2;
     scene.add(seabed);
 
     const bubbleGeo = new THREE.BufferGeometry();
     const bubblePositions = [];
-    for (let i = 0; i < 150; i += 1) bubblePositions.push((Math.random() - .5) * 42, (Math.random() - .5) * 24, (Math.random() - .5) * 18 - 2);
+    for (let i = 0; i < 170; i += 1) bubblePositions.push((Math.random() - .5) * 50, (Math.random() - .5) * 25, (Math.random() - .5) * 20 - 2);
     bubbleGeo.setAttribute('position', new THREE.Float32BufferAttribute(bubblePositions, 3));
     const bubbles = new THREE.Points(bubbleGeo, new THREE.PointsMaterial({ color: 0x7edff5, size: .045, transparent: true, opacity: .38, depthWrite: false }));
     scene.add(bubbles);
 
     const entries = [
-      { mass: 0.45, tier: 'WILDLIFE PREY', x: 0, y: 8.1, local: false, prey: true },
-      { mass: 1, tier: 'FRY', x: -8.1, y: 4.8 },
-      { mass: 2, tier: 'REEFLING', x: 7.5, y: 4.7 },
-      { mass: 4, tier: 'HUNTER', x: -7.6, y: 0.2, local: true },
-      { mass: 8, tier: 'RAZORFIN', x: 7.1, y: 0.1 },
-      { mass: 16, tier: 'ABYSS PREDATOR', x: -6.7, y: -5.2 },
-      { mass: 32, tier: 'LEVIATHAN', x: 6.1, y: -5.5 },
+      { mass: 0.45, tier: 'WILDLIFE PREY', x: 0, y: 8.2, local: false, prey: true },
+      { mass: 1, tier: 'FRY', x: -9.6, y: 4.8 },
+      { mass: 2, tier: 'REEFLING', x: 9.0, y: 4.8 },
+      { mass: 4, tier: 'HUNTER', x: -9.3, y: 0.3, local: true },
+      { mass: 8, tier: 'RAZORFIN', x: 8.7, y: 0.3 },
+      { mass: 16, tier: 'ABYSS PREDATOR', x: -9.4, y: -5.5 },
+      { mass: 32, tier: 'LEVIATHAN', x: 8.8, y: -5.7 },
     ];
 
     const rigs = [];
@@ -113,7 +113,8 @@
       applyFishSnapshot(rig, { position: { x: entry.x, y: entry.y, z: 0 }, mass: entry.mass, score: 0, deaths: 0 });
       rig.position.set(entry.x, entry.y, 0);
       rig.userData.target.set(entry.x, entry.y, 0);
-      rig.rotation.z = index % 2 ? 0.035 : -0.025;
+      rig.userData.previousTarget.copy(rig.userData.target);
+      rig.rotation.z = index % 2 ? 0.025 : -0.018;
       scene.add(rig);
       const label = document.createElement('div');
       label.className = `label${entry.prey ? ' prey' : ''}`;
@@ -123,7 +124,7 @@
     }
 
     const food = [];
-    for (const [x, y, z] of [[-1.5,-7.7,2],[0,-7.4,2.5],[1.6,-7.8,2]]) {
+    for (const [x, y, z] of [[-1.7,-8.7,2],[0,-8.35,2.5],[1.8,-8.7,2]]) {
       const mesh = createFoodMesh(theme);
       mesh.position.set(x, y, z);
       mesh.scale.setScalar(1.2);
@@ -132,11 +133,11 @@
     }
 
     const effects = createEffectManager(scene, { profile: { effectParticles: 18 }, reducedMotion: false });
-    effects.growth(new THREE.Vector3(-7.6, .2, 0));
-    effects.eat(new THREE.Vector3(6.1, -5.5, 0), 320, 0x69efff);
+    effects.growth(new THREE.Vector3(-9.3, .3, 0));
+    effects.eat(new THREE.Vector3(8.8, -5.7, 0), 320, 0x69efff);
     setInterval(() => {
-      effects.growth(new THREE.Vector3(-7.6, .2, 0));
-      effects.eat(new THREE.Vector3(6.1, -5.5, 0), 320, 0x69efff);
+      effects.growth(new THREE.Vector3(-9.3, .3, 0));
+      effects.eat(new THREE.Vector3(8.8, -5.7, 0), 320, 0x69efff);
     }, 900);
 
     const projected = new THREE.Vector3();
