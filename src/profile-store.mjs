@@ -227,3 +227,74 @@ export async function readLeaderboard(db, season = 'all-time', limit = 10) {
     updatedAt: Number(row.updated_at ?? 0),
   }));
 }
+
+
+function xpRequiredForLevel(value) {
+  const level = Math.max(1, Math.floor(Number(value) || 1));
+  return 100 * (level - 1) * level / 2;
+}
+
+export async function purchaseSkin(db, profileId, skinId, nowMs = Date.now()) {
+  assertDb(db);
+  if (typeof db.batch !== 'function') throw new Error('profile-db-unavailable');
+  const id = canonicalProfileId(profileId);
+  const now = canonicalTime(nowMs);
+  const skin = skinById(skinId);
+  if (!skin) return { ok: false, code: 'unknown_skin' };
+  if (skin.id === 'reef') return { ok: false, code: 'already_owned' };
+
+  const profile = await readProfile(db, id);
+  if (!profile || profile.status !== 'active') return { ok: false, code: 'profile_unavailable' };
+  const owned = await readOwnedSkins(db, id);
+  if (owned.includes(skin.id)) return { ok: false, code: 'already_owned' };
+  if (profile.level < skin.unlockLevel) return { ok: false, code: 'locked' };
+  if (profile.pearls < skin.price) return { ok: false, code: 'insufficient_pearls' };
+
+  const requiredXp = xpRequiredForLevel(skin.unlockLevel);
+  const debit = db.prepare(`
+    UPDATE profiles
+    SET pearls = pearls - ?, updated_at = ?
+    WHERE id = ?
+      AND pearls >= ?
+      AND xp >= ?
+      AND NOT EXISTS (
+        SELECT 1 FROM profile_skins
+        WHERE profile_id = ? AND skin_id = ?
+      )
+  `).bind(skin.price, now, id, skin.price, requiredXp, id, skin.id);
+  const unlock = db.prepare(`
+    INSERT OR IGNORE INTO profile_skins (profile_id, skin_id, unlocked_at)
+    SELECT ?, ?, ?
+    WHERE changes() = 1
+  `).bind(id, skin.id, now);
+
+  const results = await db.batch([debit, unlock]);
+  if (Number(results?.[0]?.meta?.changes ?? 0) !== 1) return { ok: false, code: 'purchase_conflict' };
+  return { ok: true, skinId: skin.id, price: skin.price };
+}
+
+export async function selectSkin(db, profileId, skinId, nowMs = Date.now()) {
+  assertDb(db);
+  const id = canonicalProfileId(profileId);
+  const now = canonicalTime(nowMs);
+  const skin = skinById(skinId);
+  if (!skin) return { ok: false, code: 'unknown_skin' };
+
+  const profile = await readProfile(db, id);
+  if (!profile || profile.status !== 'active') return { ok: false, code: 'profile_unavailable' };
+  const owned = await readOwnedSkins(db, id);
+  if (!owned.includes(skin.id)) return { ok: false, code: 'not_owned' };
+  if (profile.selectedSkinId === skin.id) return { ok: true, skinId: skin.id };
+
+  const result = await db.prepare(`
+    UPDATE profiles
+    SET selected_skin_id = ?, updated_at = ?
+    WHERE id = ?
+      AND EXISTS (
+        SELECT 1 FROM profile_skins
+        WHERE profile_id = ? AND skin_id = ?
+      )
+  `).bind(skin.id, now, id, id, skin.id).run();
+  if (Number(result?.meta?.changes ?? 0) !== 1) return { ok: false, code: 'select_conflict' };
+  return { ok: true, skinId: skin.id };
+}

@@ -220,6 +220,48 @@ async function handleLeaderboardApi(request, env, url) {
   }
 }
 
+function shopErrorStatus(code) {
+  if (code === 'unknown_skin') return 400;
+  if (code === 'locked' || code === 'insufficient_pearls') return 403;
+  if (code === 'already_owned' || code === 'not_owned' || code === 'purchase_conflict' || code === 'select_conflict') return 409;
+  return 400;
+}
+
+async function handlePurchaseSkinApi(request, env) {
+  if (request.method !== 'POST') return jsonApi({ ok: false, code: 'method_not_allowed' }, 405);
+  const auth = await authenticatedProfile(request, env);
+  if (auth.response) return auth.response;
+  const body = await readSmallJson(request);
+  if (!body || typeof body.skinId !== 'string') return jsonApi({ ok: false, code: 'invalid_request' }, 400);
+  try {
+    const result = await purchaseSkin(env.DB, auth.profile.id, body.skinId, Date.now());
+    if (!result.ok) return jsonApi(result, shopErrorStatus(result.code));
+    const profile = await readProfile(env.DB, auth.profile.id);
+    const ownedSkins = await readOwnedSkins(env.DB, auth.profile.id);
+    return jsonApi({ ...result, profile, ownedSkins, catalog: SKIN_CATALOG });
+  } catch {
+    return persistenceUnavailable();
+  }
+}
+
+async function handleSelectSkinApi(request, env) {
+  if (request.method !== 'POST') return jsonApi({ ok: false, code: 'method_not_allowed' }, 405);
+  const auth = await authenticatedProfile(request, env);
+  if (auth.response) return auth.response;
+  const body = await readSmallJson(request);
+  if (!body || typeof body.skinId !== 'string') return jsonApi({ ok: false, code: 'invalid_request' }, 400);
+  try {
+    const result = await selectSkin(env.DB, auth.profile.id, body.skinId, Date.now());
+    if (!result.ok) return jsonApi(result, shopErrorStatus(result.code));
+    const profile = await readProfile(env.DB, auth.profile.id);
+    const ownedSkins = await readOwnedSkins(env.DB, auth.profile.id);
+    return jsonApi({ ...result, profile, ownedSkins, catalog: SKIN_CATALOG });
+  } catch {
+    return persistenceUnavailable();
+  }
+}
+
+
 export class GameRoom extends DurableObject {
   constructor(ctx, env) {
     super(ctx, env);
@@ -595,6 +637,14 @@ export default {
 
     if (url.pathname === '/api/leaderboard') {
       return handleLeaderboardApi(request, env, url);
+    }
+
+    if (url.pathname === '/api/shop/purchase') {
+      return handlePurchaseSkinApi(request, env);
+    }
+
+    if (url.pathname === '/api/profile/skin') {
+      return handleSelectSkinApi(request, env);
     }
 
     if (url.pathname === '/ws') {
