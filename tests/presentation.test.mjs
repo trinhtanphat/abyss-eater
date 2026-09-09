@@ -18,10 +18,9 @@ test('theme normalization keeps supported modes and defaults to stylized', () =>
   assert.equal(normalizeTheme(null), 'stylized');
 });
 
-test('quality normalization keeps supported values and defaults to auto', () => {
-  for (const value of ['auto', 'high', 'balanced', 'low']) {
-    assert.equal(normalizeQuality(value), value);
-  }
+test('quality normalization aligns with alpha presets and migrates balanced to medium', () => {
+  for (const value of ['auto', 'high', 'medium', 'low']) assert.equal(normalizeQuality(value), value);
+  assert.equal(normalizeQuality('balanced'), 'medium');
   assert.equal(normalizeQuality('HIGH'), 'high');
   assert.equal(normalizeQuality('ultra'), 'auto');
 });
