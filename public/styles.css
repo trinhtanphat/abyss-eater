@@ -26,8 +26,8 @@ canvas { display: block; width: 100%; height: 100%; }
 .game-canvas { position: fixed; inset: 0; }
 
 .water-vignette, .surface-glow { position: fixed; inset: 0; z-index: 2; pointer-events: none; }
-.water-vignette { background: radial-gradient(circle at 50% 40%, transparent 35%, rgba(0, 8, 17, .24) 72%, rgba(0, 5, 12, .62) 115%); }
-.surface-glow { background: radial-gradient(ellipse at 50% -12%, rgba(137, 240, 255, .23), rgba(27, 150, 176, .07) 30%, transparent 58%); mix-blend-mode: screen; }
+.water-vignette { background: radial-gradient(circle at 50% 40%, transparent 38%, rgba(0, 8, 17, .16) 76%, rgba(0, 5, 12, .44) 118%); }
+.surface-glow { background: radial-gradient(ellipse at 50% -10%, rgba(164, 248, 255, .34), rgba(46, 184, 205, .11) 34%, transparent 62%); mix-blend-mode: screen; }
 
 .panel, .panel-mini {
   border: 1px solid var(--line);
@@ -40,6 +40,7 @@ canvas { display: block; width: 100%; height: 100%; }
 
 .lobby-shell {
   position: fixed; z-index: 20; inset: 0;
+  min-height: 100dvh; overflow-x: hidden;
   display: grid; grid-template-columns: minmax(0, 1.25fr) minmax(360px, 480px);
   gap: clamp(34px, 7vw, 110px); align-items: center;
   padding: max(32px, env(safe-area-inset-top)) max(42px, env(safe-area-inset-right)) max(32px, env(safe-area-inset-bottom)) max(42px, env(safe-area-inset-left));
@@ -218,7 +219,7 @@ body[data-danger="danger"] .danger-indicator { animation: dangerPulse 1.25s ease
   h1 { margin-top: 20px; font-size: clamp(58px, 19vw, 92px); }
   .hero-line { margin-top: 20px; font-size: 17px; }
   .lobby-tips { display: none; }
-  .dive-card { width: min(100%, 470px); margin-inline: auto; padding: 21px; border-radius: 24px; }
+  .dive-card { width: min(100%, 470px); max-height: none; overflow: visible; margin-inline: auto; padding: 21px; border-radius: 24px; }
   .controls-legend { display: none; }
   .skin-grid { grid-template-columns: repeat(4, minmax(0,1fr)); }
   .leaderboard-card { width: 190px; }
@@ -232,7 +233,7 @@ body[data-danger="danger"] .danger-indicator { animation: dangerPulse 1.25s ease
 }
 
 @media (max-width: 620px) {
-  .lobby-shell { align-content: start; }
+  .lobby-shell { align-content: start; overflow-y: auto; }
   .lobby-copy { padding-top: 18px; }
   h1 { font-size: clamp(54px, 20vw, 78px); }
   .feature-pills { display: none; }
@@ -256,13 +257,26 @@ body[data-danger="danger"] .danger-indicator { animation: dangerPulse 1.25s ease
 }
 
 @media (max-height: 720px) and (min-width: 821px) {
-  .lobby-shell { padding-top: 20px; padding-bottom: 20px; }
+  .lobby-shell { padding-top: 20px; padding-bottom: 20px; overflow-y: auto; align-items: start; }
   h1 { font-size: clamp(58px, 9vw, 90px); margin-top: 20px; }
   .lobby-tips { margin-top: 25px; }
   .dive-card { padding: 20px; }
   .field { margin: 9px 0; }
   input, select { min-height: 43px; }
   #play-button { min-height: 49px; }
+}
+
+@media (max-width: 520px) {
+  .lobby-shell { gap: 18px; padding: max(14px, env(safe-area-inset-top)) max(12px, env(safe-area-inset-right)) max(18px, env(safe-area-inset-bottom)) max(12px, env(safe-area-inset-left)); }
+  .lobby-copy { padding-top: 8px; }
+  h1 { margin-top: 14px; font-size: clamp(48px, 19vw, 70px); }
+  .hero-line { margin-top: 14px; font-size: 15px; }
+  .dive-card { padding: 16px; border-radius: 20px; }
+  .card-heading { margin-bottom: 16px; }
+  .card-heading h2 { font-size: 24px; }
+  .field-row { grid-template-columns: 1fr; }
+  .skin-grid { grid-template-columns: repeat(2, minmax(0,1fr)); }
+  .profile-metrics { flex-wrap: wrap; }
 }
 
 @media (prefers-reduced-motion: reduce) {
