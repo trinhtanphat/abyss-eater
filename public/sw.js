@@ -1,10 +1,15 @@
-const CACHE_NAME = 'abyss-eater-shell-v2';
+const CACHE_NAME = 'abyss-eater-shell-v3';
 const SHELL = [
   '/',
   '/styles.css',
   '/themes.css',
+  '/polish.css',
+  '/bootstrap.js',
   '/app.js',
   '/client-input.mjs',
+  '/client-settings.mjs',
+  '/client-audio.mjs',
+  '/client-capabilities.mjs',
   '/game/config.js',
   '/game/effects.js',
   '/game/environment.js',
@@ -15,6 +20,7 @@ const SHELL = [
   '/game/scene.js',
   '/game/state.js',
   '/game/themes.js',
+  '/ui/client-polish.js',
   '/ui/hud.js',
   '/ui/lobby.js',
   '/ui/toast.js',
