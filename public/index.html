@@ -9,7 +9,7 @@
   <link rel="stylesheet" href="/styles.css">
   <title>Abyss Eater: Ocean Survival</title>
 </head>
-<body>
+<body data-connection-state="ready">
   <div id="game"></div>
 
   <section id="loading-screen" class="system-screen" role="status" aria-live="polite">
@@ -62,6 +62,17 @@
     <div class="hud-room">Room: <strong id="hud-room">ocean-1</strong></div>
     <button id="hud-settings-button" class="hud-button" type="button">Settings</button>
   </aside>
+
+  <div id="connection-banner" class="connection-banner panel" role="status" aria-live="polite" hidden>
+    <strong id="connection-banner-title">Connecting</strong>
+    <span id="connection-banner-message">Reaching the ocean server…</span>
+  </div>
+
+  <div id="respawn-card" class="respawn-card panel" role="status" aria-live="polite" hidden>
+    <p class="eyebrow">RESPAWN</p>
+    <strong id="respawn-message">A bigger fish got you.</strong>
+    <span>The server has already placed you back in the ocean.</span>
+  </div>
 
   <dialog id="settings-dialog" class="settings-dialog" aria-labelledby="settings-title">
     <form method="dialog" class="settings-card panel">
