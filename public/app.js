@@ -1,4 +1,5 @@
 import * as THREE from 'https://cdn.jsdelivr.net/npm/three@0.185.1/build/three.module.js';
+import { cameraRelativeDirection, updateLook } from '/client-input.mjs';
 
 const gameRoot = document.querySelector('#game');
 const startScreen = document.querySelector('#start-screen');
@@ -56,6 +57,9 @@ const inputKeys = new Set();
 const touchState = new Set();
 const tmpVector = new THREE.Vector3();
 const xAxis = new THREE.Vector3(1, 0, 0);
+const desiredCamera = new THREE.Vector3();
+const cameraForward = new THREE.Vector3(0, 0, -1);
+const cameraTarget = new THREE.Vector3();
 let socket = null;
 let clientId = null;
 let snapshot = { players: [], food: [] };
@@ -64,6 +68,8 @@ let inputSeq = 0;
 let pingSentAt = 0;
 let reconnectTimer = null;
 let lastToastTimer = null;
+let lookYaw = 0;
+let lookPitch = -0.12;
 
 function fishColor(id, isLocal) {
   if (isLocal) return 0x64edff;
@@ -227,14 +233,14 @@ function connect() {
 }
 
 function currentDirection() {
-  const dir = { x: 0, y: 0, z: 0 };
-  if (inputKeys.has('KeyA') || inputKeys.has('ArrowLeft') || touchState.has('left')) dir.x -= 1;
-  if (inputKeys.has('KeyD') || inputKeys.has('ArrowRight') || touchState.has('right')) dir.x += 1;
-  if (inputKeys.has('KeyW') || inputKeys.has('ArrowUp') || touchState.has('forward')) dir.z -= 1;
-  if (inputKeys.has('KeyS') || inputKeys.has('ArrowDown') || touchState.has('back')) dir.z += 1;
-  if (inputKeys.has('Space') || touchState.has('up')) dir.y += 1;
-  if (inputKeys.has('ShiftLeft') || inputKeys.has('ShiftRight') || touchState.has('down')) dir.y -= 1;
-  return dir;
+  const axes = { forward: 0, strafe: 0, vertical: 0 };
+  if (inputKeys.has('KeyA') || inputKeys.has('ArrowLeft') || touchState.has('left')) axes.strafe -= 1;
+  if (inputKeys.has('KeyD') || inputKeys.has('ArrowRight') || touchState.has('right')) axes.strafe += 1;
+  if (inputKeys.has('KeyW') || inputKeys.has('ArrowUp') || touchState.has('forward')) axes.forward += 1;
+  if (inputKeys.has('KeyS') || inputKeys.has('ArrowDown') || touchState.has('back')) axes.forward -= 1;
+  if (inputKeys.has('Space') || touchState.has('up')) axes.vertical += 1;
+  if (inputKeys.has('ShiftLeft') || inputKeys.has('ShiftRight') || touchState.has('down')) axes.vertical -= 1;
+  return cameraRelativeDirection(axes, lookYaw, lookPitch);
 }
 
 function sendInput() {
@@ -249,11 +255,33 @@ function ping() {
 }
 
 addEventListener('keydown', (event) => {
+  if (!started) return;
   if (['Space', 'ArrowUp', 'ArrowDown', 'ArrowLeft', 'ArrowRight'].includes(event.code)) event.preventDefault();
   inputKeys.add(event.code);
 });
 addEventListener('keyup', (event) => inputKeys.delete(event.code));
 addEventListener('blur', () => inputKeys.clear());
+
+renderer.domElement.addEventListener('click', () => {
+  if (!started || !matchMedia('(pointer: fine)').matches) return;
+  renderer.domElement.requestPointerLock?.();
+});
+
+addEventListener('mousemove', (event) => {
+  if (!started || document.pointerLockElement !== renderer.domElement) return;
+  const nextLook = updateLook({ yaw: lookYaw, pitch: lookPitch }, event.movementX, event.movementY);
+  lookYaw = nextLook.yaw;
+  lookPitch = nextLook.pitch;
+});
+
+document.addEventListener('pointerlockchange', () => {
+  if (!started) return;
+  if (document.pointerLockElement === renderer.domElement) {
+    showToast('Mouse look active · Esc releases cursor');
+  } else if (matchMedia('(pointer: fine)').matches) {
+    showToast('Mouse released · click the ocean to resume');
+  }
+});
 
 for (const button of document.querySelectorAll('[data-touch]')) {
   const key = button.dataset.touch;
@@ -270,6 +298,7 @@ playButton.addEventListener('click', () => {
   document.body.classList.add('playing');
   startScreen.classList.add('hidden');
   connect();
+  if (matchMedia('(pointer: fine)').matches) renderer.domElement.requestPointerLock?.();
 });
 
 nameInput.value = localStorage.getItem('abyss-eater-name') || nameInput.value;
@@ -303,13 +332,14 @@ function animate(time) {
   const localMesh = playerMeshes.get(clientId);
   if (localMesh) {
     const zoom = Math.cbrt(Math.max(1, localMesh.userData.mass));
-    const desiredCamera = new THREE.Vector3(
-      localMesh.position.x + 2.8 * zoom,
-      localMesh.position.y + 5.2 * zoom,
-      localMesh.position.z + 13.5 * zoom,
-    );
-    camera.position.lerp(desiredCamera, 0.065);
-    camera.lookAt(localMesh.position);
+    const forward = cameraRelativeDirection({ forward: 1, strafe: 0, vertical: 0 }, lookYaw, lookPitch);
+    cameraForward.set(forward.x, forward.y, forward.z);
+    desiredCamera.copy(localMesh.position)
+      .addScaledVector(cameraForward, -13.5 * zoom)
+      .addScaledVector(camera.up, 4.2 * zoom);
+    camera.position.lerp(desiredCamera, 0.075);
+    cameraTarget.copy(localMesh.position).addScaledVector(cameraForward, 4.5 * zoom);
+    camera.lookAt(cameraTarget);
   } else {
     camera.lookAt(0, 0, 0);
   }
