@@ -1,0 +1,66 @@
+name: Visual Review
+
+on:
+  pull_request:
+    branches: [main]
+    paths:
+      - 'public/game/fish.js'
+      - 'public/game/fish-evolution.mjs'
+      - 'public/game/effects.js'
+      - 'review/abyssal-assets.html'
+      - '.github/workflows/visual-review.yml'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  screenshot:
+    name: abyssal-assets-screenshot
+    runs-on: ubuntu-latest
+    timeout-minutes: 8
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Render real asset review scene
+        shell: bash
+        run: |
+          set -euo pipefail
+          mkdir -p artifacts
+          python3 -m http.server 4173 --bind 127.0.0.1 > /tmp/abyss-review-http.log 2>&1 &
+          server_pid=$!
+          trap 'kill "$server_pid" 2>/dev/null || true' EXIT
+          for attempt in $(seq 1 20); do
+            if curl --fail --silent http://127.0.0.1:4173/review/abyssal-assets.html >/dev/null; then
+              break
+            fi
+            sleep 0.25
+          done
+          browser="$(command -v google-chrome || command -v chromium || command -v chromium-browser || true)"
+          if [ -z "$browser" ]; then
+            echo '::error::No Chromium-compatible browser is available on the runner.'
+            exit 1
+          fi
+          "$browser" \
+            --headless=new \
+            --no-sandbox \
+            --disable-dev-shm-usage \
+            --use-gl=swiftshader \
+            --enable-webgl \
+            --enable-unsafe-swiftshader \
+            --ignore-gpu-blocklist \
+            --hide-scrollbars \
+            --window-size=1600,1000 \
+            --virtual-time-budget=6000 \
+            --screenshot="$PWD/artifacts/abyssal-assets.png" \
+            http://127.0.0.1:4173/review/abyssal-assets.html
+          test -s artifacts/abyssal-assets.png
+
+      - name: Upload visual review
+        uses: actions/upload-artifact@v4
+        with:
+          name: abyssal-assets-visual-review
+          path: artifacts/abyssal-assets.png
+          if-no-files-found: error
+          retention-days: 7
