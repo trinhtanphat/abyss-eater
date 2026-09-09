@@ -10,12 +10,14 @@ const WORLD_BOUNDS = { x: 80, y: 28, z: 80 };
 const MAX_PLAYERS = 20;
 const FOOD_COUNT = 42;
 const FOOD_VALUE = 0.2;
-const VERSION = '0.2.0';
+const VERSION = '0.3.0';
 const INPUT_RATE_LIMIT = 25;
 const INPUT_RATE_WINDOW_MS = 1000;
 const COLLISION_CELL_SIZE = 8;
 const RECONNECT_INDEX_KEY = 'reconnect:index';
 const MAX_RECONNECT_SLOTS = MAX_PLAYERS * 2;
+const SNAPSHOT_MIN_INTERVAL_MS = 50;
+const ROOM_POOL_SIZE = 64;
 
 function boundedText(value, fallback, maxLength) {
   const normalized = String(value ?? '')
@@ -73,7 +75,7 @@ function securityHeaders(contentType) {
     'x-content-type-options': 'nosniff',
     'referrer-policy': 'strict-origin-when-cross-origin',
     'permissions-policy': 'camera=(), microphone=(), geolocation=()',
-    'content-security-policy': "default-src 'self'; script-src 'self' https://cdn.jsdelivr.net; style-src 'self' 'unsafe-inline'; connect-src 'self' ws: wss:; img-src 'self' data:; font-src 'self'; object-src 'none'; base-uri 'none'; frame-ancestors 'none'",
+    'content-security-policy': "default-src 'self'; script-src 'self' https://cdn.jsdelivr.net; style-src 'self' 'unsafe-inline'; connect-src 'self' ws: wss:; img-src 'self' data:; font-src 'self'; worker-src 'self'; object-src 'none'; base-uri 'none'; frame-ancestors 'none'",
   };
 }
 
@@ -84,6 +86,8 @@ export class GameRoom extends DurableObject {
     this.env = env;
     this.food = [];
     this.snapshotSeq = 0;
+    this.lastBroadcastAt = 0;
+    this.foodDirty = true;
     this.ctx.blockConcurrencyWhile(async () => {
       const stored = await this.ctx.storage.get('food');
       this.food = Array.isArray(stored) && stored.length ? stored : makeFood();
@@ -97,22 +101,29 @@ export class GameRoom extends DurableObject {
       .filter(({ player }) => player?.id && player.interactive !== false);
   }
 
-  snapshot() {
-    return {
+  snapshot(includeFood = false) {
+    const value = {
       type: 'snapshot',
       v: PROTOCOL_VERSION,
       seq: ++this.snapshotSeq,
       serverTime: Date.now(),
       players: this.socketsWithPlayers().map(({ player }) => publicPlayer(player)),
-      food: this.food,
     };
+    if (includeFood) value.food = this.food;
+    return value;
   }
 
-  broadcastSnapshot() {
-    const payload = JSON.stringify(this.snapshot());
+  broadcastSnapshot(force = false) {
+    const now = Date.now();
+    if (!force && !shouldBroadcast(this.lastBroadcastAt, now, SNAPSHOT_MIN_INTERVAL_MS)) return false;
+    const includeFood = this.foodDirty;
+    const payload = JSON.stringify(this.snapshot(includeFood));
     for (const { socket } of this.socketsWithPlayers()) {
       if (socket.readyState === WebSocket.OPEN) socket.send(payload);
     }
+    this.lastBroadcastAt = now;
+    if (includeFood) this.foodDirty = false;
+    return true;
   }
 
   sendError(ws, code) {
@@ -202,7 +213,7 @@ export class GameRoom extends DurableObject {
     }
 
     const url = new URL(request.url);
-    const room = boundedText(url.searchParams.get('room'), 'ocean-1', 24);
+    const room = boundedText(url.searchParams.get('room'), 'ocean-1', 24).toLowerCase();
     const requestedName = boundedText(url.searchParams.get('name'), 'Little Fish', 20);
     const requestedResume = boundedResumeKey(url.searchParams.get('resume'));
     const now = Date.now();
@@ -257,9 +268,9 @@ export class GameRoom extends DurableObject {
       inputSeq: player.seq,
       room,
       bounds: WORLD_BOUNDS,
-      snapshot: this.snapshot(),
+      snapshot: this.snapshot(true),
     }));
-    this.broadcastSnapshot();
+    this.broadcastSnapshot(true);
     return new Response(null, { status: 101, webSocket: client });
   }
 
@@ -327,6 +338,7 @@ export class GameRoom extends DurableObject {
     const candidates = [...new Set([...nearbyPeers, ...oversizedPeers])]
       .sort((a, b) => String(a.player.id).localeCompare(String(b.player.id)));
 
+    let playerWasEaten = false;
     for (const peer of candidates) {
       let other = peer.socket.deserializeAttachment();
       if (!other?.id || other.interactive === false) continue;
@@ -355,17 +367,22 @@ export class GameRoom extends DurableObject {
         peer.socket.serializeAttachment(other);
         player = respawnPlayer(player, spawnPoint());
         player.lastAt = now;
+        playerWasEaten = true;
         ws.send(JSON.stringify({
           type: 'eaten',
           v: PROTOCOL_VERSION,
           by: other.name,
         }));
       }
+      if (playerWasEaten) break;
     }
 
     ws.serializeAttachment(player);
-    if (foodChanged) await this.ctx.storage.put('food', this.food);
-    this.broadcastSnapshot();
+    if (foodChanged) {
+      this.foodDirty = true;
+      await this.ctx.storage.put('food', this.food);
+    }
+    this.broadcastSnapshot(false);
   }
 
   async detachPlayer(ws) {
@@ -374,7 +391,7 @@ export class GameRoom extends DurableObject {
     const detached = { ...player, interactive: false };
     ws.serializeAttachment(detached);
     await this.saveReconnectSlot(detached, Date.now());
-    this.broadcastSnapshot();
+    this.broadcastSnapshot(true);
   }
 
   async webSocketClose(ws) {
@@ -397,6 +414,8 @@ export default {
         version: VERSION,
         protocolVersion: PROTOCOL_VERSION,
         realtime: 'durable-objects',
+        roomPoolSize: ROOM_POOL_SIZE,
+        snapshotHzCap: Math.round(1000 / SNAPSHOT_MIN_INTERVAL_MS),
       });
     }
 
@@ -404,9 +423,11 @@ export default {
       if (request.headers.get('Upgrade')?.toLowerCase() !== 'websocket') {
         return new Response('Expected WebSocket upgrade', { status: 426 });
       }
-      const room = boundedText(url.searchParams.get('room'), 'ocean-1', 24).toLowerCase();
+      const roomLabel = boundedText(url.searchParams.get('room'), 'ocean', 24);
+      const room = roomIdFor(roomLabel, ROOM_POOL_SIZE);
+      url.searchParams.set('room', room);
       const stub = env.GAME_ROOM.getByName(room);
-      return stub.fetch(request);
+      return stub.fetch(new Request(url.toString(), request));
     }
 
     const asset = ASSETS[url.pathname];

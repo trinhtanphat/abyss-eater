@@ -19,6 +19,28 @@ function distance3(a, b) {
   );
 }
 
+export function roomIdFor(label, poolSize = 64) {
+  const slots = Number.isSafeInteger(poolSize) && poolSize > 0 ? poolSize : 64;
+  const normalized = (String(label ?? '')
+    .normalize('NFKC')
+    .toLowerCase()
+    .replace(/\s+/g, ' ')
+    .trim() || 'ocean');
+  let hash = 2166136261;
+  for (const char of normalized) {
+    hash ^= char.codePointAt(0);
+    hash = Math.imul(hash, 16777619) >>> 0;
+  }
+  return `ocean-${(hash % slots) + 1}`;
+}
+
+export function shouldBroadcast(lastBroadcastAt, now, minIntervalMs = 50) {
+  if (!Number.isFinite(lastBroadcastAt) || lastBroadcastAt <= 0) return true;
+  if (!Number.isFinite(now) || now < lastBroadcastAt) return true;
+  const interval = Number.isFinite(minIntervalMs) && minIntervalMs > 0 ? minIntervalMs : 50;
+  return now - lastBroadcastAt >= interval;
+}
+
 export function clampDirection(dir = {}) {
   const raw = {
     x: finite(dir.x),

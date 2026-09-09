@@ -8,25 +8,34 @@
 - Desktop controls: pointer-lock mouse look, camera-relative WASD / arrow keys, Space to swim up, Shift to swim down.
 - Touch controls for phones and tablets.
 - Server-authoritative movement, world bounds, food collection, player eating, score and respawn.
-- Protocol `v=1` with strict message validation and monotonic input sequences.
+- Protocol `v=2` with strict message validation and monotonic input sequences.
 - Per-socket flood guard: 25 messages per 1000 ms window.
 - Spatially bounded, deterministic player collision candidates.
+- Local collision processing stops after the local fish is eaten and respawned, preventing same-input respawn chains.
 - 12-second transient reconnect grace using a rotated opaque room-scoped resume key in `sessionStorage`.
 - Disconnected reconnect slots are non-interactive and do not count toward the 20-player active room cap.
+- User room labels are deterministically mapped into a fixed pool of 64 Durable Objects instead of creating unbounded room names.
+- Room snapshots are coalesced to at most 20 Hz. Food is included only when dirty; player-only snapshots reuse the last food state on the client.
+- Shared Three.js geometries/materials reduce GPU resource churn during join/leave and plankton replacement.
+- Installable PWA metadata, 192/512 icons and an offline application shell.
 - WebSocket Hibernation API; no perpetual Durable Object game-loop timer.
 - Dependency-free Node build and test pipeline.
 
 ## Architecture
 
 ```text
-Browser / Three.js
+Browser / Three.js / PWA
        |
-       | HTTPS / WebSocket
+       | static files
        v
 abyss-eater.qs3d.site
+Workers Static Assets (trinhtanphat2403)
+       |
+       | /ws and /health only
+       v
 Gateway Worker (trinhtanphat2403)
        |
-       | transparent fetch proxy
+       | transparent proxy
        v
 abyss-eater.hikvision.workers.dev
 Game Worker (trinhtanphat6666)
@@ -35,20 +44,27 @@ Game Worker (trinhtanphat6666)
        v
 Durable Object: GameRoom
   - WebSocket player attachments
+  - fixed 64-room allocation pool
   - bounded reconnect slots
   - food state storage
   - movement authority
   - spatial collision/eating
-  - versioned snapshots
+  - <=20 Hz versioned snapshots
 ```
 
-The client renders at display refresh rate and sends movement intent at 10 Hz. Clients never send authoritative position, mass, score, or collision results. Every gameplay WebSocket message carries protocol version `1`; the server rejects malformed, stale, incompatible, or flood traffic before applying simulation work.
+The client renders at display refresh rate and sends movement intent at 10 Hz. Clients never send authoritative position, mass, score, or collision results. Every gameplay WebSocket message carries protocol version `2`; the server rejects malformed, stale, incompatible, or flood traffic before applying simulation work.
+
+Protocol v2 introduced optional food payloads in snapshots so unchanged food does not have to be resent every network update. A v1 browser fails closed on the version mismatch instead of silently misreading the delta format.
 
 ## Reconnect behavior
 
-A successful `welcome` rotates and returns a `resumeKey` plus the current `inputSeq`. The browser stores the key as `abyss-eater-resume:<room>` in `sessionStorage`. Reconnecting to the same room within 12 seconds can resume the same fish identity, position, mass, score and deaths without allowing the disconnected fish to interact while offline.
+A successful `welcome` rotates and returns a `resumeKey` plus the current `inputSeq`. The browser stores the key as `abyss-eater-resume:<room-label>` in `sessionStorage`. Reconnecting to the same room label within 12 seconds can resume the same fish identity, position, mass, score and deaths without allowing the disconnected fish to interact while offline.
 
-See `docs/runbooks/multiplayer-hardening.md` for the exact protocol, rate, reconnect, release and rollback contract.
+See `docs/runbooks/multiplayer-hardening.md` for the exact protocol, rate, reconnect, snapshot, release and rollback contract.
+
+## PWA behavior
+
+`public/manifest.webmanifest` supplies standalone-install metadata and maskable-capable install icons. `public/sw.js` caches the same-origin application shell and falls back to the cached root page for offline navigation. Multiplayer itself still requires network access, and Three.js remains loaded from the pinned jsDelivr URL.
 
 ## Local validation
 
@@ -60,18 +76,25 @@ npm run build
 node --check dist/worker.mjs
 ```
 
-The production bundle is written to `dist/worker.mjs`. CI runs the same Node 22 tests and production build on pull requests and `main`.
+The production origin bundle is written to `dist/worker.mjs`. CI runs the Node 22 tests, build and syntax check on pull requests and `main`.
 
 ## Cloudflare
 
-The authoritative game Worker is `abyss-eater` in account `trinhtanphat6666` (`6c5207813df3d5b83b9508125e0e9e12`). `wrangler.jsonc` declares a SQLite-backed Durable Object binding named `GAME_ROOM` using the `GameRoom` class. Its origin is `https://abyss-eater.hikvision.workers.dev`.
+The authoritative game Worker is `abyss-eater` in account `trinhtanphat6666` (`6c5207813df3d5b83b9508125e0e9e12`). `wrangler.jsonc` pins that account and declares a SQLite-backed Durable Object binding named `GAME_ROOM` using the `GameRoom` class. Its origin is `https://abyss-eater.hikvision.workers.dev`.
 
-The `qs3d.site` zone lives in `trinhtanphat2403`, so production uses a thin Worker named `abyss-eater-gateway` in that account instead of an invalid cross-account CNAME. `wrangler.gateway.jsonc` binds that gateway to `https://abyss-eater.qs3d.site`; `gateway/worker.mjs` transparently forwards HTTP and WebSocket upgrade requests to the authoritative Worker in `trinhtanphat6666`. No gameplay state is stored in the gateway.
+The `qs3d.site` zone lives in `trinhtanphat2403` (`50afb4fd3c4c7a1f3e1bdb7f22d4af7f`). Production therefore uses `abyss-eater-gateway` on that account. `wrangler.gateway.jsonc` serves `./public` through Workers Static Assets on `https://abyss-eater.qs3d.site` and invokes the gateway Worker first only for `/ws` and `/health`; those routes proxy to the authoritative Worker in `trinhtanphat6666`. No gameplay state is stored in the gateway.
 
-`/health` reports application version `0.2.0`, protocol version `1`, and Durable Object realtime mode after Carrier 1 is deployed.
+Reproducible deploy commands pin Wrangler `4.129.1`:
 
-No paid Cloudflare product is required or enabled by the multiplayer-hardening carrier.
+```bash
+npm run deploy:game
+npm run deploy:gateway
+```
 
-## Public-alpha work still intentionally separate
+`/health` for the public-alpha delivery release reports application version `0.3.0`, protocol version `2`, room-pool size `64` and snapshot cap `20` Hz.
 
-Installable/offline PWA assets, Workers Static Assets routing on the branded gateway, bounded public room-name allocation, snapshot coalescing/delta delivery, GPU resource reuse, production live probes, accounts, persistent leaderboards, skins, shops, chat, parties, regional matchmaking, binary snapshots, AI biomes/bosses and external 3D models are kept as separate carriers so each can be tested, reviewed and rolled back independently.
+No paid Cloudflare product or paid-plan setting is enabled by this implementation. Existing account billing/plan state must be checked separately before claiming that the complete production account has zero cost.
+
+## Still intentionally deferred
+
+Accounts, persistent leaderboards, skins, shops, chat, parties, regional matchmaking, binary snapshots, client-side prediction, AI fish/biomes/bosses and external 3D models remain separate future work so the public-alpha networking and delivery baseline stays small, testable and rollback-friendly.
