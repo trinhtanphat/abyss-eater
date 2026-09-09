@@ -49,6 +49,19 @@ test('fish renderer applies evolution silhouettes and localized bioluminescence 
   assert.ok(fish.includes('Math.cbrt(Math.max(0.2, data.mass))'), 'render scale must preserve the sub-one predator-loop hierarchy');
 });
 
+test('fish renderer layers deterministic presentation palettes under verified cosmetics', async () => {
+  const fish = await readFile('public/game/fish.js', 'utf8');
+  assert.ok(fish.includes("import { skinVisual } from './skins.js';"), 'verified cosmetic palette must remain authoritative');
+  assert.ok(fish.includes("import { skinFamilyForId, skinPaletteFor } from './fish-skins.mjs';"));
+  assert.ok(fish.includes('skinVisual(data.skinId)'));
+  assert.ok(fish.includes('skinPaletteFor(data.skinId || data.id, theme)'));
+  assert.ok(fish.includes('skinFamilyId'));
+  const animateStart = fish.indexOf('export function animateFishRig');
+  const themeStart = fish.indexOf('export function applyFishTheme');
+  const animateBody = fish.slice(animateStart, themeStart);
+  assert.equal(animateBody.includes('new THREE.MeshStandardMaterial'), false, 'animation loop must not allocate skin materials');
+});
+
 test('food renderer uses a grouped marine silhouette instead of a standalone polyhedron', async () => {
   const fish = await readFile('public/game/fish.js', 'utf8');
   const start = fish.indexOf('export function createFoodMesh');
@@ -67,7 +80,7 @@ test('effect manager owns bounded disposable eat and growth pulse rings', async 
   assert.ok(effects.includes('const RING_GEOMETRY'), 'pulse rings must reuse one shared geometry');
   assert.ok(effects.includes('const rings = []'), 'effect manager must track transient rings');
   assert.ok(effects.includes('function pulseRing'), 'effect manager must have a bounded ring creation path');
-  assert.ok(effects.includes('function removeRing'), 'effect manager must have a ring cleanup path');
+  assert.ok(effects.includes('function removeRing'), 'effect manager must have a bounded ring cleanup path');
   assert.ok(effects.includes('ring.mesh.material.dispose();'), 'each transient ring material must be disposed');
   assert.ok(effects.includes('pulseRing(position, color, 1.75'), 'eat must trigger the stronger pulse ring');
   assert.ok(effects.includes('pulseRing(position, 0xb9ffe9, 1.1'), 'growth must trigger the softer pulse ring');
@@ -75,10 +88,12 @@ test('effect manager owns bounded disposable eat and growth pulse rings', async 
   assert.ok(effects.includes('if (reducedMotion) return;'), 'pulse rings must respect reduced-effects mode');
 });
 
-test('offline shell precaches fish evolution, TTS and progression dependencies', async () => {
+test('offline shell precaches verified cosmetics, fish evolution, presentation skins, TTS and progression', async () => {
   const sw = await readFile('public/sw.js', 'utf8');
   assert.ok(sw.includes("'/client-tts.mjs'"), 'reconciled shell must preserve the Vietnamese TTS dependency');
   assert.ok(sw.includes("'/client-progression.mjs'"), 'reconciled shell must cache the progression client');
-  assert.ok(sw.includes("'/game/fish-evolution.mjs'"), 'service worker shell must cache the module imported by fish.js');
-  assert.ok(sw.includes("CACHE_NAME = 'abyss-eater-shell-v7'"), 'shell version must advance when its dependency list changes');
+  assert.ok(sw.includes("'/game/fish-evolution.mjs'"), 'service worker shell must cache the evolution module imported by fish.js');
+  assert.ok(sw.includes("'/game/skins.js'"), 'service worker shell must preserve verified cosmetic palette');
+  assert.ok(sw.includes("'/game/fish-skins.mjs'"), 'service worker shell must cache deterministic presentation palettes');
+  assert.ok(sw.includes("CACHE_NAME = 'abyss-eater-shell-v8'"), 'shell version must advance when its dependency list changes');
 });
