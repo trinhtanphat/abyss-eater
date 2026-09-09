@@ -70,6 +70,17 @@ function makeFood(count = FOOD_COUNT) {
   return Array.from({ length: count }, spawnFood);
 }
 
+function respawnPickupActor(pickup) {
+  const biome = BIOME_IDS[Math.floor(Math.random() * BIOME_IDS.length)] || 'reef';
+  return {
+    ...pickup,
+    id: crypto.randomUUID().slice(0, 12),
+    biome,
+    value: pickup.type === 'pearl' ? 1 + Math.floor(Math.random() * 5) : 0,
+    position: spawnPointInBiome(biome, WORLD_BOUNDS, Math.random),
+  };
+}
+
 function publicPlayer(player) {
   return {
     id: player.id,
@@ -79,6 +90,19 @@ function publicPlayer(player) {
     score: player.score,
     deaths: player.deaths,
     skinId: player.skinId,
+    biome: player.biome,
+  };
+}
+
+function publicWorldActor(actor) {
+  return {
+    id: actor.id,
+    kind: actor.kind,
+    type: actor.type,
+    position: actor.position,
+    radius: actor.radius,
+    value: actor.value || 0,
+    biome: actor.biome,
   };
 }
 
@@ -283,11 +307,13 @@ export class GameRoom extends DurableObject {
     this.env = env;
     this.food = [];
     this.wildlife = makeWildlifePopulation(spawnPoint, () => crypto.randomUUID().slice(0, 12));
+    this.worldActors = makeWorldActors(WORLD_BOUNDS, () => crypto.randomUUID().slice(0, 12), Math.random);
     this.snapshotSeq = 0;
     this.lastBroadcastAt = 0;
     this.lastWildlifeStepAt = 0;
     this.foodDirty = true;
     this.wildlifeDirty = true;
+    this.worldDirty = true;
     this.ctx.blockConcurrencyWhile(async () => {
       const stored = await this.ctx.storage.get('food');
       this.food = Array.isArray(stored) && stored.length ? stored : makeFood();
@@ -301,7 +327,7 @@ export class GameRoom extends DurableObject {
       .filter(({ player }) => player?.id && player.interactive !== false);
   }
 
-  snapshot(includeFood = false, includeWildlife = false) {
+  snapshot(includeFood = false, includeWildlife = false, includeWorld = false) {
     const value = {
       type: 'snapshot',
       v: PROTOCOL_VERSION,
@@ -311,6 +337,14 @@ export class GameRoom extends DurableObject {
     };
     if (includeFood) value.food = this.food;
     if (includeWildlife) value.wildlife = this.wildlife.map(publicWildlife);
+    if (includeWorld) {
+      const world = {
+        hazards: this.worldActors.hazards,
+        pickups: this.worldActors.pickups,
+      };
+      value.hazards = world.hazards.map(publicWorldActor);
+      value.pickups = world.pickups.map(publicWorldActor);
+    }
     return value;
   }
 
@@ -319,13 +353,15 @@ export class GameRoom extends DurableObject {
     if (!force && !shouldBroadcast(this.lastBroadcastAt, now, SNAPSHOT_MIN_INTERVAL_MS)) return false;
     const includeFood = this.foodDirty;
     const includeWildlife = this.wildlifeDirty;
-    const payload = JSON.stringify(this.snapshot(includeFood, includeWildlife));
+    const includeWorld = this.worldDirty;
+    const payload = JSON.stringify(this.snapshot(includeFood, includeWildlife, includeWorld));
     for (const { socket } of this.socketsWithPlayers()) {
       if (socket.readyState === WebSocket.OPEN) socket.send(payload);
     }
     this.lastBroadcastAt = now;
     if (includeFood) this.foodDirty = false;
     if (includeWildlife) this.wildlifeDirty = false;
+    if (includeWorld) this.worldDirty = false;
     return true;
   }
 
@@ -477,6 +513,10 @@ export class GameRoom extends DurableObject {
       };
     }
 
+    player.biome = biomeForPosition(player.position, WORLD_BOUNDS);
+    player.slowUntil = Number.isFinite(player.slowUntil) ? player.slowUntil : 0;
+    player.speedBoostUntil = Number.isFinite(player.speedBoostUntil) ? player.speedBoostUntil : 0;
+    player.bonusPearls = Number.isFinite(player.bonusPearls) ? Math.max(0, Math.min(100, Math.floor(player.bonusPearls))) : 0;
     player.resumeKey = makeResumeKey();
     const pair = new WebSocketPair();
     const [client, server] = Object.values(pair);
@@ -491,7 +531,7 @@ export class GameRoom extends DurableObject {
       inputSeq: player.seq,
       room,
       bounds: WORLD_BOUNDS,
-      snapshot: this.snapshot(true, true),
+      snapshot: this.snapshot(true, true, true),
     }));
     this.broadcastSnapshot(true);
     return new Response(null, { status: 101, webSocket: client });
@@ -532,9 +572,23 @@ export class GameRoom extends DurableObject {
       return;
     }
 
-    player = advancePlayer(player, message.dir, (now - player.lastAt) / 1000, WORLD_BOUNDS);
+    player = advancePlayer(player, message.dir, (now - player.lastAt) / 1000, WORLD_BOUNDS, now);
+    player.biome = biomeForPosition(player.position, WORLD_BOUNDS);
     player.seq = message.seq;
     player.lastAt = now;
+
+    for (const hazard of this.worldActors.hazards) {
+      const result = resolveHazardContact(player, hazard, now);
+      if (result.hit) player = result.player;
+    }
+
+    for (let i = 0; i < this.worldActors.pickups.length; i += 1) {
+      const result = resolvePickupContact(player, this.worldActors.pickups[i], now);
+      if (!result.consumed) continue;
+      player = result.player;
+      this.worldActors.pickups[i] = respawnPickupActor(this.worldActors.pickups[i]);
+      this.worldDirty = true;
+    }
 
     let foodChanged = false;
     for (let i = 0; i < this.food.length; i += 1) {
@@ -680,6 +734,9 @@ export default {
         roomPoolSize: ROOM_POOL_SIZE,
         snapshotHzCap: Math.round(1000 / SNAPSHOT_MIN_INTERVAL_MS),
         wildlifePerRoom: WILDLIFE_COUNT,
+        biomes: BIOME_IDS.length,
+        hazardsPerRoom: HAZARD_COUNT,
+        pickupsPerRoom: PICKUP_COUNT,
         persistence: databaseReady(env) ? 'configured' : 'unavailable',
       });
     }
