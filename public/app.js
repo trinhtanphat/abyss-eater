@@ -2,6 +2,8 @@ import * as THREE from 'https://cdn.jsdelivr.net/npm/three@0.185.1/build/three.m
 import { cameraRelativeDirection, updateLook } from '/client-input.mjs';
 
 const PROTOCOL_VERSION = 2;
+const VERSIONED_MESSAGE_TYPES = new Set(['welcome', 'snapshot', 'pong', 'eaten', 'error']);
+
 const gameRoot = document.querySelector('#game');
 const startScreen = document.querySelector('#start-screen');
 const playButton = document.querySelector('#play-button');
@@ -81,6 +83,7 @@ let reconnectTimer = null;
 let lastToastTimer = null;
 let lookYaw = 0;
 let lookPitch = -0.12;
+let protocolBlocked = false;
 
 function fishColor(id, isLocal) {
   if (isLocal) return 0x64edff;
@@ -202,11 +205,39 @@ function resumeStorageKey(room) {
   return `abyss-eater-resume:${room}`;
 }
 
+function readResumeKey(room) {
+  try {
+    return sessionStorage.getItem(resumeStorageKey(room)) || '';
+  } catch {
+    return '';
+  }
+}
+
+function writeResumeKey(room, resumeKey) {
+  try {
+    if (resumeKey) sessionStorage.setItem(resumeStorageKey(room), resumeKey);
+    else sessionStorage.removeItem(resumeStorageKey(room));
+  } catch {}
+}
+
+function blockForProtocolMismatch() {
+  protocolBlocked = true;
+  clearTimeout(reconnectTimer);
+  setStatus('Upgrade required');
+  showToast('Upgrade required · reload the game');
+  if (socket && socket.readyState < WebSocket.CLOSING) socket.close(1002, 'protocol-version');
+}
+
 function connect() {
   clearTimeout(reconnectTimer);
+  if (protocolBlocked) {
+    setStatus('Upgrade required');
+    return;
+  }
+
   const name = sanitized(nameInput.value, 'Little Fish', 20);
   const room = sanitized(roomInput.value, 'ocean-1', 24).toLowerCase();
-  const resumeKey = sessionStorage.getItem(resumeStorageKey(room));
+  const resumeKey = readResumeKey(room);
   localStorage.setItem('abyss-eater-name', name);
   localStorage.setItem('abyss-eater-room', room);
   hudRoom.textContent = room;
@@ -223,9 +254,8 @@ function connect() {
   socket.addEventListener('message', (event) => {
     let message;
     try { message = JSON.parse(event.data); } catch { return; }
-    if (message.v !== PROTOCOL_VERSION) {
-      showToast('Upgrade required — reload the game');
-      socket?.close(1002, 'protocol mismatch');
+    if (VERSIONED_MESSAGE_TYPES.has(message?.type) && message.v !== PROTOCOL_VERSION) {
+      blockForProtocolMismatch();
       return;
     }
     if (message.type === 'welcome') {
@@ -233,7 +263,7 @@ function connect() {
       if (Number.isSafeInteger(message.inputSeq) && message.inputSeq >= 0) inputSeq = message.inputSeq;
       hudRoom.textContent = message.room;
       if (typeof message.resumeKey === 'string' && message.resumeKey) {
-        sessionStorage.setItem(resumeStorageKey(room), message.resumeKey);
+        writeResumeKey(room, message.resumeKey);
       }
       updateSnapshot(message.snapshot);
       showToast(message.resumed ? 'Reconnected to your fish' : 'You entered the ocean');
@@ -254,8 +284,12 @@ function connect() {
     if (message.type === 'error') showToast(`Server rejected input: ${message.code}`);
   });
   socket.addEventListener('close', () => {
-    setStatus('Reconnecting…');
     clientId = null;
+    if (protocolBlocked) {
+      setStatus('Upgrade required');
+      return;
+    }
+    setStatus('Reconnecting…');
     if (started) reconnectTimer = setTimeout(connect, 1800);
   });
   socket.addEventListener('error', () => setStatus('Connection issue'));
@@ -273,12 +307,12 @@ function currentDirection() {
 }
 
 function sendInput() {
-  if (!socket || socket.readyState !== WebSocket.OPEN) return;
+  if (!socket || socket.readyState !== WebSocket.OPEN || protocolBlocked) return;
   socket.send(JSON.stringify({ type: 'input', v: PROTOCOL_VERSION, seq: ++inputSeq, dir: currentDirection() }));
 }
 
 function ping() {
-  if (!socket || socket.readyState !== WebSocket.OPEN) return;
+  if (!socket || socket.readyState !== WebSocket.OPEN || protocolBlocked) return;
   pingSentAt = Date.now();
   socket.send(JSON.stringify({ type: 'ping', v: PROTOCOL_VERSION, t: pingSentAt }));
 }
