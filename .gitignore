@@ -4,3 +4,6 @@ dist/
 *.log
 .env
 .dev.vars
+
+artifacts/release-evidence.json
+artifacts/live-probe.json
