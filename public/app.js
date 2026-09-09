@@ -217,6 +217,7 @@ function connect() {
     }
     if (message.type === 'welcome') {
       clientId = message.id;
+      if (Number.isSafeInteger(message.inputSeq) && message.inputSeq >= 0) inputSeq = message.inputSeq;
       hudRoom.textContent = message.room;
       if (typeof message.resumeKey === 'string' && message.resumeKey) {
         sessionStorage.setItem(resumeStorageKey(room), message.resumeKey);
