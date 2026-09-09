@@ -26,7 +26,7 @@ test('plan index marks all seven carriers done', async () => {
 
 test('V1 qualification document is fail-closed and explains exact-head evidence', async () => {
   const doc = await readFile('docs/releases/v1-qualification.md', 'utf8');
-  for (const marker of ['release-evidence.json', 'live-probe.json', 'exact Git SHA', 'Worker SHA-256', 'no paid service', 'Rollback', 'v1-full-abc', '34361234094', 'c55f2db52e82c491d29b47dc29b9c9fb39cb2a05']) {
+  for (const marker of ['release-evidence.json', 'live-probe.json', 'exact Git SHA', 'Worker SHA-256', 'no paid service', 'Rollback', 'v1-full-abc', '34361234094', 'c55f2db52e82c491d29b47dc29b9c9fb39cb2a05', 'v1-full-abc.1', '86fb47f64dd0d2f36177fe46feab3ad3dd552804', '34362891440', '34362950491', 'b4227be647e329c3279703a6902349ba9d30cf74161a880cb51bd6cc38c6ec99']) {
     assert.ok(doc.includes(marker), `qualification missing ${marker}`);
   }
   assert.ok(doc.includes('connected Cloudflare deployment integration'));
