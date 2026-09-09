@@ -13,14 +13,14 @@ export const CRITICAL_ASSETS = Object.freeze([
   '/sw.js',
   '/themes.css',
   '/hud-assets.css',
+  '/styles.css',
   '/client-progression.mjs',
   '/client-tts.mjs',
-  '/styles.css',
   '/app.js',
+  '/game/state.js',
   '/game/input.js',
   '/game/network.js',
   '/game/scene.js',
-  '/game/state.js',
   '/game/biomes.js',
   '/game/world-actors.js',
   '/game/fish.js',
@@ -63,6 +63,16 @@ export function validateWelcome(message) {
   return message;
 }
 
+export function buildInputMessage(seq, dir = {}, boost = false) {
+  return {
+    type: 'input',
+    v: PROTOCOL_VERSION,
+    seq,
+    dir: { x: dir.x, y: dir.y, z: dir.z },
+    boost: boost === true,
+  };
+}
+
 export function buildWsUrl(base, { name, room, resumeKey = '' } = {}) {
   const url = new URL('/ws', base);
   url.protocol = url.protocol === 'https:' ? 'wss:' : 'ws:';
@@ -70,10 +80,6 @@ export function buildWsUrl(base, { name, room, resumeKey = '' } = {}) {
   url.searchParams.set('room', String(room || 'smoke-room').slice(0, 24));
   if (resumeKey) url.searchParams.set('resume', String(resumeKey).slice(0, 160));
   return url;
-}
-
-export function buildInputMessage(seq, dir, boost = false) {
-  return { type: 'input', v: PROTOCOL_VERSION, seq, dir, boost: Boolean(boost) };
 }
 
 function localAssetPath(asset) {
@@ -171,13 +177,12 @@ async function verifyRealtime(base) {
     }
 
     const mover = players[1];
-    mover.socket.send(JSON.stringify(buildInputMessage(
-      mover.state.welcome.inputSeq + 1,
-      { x: 0.35, y: 0, z: 0.2 },
-      true,
-    )));
+    const boostSeq = mover.state.welcome.inputSeq + 1;
+    mover.socket.send(JSON.stringify(buildInputMessage(boostSeq, { x: 0.35, y: 0, z: 0.2 }, true)));
     await delay(180);
-    assert.equal(mover.state.errors.length, 0, 'valid movement input must not be rejected');
+    mover.socket.send(JSON.stringify(buildInputMessage(boostSeq + 1, { x: 0, y: 0, z: 0 }, false)));
+    await delay(180);
+    assert.equal(mover.state.errors.length, 0, 'valid boost movement input must not be rejected');
 
     const originalId = players[0].state.welcome.id;
     const originalResumeKey = players[0].state.welcome.resumeKey;
