@@ -6,6 +6,7 @@ import { createNetworkClient } from './game/network.js';
 import { createGameScene } from './game/scene.js';
 import { createClientState } from './game/state.js';
 import { applyDocumentTheme, getTheme, themeIds } from './game/themes.js';
+import { createClientPolish } from './ui/client-polish.js';
 import { createHud } from './ui/hud.js';
 import { createLobby } from './ui/lobby.js';
 import { createToast } from './ui/toast.js';
@@ -23,6 +24,7 @@ let environment = null;
 let effects = null;
 let input = null;
 let network = null;
+let clientPolish = null;
 let activeTheme = getTheme('stylized');
 let activeQuality = 'auto';
 let started = false;
@@ -61,7 +63,7 @@ function rebuildEffects() {
   effects?.dispose();
   effects = createEffectManager(sceneContext.scene, {
     profile: sceneContext.profile,
-    reducedMotion,
+    reducedMotion: reducedMotion || Boolean(clientPolish?.settings.reducedEffects),
     fxLayer,
     onCameraKick: (amount) => sceneContext.kickCamera(amount),
   });
@@ -69,8 +71,10 @@ function rebuildEffects() {
 
 function setQuality(value) {
   activeQuality = value;
+  clientPolish?.setRequestedQuality(value);
   if (!sceneContext) return;
-  sceneContext.applyQuality(value);
+  const resolved = clientPolish?.resolvedQuality(value) || value;
+  sceneContext.applyQuality(resolved);
   rebuildEnvironment();
   rebuildEffects();
 }
@@ -135,6 +139,7 @@ function syncSnapshot(changes = null) {
       Number(changes.me.position?.z) || 0,
     );
     if (changes.scoreDelta > 0) {
+      clientPolish?.playEat();
       if (changes.scoreDelta >= 50) {
         effects?.eat(effectPosition, changes.scoreDelta, activeTheme.fish.local);
         showToast(`Devoured! +${Math.round(changes.scoreDelta)} score`, 'success', 1250);
@@ -162,13 +167,17 @@ const lobby = createLobby({
     setQuality(preferences.quality);
     input.setPointerEnabled(preferences.pointerSteering);
     input.setEnabled(true);
+    void clientPolish?.unlockAndStartAudio();
     network.connect({ name: preferences.name, room: preferences.room });
     statusText = 'Connecting…';
+    clientPolish?.setConnectionState('connecting');
     renderHud();
   },
   onTheme: (id) => setTheme(id),
   onQuality: (quality) => setQuality(quality),
   onPointer: (enabled) => input?.setPointerEnabled(enabled),
+  onSettingsOpen: () => clientPolish?.onSettingsOpen(),
+  onSettingsClose: () => clientPolish?.onSettingsClose(),
 });
 
 lobby.setThemeOptions(themeIds());
@@ -177,11 +186,17 @@ activeTheme = getTheme(initialPreferences.theme);
 activeQuality = initialPreferences.quality;
 applyDocumentTheme(activeTheme);
 
-sceneContext = createGameScene(gameRoot, { theme: activeTheme, quality: activeQuality, reducedMotion });
+clientPolish = createClientPolish({
+  initialQuality: activeQuality,
+  onReducedEffects: () => setQuality(activeQuality),
+});
+const initialResolvedQuality = clientPolish.resolvedQuality(activeQuality);
+
+sceneContext = createGameScene(gameRoot, { theme: activeTheme, quality: initialResolvedQuality, reducedMotion });
 environment = createOceanEnvironment(sceneContext.scene, { theme: activeTheme, profile: sceneContext.profile });
 effects = createEffectManager(sceneContext.scene, {
   profile: sceneContext.profile,
-  reducedMotion,
+  reducedMotion: reducedMotion || clientPolish.settings.reducedEffects,
   fxLayer,
   onCameraKick: (amount) => sceneContext.kickCamera(amount),
 });
@@ -198,14 +213,16 @@ input = createInputController({
 input.setPointerEnabled(initialPreferences.pointerSteering);
 
 network = createNetworkClient({
-  onStatus(message, isConnected) {
+  onStatus(message, isConnected, connectionState = 'offline') {
     statusText = message;
     connected = isConnected;
+    clientPolish.setConnectionState(connectionState);
     renderHud();
   },
   onWelcome(message) {
     const changes = state.welcome(message);
     syncSnapshot(changes);
+    clientPolish.setConnectionState('online', message.resumed ? 'Your fish was resumed.' : 'You entered the ocean.');
     showToast(message.resumed ? 'Reconnected to your fish' : `Entered ${message.room || 'the ocean'}`, 'success', 1500);
   },
   onSnapshot(message) {
@@ -217,6 +234,8 @@ network = createNetworkClient({
     renderHud();
   },
   onEaten(message) {
+    clientPolish.playDeath();
+    clientPolish.showRespawn(message.by);
     effects?.respawn();
     showToast(`Eaten by ${message.by || 'a larger fish'} — respawning`, 'danger', 1900);
   },
@@ -225,6 +244,7 @@ network = createNetworkClient({
   },
   onProtocolMismatch() {
     input.setEnabled(false);
+    clientPolish.setConnectionState('upgrade-required');
     showToast('Upgrade required · reload the game', 'danger', 3200);
   },
 });
@@ -237,12 +257,7 @@ demoFish.userData.previousTarget.copy(demoFish.position);
 demoFish.userData.mass = 2.4;
 sceneContext.scene.add(demoFish);
 
-if ('serviceWorker' in navigator) {
-  addEventListener('load', () => {
-    navigator.serviceWorker.register('/sw.js').catch(() => {});
-  });
-}
-
+clientPolish.setConnectionState('ready');
 setInterval(() => { if (started) network.sendInput(input.direction()); }, 100);
 setInterval(() => { if (started) network.ping(); }, 2000);
 
@@ -252,11 +267,13 @@ function animate(time) {
   environment?.update(time);
   effects?.update(delta);
 
-  for (const mesh of foodMeshes.values()) {
-    mesh.rotation.x += delta * 0.72;
-    mesh.rotation.y += delta * 0.94;
-    const pulse = 1 + Math.sin(time * 0.0025 + mesh.position.x) * 0.035;
-    mesh.scale.setScalar(pulse);
+  if (!clientPolish.settings.reducedEffects || Math.floor(time / 50) % 2 === 0) {
+    for (const mesh of foodMeshes.values()) {
+      mesh.rotation.x += delta * 0.72;
+      mesh.rotation.y += delta * 0.94;
+      const pulse = 1 + Math.sin(time * 0.0025 + mesh.position.x) * 0.035;
+      mesh.scale.setScalar(pulse);
+    }
   }
   for (const [id, rig] of playerMeshes) animateFishRig(rig, time, id === state.clientId);
 
