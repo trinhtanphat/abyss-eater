@@ -2,6 +2,7 @@
   "$schema": "node_modules/wrangler/config-schema.json",
   "name": "abyss-eater",
   "main": "dist/worker.mjs",
+  "account_id": "6c5207813df3d5b83b9508125e0e9e12",
   "compatibility_date": "2026-09-09",
   "workers_dev": true,
   "durable_objects": {
