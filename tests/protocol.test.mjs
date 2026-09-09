@@ -35,7 +35,8 @@ test('parseClientMessage validates ping, malformed JSON, unknown types and size'
     message: { type: 'ping', v: 2, t: 123.5 },
   });
   assert.deepEqual(parseClientMessage('{'), { ok: false, code: 'bad_json' });
-  assert.deepEqual(parseClientMessage('{"type":"chat","v":2}'), { ok: false, code: 'bad_type' });
+  assert.deepEqual(parseClientMessage('{"type":"chat","v":2}'), { ok: false, code: 'bad_chat' });
+  assert.deepEqual(parseClientMessage('{"type":"dance","v":2}'), { ok: false, code: 'bad_type' });
   assert.deepEqual(parseClientMessage('x'.repeat(1025)), { ok: false, code: 'bad_message' });
   assert.deepEqual(parseClientMessage(new Uint8Array([1, 2, 3])), { ok: false, code: 'bad_message' });
   assert.deepEqual(parseClientMessage('{"type":"ping","v":2,"t":"123"}'), { ok: false, code: 'bad_ping' });
