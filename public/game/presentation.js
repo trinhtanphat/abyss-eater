@@ -1,5 +1,5 @@
 const THEMES = new Set(['stylized', 'deep-sea']);
-const QUALITIES = new Set(['auto', 'high', 'balanced', 'low']);
+const QUALITIES = new Set(['auto', 'high', 'medium', 'low']);
 
 function normalizedToken(value) {
   return typeof value === 'string' ? value.trim().toLowerCase() : '';
@@ -11,7 +11,8 @@ export function normalizeTheme(value) {
 }
 
 export function normalizeQuality(value) {
-  const token = normalizedToken(value);
+  let token = normalizedToken(value);
+  if (token === 'balanced') token = 'medium';
   return QUALITIES.has(token) ? token : 'auto';
 }
 
