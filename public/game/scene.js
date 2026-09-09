@@ -22,6 +22,7 @@ export function createGameScene(gameRoot, { theme, quality = 'auto', reducedMoti
 
   let profile = qualityProfile(quality);
   let activeTheme = theme;
+  let reduceMotion = Boolean(reducedMotion);
   let impulse = 0;
   const cameraTarget = new THREE.Vector3();
   const desiredCamera = new THREE.Vector3();
@@ -56,8 +57,13 @@ export function createGameScene(gameRoot, { theme, quality = 'auto', reducedMoti
   }
 
   function kickCamera(amount = 0.3) {
-    if (reducedMotion) return;
+    if (reduceMotion) return;
     impulse = Math.min(1.4, Math.max(impulse, amount));
+  }
+
+  function setReducedMotion(value) {
+    reduceMotion = Boolean(value);
+    if (reduceMotion) impulse = 0;
   }
 
   function follow(target, mass = 1, delta = 1 / 60, look = {}) {
@@ -110,6 +116,7 @@ export function createGameScene(gameRoot, { theme, quality = 'auto', reducedMoti
     get theme() { return activeTheme; },
     applyQuality,
     applyTheme,
+    setReducedMotion,
     kickCamera,
     follow,
     render,
