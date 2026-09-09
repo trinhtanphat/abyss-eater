@@ -1,0 +1,12 @@
+{
+  "name": "Abyss Eater: Ocean Survival",
+  "short_name": "Abyss Eater",
+  "description": "3D multiplayer ocean survival — eat, grow and descend.",
+  "start_url": "/",
+  "scope": "/",
+  "display": "standalone",
+  "orientation": "any",
+  "background_color": "#02111d",
+  "theme_color": "#041b2d",
+  "categories": ["games", "entertainment"]
+}
