@@ -9,9 +9,10 @@ test('modular network client fails closed instead of reconnecting forever on pro
     'let protocolBlocked = false;',
     'VERSIONED_MESSAGE_TYPES',
     'blockForProtocolMismatch()',
-    "onStatus('Upgrade required'",
+    "onStatus('Upgrade required', false, 'upgrade-required')",
     'if (protocolBlocked)',
     'shouldReconnect = false;',
+    "socket.close(1002, 'protocol-version')",
   ]) {
     assert.ok(source.includes(marker), `missing fail-closed protocol marker: ${marker}`);
   }
