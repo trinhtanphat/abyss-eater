@@ -45,8 +45,9 @@ test('production Worker uses bounded spatial collision candidates', async () => 
   }
 });
 
-test('production Worker supports bounded resumable presence without a perpetual timer', async () => {
+test('production Worker supports bounded resumable presence without a perpetual server timer', async () => {
   const source = await builtWorker();
+  const serverTemplate = await readFile('src/worker.template.mjs', 'utf8');
   for (const marker of [
     "const RECONNECT_INDEX_KEY = 'reconnect:index';",
     "`reconnect:${resumeKey}`",
@@ -60,8 +61,8 @@ test('production Worker supports bounded resumable presence without a perpetual 
   ]) {
     assert.ok(source.includes(marker), `missing reconnect marker: ${marker}`);
   }
-  assert.equal(source.includes('setInterval('), false, 'Durable Object must not run a perpetual interval');
-  assert.equal(source.includes('setTimeout('), false, 'Durable Object must not run a perpetual timeout');
+  assert.equal(serverTemplate.includes('setInterval('), false, 'Durable Object server must not run a perpetual interval');
+  assert.equal(serverTemplate.includes('setTimeout('), false, 'Durable Object server must not run a perpetual timeout');
 });
 
 test('all gameplay WebSocket messages are protocol-versioned', async () => {
