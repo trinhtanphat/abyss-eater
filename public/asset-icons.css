@@ -1,0 +1,24 @@
+.brand-asset {
+  width: 56px;
+  height: 56px;
+  flex: 0 0 auto;
+  display: block;
+  filter: drop-shadow(0 0 18px rgba(102,239,255,.2));
+}
+.compact-brand-asset { width: 48px; height: 48px; margin: 0 auto 10px; }
+.hud-logo { display: inline-flex; align-items: center; gap: 7px; }
+.hud-brand-mark { width: 20px; height: 20px; display: block; filter: drop-shadow(0 0 7px rgba(102,239,255,.22)); }
+.metric-with-icon { display: inline-flex; align-items: center; gap: 8px; min-width: 0; }
+.metric-icon { width: 16px; height: 16px; flex: 0 0 auto; display: inline-block; color: currentColor; filter: drop-shadow(0 0 5px rgba(102,239,255,.12)); vertical-align: -3px; }
+.inline-icon { width: 13px; height: 13px; margin-right: 4px; vertical-align: -3px; opacity: .8; }
+.tiny-icon { width: 11px; height: 11px; margin-right: 3px; vertical-align: -2px; opacity: .78; }
+.hud-stats span, .section-title > span { display: inline-flex; align-items: center; }
+.danger-icon .metric-icon { width: 15px; height: 15px; color: #ff8ea5; }
+.settings-icon { width: 18px; height: 18px; display: block; color: currentColor; }
+.settings-button img { opacity: .9; }
+.settings-button:hover img { opacity: 1; filter: drop-shadow(0 0 7px rgba(102,239,255,.28)); }
+@media (max-width: 620px) {
+  .hud-brand-mark { width: 16px; height: 16px; }
+  .metric-icon { width: 13px; height: 13px; }
+  .tiny-icon { width: 9px; height: 9px; }
+}
