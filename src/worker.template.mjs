@@ -2,6 +2,7 @@ import { DurableObject } from 'cloudflare:workers';
 
 /*__GAME_LOGIC__*/
 /*__WORLD__*/
+/*__WORLD_ACTORS__*/
 /*__WILDLIFE__*/
 /*__PROTOCOL__*/
 /*__SPATIAL_GRID__*/
@@ -342,6 +343,7 @@ export class GameRoom extends DurableObject {
         score: player.score,
         mass: player.mass,
         eaten: player.eaten || 0,
+        bonusPearls: player.bonusPearls || 0,
       }, now);
     } catch {}
   }
