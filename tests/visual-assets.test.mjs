@@ -44,9 +44,10 @@ test('the evolution catalog exposes six unique readable silhouettes', () => {
 test('fish renderer applies evolution silhouettes and localized bioluminescence without flattening sub-one wildlife mass', async () => {
   const fish = await readFile('public/game/fish.js', 'utf8');
 
-  assert.ok(fish.includes("import { silhouetteForMass } from './fish-evolution.mjs';"), 'fish renderer must consume the deterministic visual profile');
+  assert.ok(fish.includes("import { fishLevelForMass, silhouetteForLevel } from './fish-evolution.mjs';"), 'fish renderer must consume authoritative Fish Level with a mass fallback');
   assert.ok(fish.includes('function applyEvolutionSilhouette'), 'fish renderer must have a bounded tier application path');
   assert.ok(fish.includes('data.appliedEvolutionTier'), 'fish rig must cache the applied visual tier');
+  assert.ok(fish.includes('data.fishLevel'), 'fish rig must retain the current Fish Level');
   assert.ok(fish.includes('gillAccents'), 'local recognition must include gill accents');
   assert.ok(fish.includes('lateralLines'), 'local recognition must include lateral-line accents');
   assert.ok(fish.includes('biolumeMaterial'), 'localized accents must use a dedicated material');
@@ -116,5 +117,5 @@ test('offline shell precaches fish evolution, TTS, progression and skin dependen
   assert.ok(sw.includes("'/game/fish-skins.mjs'"), 'service worker shell must cache deterministic fallback palettes');
   assert.ok(sw.includes("'/game/biomes.js'"), 'service worker shell must cache biome presentation');
   assert.ok(sw.includes("'/game/world-actors.js'"), 'service worker shell must cache world actor presentation');
-  assert.ok(sw.includes("CACHE_NAME = 'abyss-eater-shell-v9'"), 'shell version must match the reconciled visual dependency set');
+  assert.ok(sw.includes("CACHE_NAME = 'abyss-eater-shell-v10'"), 'shell version must match the reconciled visual dependency set');
 });

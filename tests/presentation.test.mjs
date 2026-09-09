@@ -31,6 +31,7 @@ test('growth progress is finite and clamped between zero and one', () => {
   assert.equal(growthProgress(0), 0);
   assert.equal(growthProgress(1), 0);
   assert.ok(growthProgress(4) > 0 && growthProgress(4) < 1);
+  assert.equal(growthProgress(32), 1);
   assert.equal(growthProgress(64), 1);
   assert.equal(growthProgress(Number.POSITIVE_INFINITY), 0);
 });
