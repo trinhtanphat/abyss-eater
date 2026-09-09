@@ -2,7 +2,9 @@
 
 - Phase A Stylized Premium Ocean implemented.
 - Phase B Realistic Deep Sea implemented as an additive live-switchable theme.
-- Feature branch reconciled with `main` multiplayer-hardening commit `f462c6ea765d9bbf15fc402fb0e4a63873016dbe` through merge commit `8018caac907a8fa13cb0715699c900e1c75876d3`.
-- Protocol v1, resume-key reconnect, fail-closed protocol mismatch, camera-relative input, and server-authoritative game rules are preserved.
-- Recursive public asset bundling retains `/client-input.mjs` and all modular browser assets.
+- Feature branch reconciled with public-alpha `main` commit `3535651a2210713c3e0eaffb1034430180eb0aff` through merge commit `df500da532e3af6f8c3377c8732dad8dc771797d`.
+- Protocol v2, player-only snapshot deltas, requested-room resume-key reconnect, fail-closed protocol mismatch, camera-relative mouse look, and server-authoritative game rules are preserved.
+- Public-alpha PWA assets are preserved; the service worker cache now includes the modular premium client shell.
+- Recursive public asset bundling includes `/client-input.mjs`, PWA assets, and all `/game/*` and `/ui/*` browser modules.
+- Review regressions for camera look integration and per-fish GPU resource cleanup have dedicated acceptance coverage.
 - Final acceptance requires exact-head GitHub Actions `test-and-build` success before the branch is considered ready.
