@@ -76,6 +76,7 @@ function publicPlayer(player) {
     mass: player.mass,
     score: player.score,
     deaths: player.deaths,
+    skinId: player.skinId,
   };
 }
 
@@ -159,16 +160,16 @@ async function authenticatedProfile(request, env, now = Date.now()) {
   }
 }
 
-async function profileIdForSessionToken(token, env, now = Date.now()) {
-  if (!token || !persistenceReady(env)) return '';
+async function profileForSessionToken(token, env, now = Date.now()) {
+  if (!token || !persistenceReady(env)) return null;
   try {
     const session = await verifySession(token, env.SESSION_SECRET, now);
-    if (!session) return '';
+    if (!session) return null;
     const profile = await readProfile(env.DB, session.profileId);
-    if (!profile || profile.status !== 'active' || profile.sessionVersion !== session.version) return '';
-    return profile.id;
+    if (!profile || profile.status !== 'active' || profile.sessionVersion !== session.version) return null;
+    return profile;
   } catch {
-    return '';
+    return null;
   }
 }
 
@@ -426,6 +427,7 @@ export class GameRoom extends DurableObject {
     const requestedName = boundedText(url.searchParams.get('name'), 'Little Fish', 20);
     const requestedResume = boundedResumeKey(url.searchParams.get('resume'));
     const requestedProfileId = boundedProfileId(url.searchParams.get('profile'));
+    const requestedSkinId = skinById(url.searchParams.get('skin'))?.id || '';
     const now = Date.now();
     await this.cleanupReconnectSlots(now);
 
@@ -438,6 +440,8 @@ export class GameRoom extends DurableObject {
         player = {
           ...slot,
           room,
+          profileId: requestedProfileId || slot.profileId || '',
+          skinId: requestedSkinId || slot.skinId || '',
           interactive: true,
           seq: Number.isSafeInteger(slot.seq) ? slot.seq : 0,
           lastAt: now,
@@ -454,6 +458,7 @@ export class GameRoom extends DurableObject {
         name: requestedName,
         room,
         profileId: requestedProfileId,
+        skinId: requestedSkinId,
         position: spawnPoint(),
         mass: START_MASS,
         score: 0,
@@ -702,8 +707,12 @@ export default {
       const sessionToken = url.searchParams.get('session') || '';
       url.searchParams.delete('session');
       url.searchParams.delete('profile');
-      const profileId = await profileIdForSessionToken(sessionToken, env);
-      if (profileId) url.searchParams.set('profile', profileId);
+      url.searchParams.delete('skin');
+      const profile = await profileForSessionToken(sessionToken, env);
+      if (profile) {
+        url.searchParams.set('profile', profile.id);
+        if (skinById(profile.selectedSkinId)) url.searchParams.set('skin', profile.selectedSkinId);
+      }
       url.searchParams.set('room', room);
       const stub = env.GAME_ROOM.getByName(room);
       return stub.fetch(new Request(url.toString(), request));

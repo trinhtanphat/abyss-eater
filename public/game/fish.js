@@ -1,5 +1,6 @@
 import * as THREE from 'https://cdn.jsdelivr.net/npm/three@0.185.1/build/three.module.js';
 import { silhouetteForMass } from './fish-evolution.mjs';
+import { skinVisual } from './skins.js';
 
 const BODY_GEOMETRY = new THREE.SphereGeometry(1, 26, 18);
 const TAIL_GEOMETRY = new THREE.ConeGeometry(0.92, 1.35, 3);
@@ -40,6 +41,31 @@ function makeBodyMaterial(id, isLocal, theme) {
     roughness: theme.fish.roughness,
     metalness: theme.fish.metalness,
   });
+}
+
+function applyFishAppearance(rig, theme) {
+  const data = rig.userData;
+  const visual = skinVisual(data.skinId);
+  const bodyColor = visual ? new THREE.Color(visual.bodyColor) : fishBaseColor(data.id, data.isLocal, theme);
+  const finColor = visual ? new THREE.Color(visual.accentColor) : bodyColor.clone();
+  const emissive = visual
+    ? new THREE.Color(visual.emissive)
+    : bodyColor.clone().multiplyScalar(data.isLocal ? theme.fish.emissiveBoost : theme.fish.emissiveBoost * 0.42);
+
+  data.bodyMaterial.color.copy(bodyColor);
+  data.bodyMaterial.emissive.copy(emissive);
+  data.bodyMaterial.roughness = theme.fish.roughness;
+  data.bodyMaterial.metalness = theme.fish.metalness;
+  data.finMaterial.color.copy(finColor);
+  data.finMaterial.emissive.copy(emissive);
+  data.finMaterial.roughness = Math.min(1, theme.fish.roughness + 0.12);
+  data.finMaterial.metalness = theme.fish.metalness;
+  data.eyeMaterial.color.setHex(theme.fish.eye);
+  data.eyeMaterial.emissive.setHex(theme.fish.eye);
+  data.pupilMaterial.color.setHex(theme.fish.pupil);
+  data.mouthMaterial.color.setHex(theme.fish.pupil);
+  data.biolumeMaterial.color.set(visual?.accentColor || theme.fish.local);
+  data.glowMaterial.color.set(visual?.emissive || theme.fish.local);
 }
 
 function applyEvolutionSilhouette(rig, mass) {
@@ -206,6 +232,8 @@ export function createFishRig({ id, isLocal = false, theme }) {
     gillAccents,
     lateralLines,
     appliedEvolutionTier: null,
+    theme,
+    skinId: '',
     target: new THREE.Vector3(),
     previousTarget: new THREE.Vector3(),
     mass: 1,
@@ -225,6 +253,9 @@ export function applyFishSnapshot(rig, player) {
   data.mass = Math.max(0.2, Number(player.mass) || 1);
   data.score = Math.max(0, Number(player.score) || 0);
   data.deaths = Math.max(0, Number(player.deaths) || 0);
+  const previousSkinId = data.skinId;
+  data.skinId = typeof player.skinId === 'string' ? player.skinId : '';
+  if (data.skinId !== previousSkinId) applyFishAppearance(rig, data.theme);
   applyEvolutionSilhouette(rig, data.mass);
 }
 
@@ -257,22 +288,8 @@ export function animateFishRig(rig, time, local = false) {
 }
 
 export function applyFishTheme(rig, theme) {
-  const data = rig.userData;
-  const color = fishBaseColor(data.id, data.isLocal, theme);
-  data.bodyMaterial.color.copy(color);
-  data.bodyMaterial.emissive.copy(color).multiplyScalar(data.isLocal ? theme.fish.emissiveBoost : theme.fish.emissiveBoost * 0.42);
-  data.bodyMaterial.roughness = theme.fish.roughness;
-  data.bodyMaterial.metalness = theme.fish.metalness;
-  data.finMaterial.color.copy(color);
-  data.finMaterial.emissive.copy(data.bodyMaterial.emissive);
-  data.finMaterial.roughness = Math.min(1, theme.fish.roughness + 0.12);
-  data.finMaterial.metalness = theme.fish.metalness;
-  data.eyeMaterial.color.setHex(theme.fish.eye);
-  data.eyeMaterial.emissive.setHex(theme.fish.eye);
-  data.pupilMaterial.color.setHex(theme.fish.pupil);
-  data.mouthMaterial.color.setHex(theme.fish.pupil);
-  data.biolumeMaterial.color.setHex(theme.fish.local);
-  data.glowMaterial.color.setHex(theme.fish.local);
+  rig.userData.theme = theme;
+  applyFishAppearance(rig, theme);
 }
 
 export function disposeFishRig(rig) {
