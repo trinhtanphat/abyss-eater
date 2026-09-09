@@ -43,10 +43,15 @@ test('health validator requires the live Carrier 4 authoritative contract', () =
     biomes: 4,
     hazardsPerRoom: 8,
     pickupsPerRoom: 12,
+    manualBoostMultiplier: 1.55,
+    manualBoostGraceMs: 3000,
+    manualBoostScoreDrainPerSecond: 5,
   };
   assert.equal(healthLooksReady(ready), true);
   assert.equal(healthLooksReady({ ...ready, protocolVersion: 1 }), false);
   assert.equal(healthLooksReady({ ...ready, hazardsPerRoom: 7 }), false);
+  assert.equal(healthLooksReady({ ...ready, manualBoostMultiplier: 1 }), false);
+  assert.equal(healthLooksReady({ ...ready, manualBoostGraceMs: 0 }), false);
 });
 
 test('welcome validator requires resume-capable world state', () => {

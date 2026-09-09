@@ -14,7 +14,7 @@
 - Compact desktop/mobile HUD with score, rank, edible-prey count, threat count, player count, ping, growth, depth and responsive leaderboards.
 - Branded same-origin SVG lobby/HUD assets, bounded eat/growth VFX and localized bioluminescence.
 - Optional Vietnamese voice announcements through lazy-loaded Piper TTS with native `vi-VN` speech-synthesis fallback.
-- Desktop controls: pointer-lock mouse look, pointer steering, camera-relative WASD / arrow keys, Space to swim up, Shift to swim down.
+- Desktop controls: pointer-lock mouse look, pointer steering, camera-relative WASD / arrow keys, Space to swim up, C to descend, and Shift to boost 1.55x; holding Shift beyond 3 seconds drains 5 score per second until released.
 - Touch controls for phones and tablets.
 - Local graphics presets `auto`, `high`, `medium`, `low`; the UI labels `medium` as **Balanced** without introducing a second persisted quality value.
 - Reduced-effects mode plus gesture-gated local Web Audio/TTS settings; presentation settings never alter authoritative gameplay.
@@ -118,7 +118,7 @@ ABYSS_EATER_D1_DATABASE_ID=<existing-d1-uuid> npm run deploy:game
 npm run deploy:gateway
 ```
 
-`SESSION_SIGNING_KEY` and the production D1 database are provisioning prerequisites outside the CI workflow. `/health` reports application version `0.3.0`, protocol version `2`, room-pool size `64`, wildlife-per-room `24` and snapshot cap `20` Hz.
+`SESSION_SIGNING_KEY` and the production D1 database are provisioning prerequisites outside the CI workflow. `/health` reports application version `0.3.0`, protocol version `2`, room-pool size `64`, wildlife-per-room `24`, snapshot cap `20` Hz, and the authoritative Shift-boost tuning (1.55x, 3-second grace, 5 score/second drain).
 
 No paid Cloudflare product or paid-plan setting is enabled by this implementation.
 

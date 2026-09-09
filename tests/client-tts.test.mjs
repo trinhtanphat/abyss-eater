@@ -101,7 +101,7 @@ test('game wires Vietnamese TTS only to important events and advances the shell 
   assert.ok(app.includes("tts.speak(message.resumed ? 'Đã kết nối lại với cá của bạn.' : 'Đã kết nối. Bạn đã vào đại dương.');"), 'connection must be spoken');
   assert.ok(app.includes('tts.speak(`Bạn đã bị ${message.by || \'một con cá lớn hơn\'} ăn. Đang hồi sinh.`);'), 'death must be spoken');
   assert.ok(app.indexOf('if (changes.scoreDelta >= 50)') < app.indexOf('tts.speak(`Nuốt cá thành công.'), 'TTS must stay inside the fish-devour threshold, not plankton events');
-  assert.ok(sw.includes("const CACHE_NAME = 'abyss-eater-shell-v8';"));
+  assert.ok(sw.includes("const CACHE_NAME = 'abyss-eater-shell-v9';"));
   assert.ok(sw.includes("'/client-tts.mjs'"));
   assert.ok(sw.includes("'/client-progression.mjs'"));
 });
