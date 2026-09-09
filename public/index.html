@@ -43,11 +43,11 @@
       </div>
       <h1>ABYSS<br><em>EATER</em></h1>
       <p class="hero-line">Eat small. Grow huge. Own the abyss.</p>
-      <div class="feature-pills" aria-label="Game features"><span>Realtime PvP</span><span>Server authoritative</span><span>Cross-device</span></div>
+      <div class="feature-pills" aria-label="Game features"><span>Realtime PvP</span><span>Living ecosystem</span><span>Server authoritative</span><span>Cross-device</span></div>
       <div class="lobby-tips">
-        <p><strong>Hunt</strong><span>Consume plankton and smaller fish.</span></p>
-        <p><strong>Survive</strong><span>Keep distance from larger silhouettes.</span></p>
-        <p><strong>Evolve</strong><span>More mass means a bigger ocean presence.</span></p>
+        <p><strong>Hunt</strong><span>Consume plankton and fish marked by your size advantage.</span></p>
+        <p><strong>Survive</strong><span>Keep distance from larger silhouettes and apex hunters.</span></p>
+        <p><strong>Evolve</strong><span>More mass unlocks new prey while changing your speed and scale.</span></p>
       </div>
     </section>
 
@@ -70,7 +70,14 @@
       <div class="hud-topline"><span class="hud-logo">ABYSS EATER</span><span class="connection"><i id="connection-dot"></i><span id="hud-status">Ready</span></span></div>
       <div class="mass-row"><div><span class="metric-label">MASS</span><strong id="hud-mass">1.00</strong></div><span id="growth-label">0% evolution</span></div>
       <div class="growth-track" aria-label="Growth progress"><i id="growth-progress"></i></div>
-      <div class="hud-stats"><div><span>Score</span><strong id="hud-score">0</strong></div><div><span>Rank</span><strong id="hud-rank">—</strong></div><div><span>Fish</span><strong id="hud-players">0</strong></div><div><span>Ping</span><strong id="hud-ping">—</strong></div></div>
+      <div class="hud-stats">
+        <div><span>Score</span><strong id="hud-score">0</strong></div>
+        <div><span>Rank</span><strong id="hud-rank">—</strong></div>
+        <div class="hunt-stat prey-stat"><span>Edible</span><strong id="hud-prey">0</strong></div>
+        <div class="hunt-stat threat-stat"><span>Threats</span><strong id="hud-threats">0</strong></div>
+        <div><span>Players</span><strong id="hud-players">0</strong></div>
+        <div><span>Ping</span><strong id="hud-ping">—</strong></div>
+      </div>
       <p class="room-line">Current <strong id="hud-room">ocean-1</strong></p>
     </div>
     <aside class="leaderboard-card panel-mini" aria-label="Leaderboard"><div class="section-title"><span>TOP PREDATORS</span><small>Score</small></div><ol id="leaderboard"></ol></aside>
