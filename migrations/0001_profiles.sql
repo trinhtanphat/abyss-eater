@@ -30,6 +30,11 @@ CREATE TABLE reward_events (
   profile_id TEXT NOT NULL,
   xp INTEGER NOT NULL CHECK (xp >= 0),
   pearls INTEGER NOT NULL CHECK (pearls >= 0),
+  score INTEGER NOT NULL DEFAULT 0 CHECK (score >= 0),
+  mass REAL NOT NULL DEFAULT 1 CHECK (mass >= 1),
+  eaten INTEGER NOT NULL DEFAULT 0 CHECK (eaten >= 0),
+  season TEXT NOT NULL DEFAULT 'all-time',
+  applied INTEGER NOT NULL DEFAULT 0 CHECK (applied IN (0, 1)),
   created_at INTEGER NOT NULL,
   FOREIGN KEY(profile_id) REFERENCES profiles(id) ON DELETE CASCADE
 );
@@ -49,3 +54,6 @@ CREATE INDEX idx_leaderboard_rank
 
 CREATE INDEX idx_reward_events_profile
   ON reward_events(profile_id, created_at DESC);
+
+CREATE INDEX idx_reward_events_pending
+  ON reward_events(profile_id, applied, created_at ASC);
