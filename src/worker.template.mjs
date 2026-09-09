@@ -5,6 +5,9 @@ import { DurableObject } from 'cloudflare:workers';
 /*__PROTOCOL__*/
 /*__SPATIAL_GRID__*/
 /*__ROOM_STATE__*/
+/*__PROGRESSION__*/
+/*__SESSION_TOKEN__*/
+/*__PROFILE_STORE__*/
 
 const ASSETS = /*__ASSETS__*/;
 const WORLD_BOUNDS = { x: 80, y: 28, z: 80 };
@@ -19,6 +22,8 @@ const RECONNECT_INDEX_KEY = 'reconnect:index';
 const MAX_RECONNECT_SLOTS = MAX_PLAYERS * 2;
 const SNAPSHOT_MIN_INTERVAL_MS = 50;
 const ROOM_POOL_SIZE = 64;
+const SESSION_TTL_MS = 30 * 24 * 60 * 60 * 1000;
+const MAX_API_BODY_BYTES = 2048;
 
 function boundedText(value, fallback, maxLength) {
   const normalized = String(value ?? '')
@@ -32,6 +37,11 @@ function boundedText(value, fallback, maxLength) {
 function boundedResumeKey(value) {
   const key = String(value ?? '').trim();
   return /^[a-f0-9]{64}$/i.test(key) ? key : '';
+}
+
+function boundedProfileId(value) {
+  const id = String(value ?? '').trim();
+  return /^[A-Za-z0-9._:-]{1,128}$/.test(id) ? id : '';
 }
 
 function reconnectStorageKey(resumeKey) {
@@ -88,6 +98,176 @@ function securityHeaders(contentType) {
     'permissions-policy': 'camera=(), microphone=(), geolocation=()',
     'content-security-policy': "default-src 'self'; script-src 'self' https://cdn.jsdelivr.net; style-src 'self' 'unsafe-inline'; connect-src 'self' ws: wss:; img-src 'self' data:; font-src 'self'; worker-src 'self'; object-src 'none'; base-uri 'none'; frame-ancestors 'none'",
   };
+}
+
+function jsonApi(value, status = 200) {
+  return new Response(JSON.stringify(value), {
+    status,
+    headers: {
+      ...securityHeaders('application/json; charset=utf-8'),
+      'cache-control': 'no-store',
+    },
+  });
+}
+
+function persistenceUnavailable() {
+  return jsonApi({ ok: false, code: 'persistence_unavailable' }, 503);
+}
+
+function bearerFromRequest(request) {
+  const header = request.headers.get('Authorization') || '';
+  if (!header.startsWith('Bearer ')) return '';
+  return header.slice('Bearer '.length).trim().slice(0, 4096);
+}
+
+async function readSmallJson(request) {
+  const declared = Number(request.headers.get('content-length') || 0);
+  if (Number.isFinite(declared) && declared > MAX_API_BODY_BYTES) return null;
+  const text = await request.text();
+  if (new TextEncoder().encode(text).byteLength > MAX_API_BODY_BYTES) return null;
+  if (!text) return {};
+  try {
+    const value = JSON.parse(text);
+    return value && typeof value === 'object' && !Array.isArray(value) ? value : null;
+  } catch {
+    return null;
+  }
+}
+
+function databaseReady(env) {
+  return Boolean(env?.DB && typeof env.DB.prepare === 'function');
+}
+
+function persistenceReady(env) {
+  return Boolean(databaseReady(env) && typeof env.SESSION_SECRET === 'string' && env.SESSION_SECRET.length >= 16);
+}
+
+async function authenticatedProfile(request, env, now = Date.now()) {
+  if (!persistenceReady(env)) return { response: persistenceUnavailable() };
+  const token = bearerFromRequest(request);
+  if (!token) return { response: jsonApi({ ok: false, code: 'unauthorized' }, 401) };
+  const session = await verifySession(token, env.SESSION_SECRET, now);
+  if (!session) return { response: jsonApi({ ok: false, code: 'unauthorized' }, 401) };
+  try {
+    const profile = await readProfile(env.DB, session.profileId);
+    if (!profile || profile.status !== 'active' || profile.sessionVersion !== session.version) {
+      return { response: jsonApi({ ok: false, code: 'unauthorized' }, 401) };
+    }
+    return { session, profile };
+  } catch {
+    return { response: persistenceUnavailable() };
+  }
+}
+
+async function profileIdForSessionToken(token, env, now = Date.now()) {
+  if (!token || !persistenceReady(env)) return '';
+  try {
+    const session = await verifySession(token, env.SESSION_SECRET, now);
+    if (!session) return '';
+    const profile = await readProfile(env.DB, session.profileId);
+    if (!profile || profile.status !== 'active' || profile.sessionVersion !== session.version) return '';
+    return profile.id;
+  } catch {
+    return '';
+  }
+}
+
+async function handleSessionApi(request, env) {
+  if (request.method !== 'POST') return jsonApi({ ok: false, code: 'method_not_allowed' }, 405);
+  if (!persistenceReady(env)) return persistenceUnavailable();
+  const body = await readSmallJson(request);
+  if (!body) return jsonApi({ ok: false, code: 'invalid_request' }, 400);
+  const now = Date.now();
+
+  try {
+    let profile = null;
+    const existingToken = bearerFromRequest(request);
+    if (existingToken) {
+      const session = await verifySession(existingToken, env.SESSION_SECRET, now);
+      if (session) {
+        const existing = await readProfile(env.DB, session.profileId);
+        if (existing?.status === 'active' && existing.sessionVersion === session.version) profile = existing;
+      }
+    }
+
+    if (!profile) profile = await createGuestProfile(env.DB, body.displayName, now, crypto.randomUUID());
+
+    const ownedSkins = await readOwnedSkins(env.DB, profile.id);
+    const token = await signSession({
+      profileId: profile.id,
+      version: profile.sessionVersion,
+      expiresAt: now + SESSION_TTL_MS,
+    }, env.SESSION_SECRET, now);
+    return jsonApi({ ok: true, token, profile, ownedSkins, catalog: SKIN_CATALOG }, 200);
+  } catch {
+    return persistenceUnavailable();
+  }
+}
+
+async function handleProfileApi(request, env) {
+  if (request.method !== 'GET') return jsonApi({ ok: false, code: 'method_not_allowed' }, 405);
+  const auth = await authenticatedProfile(request, env);
+  if (auth.response) return auth.response;
+  try {
+    const ownedSkins = await readOwnedSkins(env.DB, auth.profile.id);
+    return jsonApi({ ok: true, profile: auth.profile, ownedSkins, catalog: SKIN_CATALOG });
+  } catch {
+    return persistenceUnavailable();
+  }
+}
+
+async function handleLeaderboardApi(request, env, url) {
+  if (request.method !== 'GET') return jsonApi({ ok: false, code: 'method_not_allowed' }, 405);
+  if (!databaseReady(env)) return persistenceUnavailable();
+  try {
+    const season = url.searchParams.get('season') || 'all-time';
+    const limit = Number(url.searchParams.get('limit') || 10);
+    const leaderboard = await readLeaderboard(env.DB, season, limit);
+    return jsonApi({ ok: true, season: 'all-time', leaderboard });
+  } catch {
+    return persistenceUnavailable();
+  }
+}
+
+function shopStatus(result) {
+  if (result?.ok) return 200;
+  if (result?.code === 'profile_not_found') return 404;
+  if (result?.code === 'purchase_conflict') return 409;
+  if (result?.code === 'insufficient_pearls' || result?.code === 'locked' || result?.code === 'already_owned' || result?.code === 'not_owned') return 409;
+  return 400;
+}
+
+async function handleShopPurchaseApi(request, env) {
+  if (request.method !== 'POST') return jsonApi({ ok: false, code: 'method_not_allowed' }, 405);
+  const auth = await authenticatedProfile(request, env);
+  if (auth.response) return auth.response;
+  const body = await readSmallJson(request);
+  if (!body || typeof body.skinId !== 'string') return jsonApi({ ok: false, code: 'invalid_request' }, 400);
+  try {
+    const result = await purchaseSkin(env.DB, auth.profile.id, body.skinId, Date.now());
+    if (!result.ok) return jsonApi(result, shopStatus(result));
+    const profile = await readProfile(env.DB, auth.profile.id);
+    const ownedSkins = await readOwnedSkins(env.DB, auth.profile.id);
+    return jsonApi({ ...result, profile, ownedSkins, catalog: SKIN_CATALOG });
+  } catch {
+    return persistenceUnavailable();
+  }
+}
+
+async function handleSelectSkinApi(request, env) {
+  if (request.method !== 'POST') return jsonApi({ ok: false, code: 'method_not_allowed' }, 405);
+  const auth = await authenticatedProfile(request, env);
+  if (auth.response) return auth.response;
+  const body = await readSmallJson(request);
+  if (!body || typeof body.skinId !== 'string') return jsonApi({ ok: false, code: 'invalid_request' }, 400);
+  try {
+    const result = await selectSkin(env.DB, auth.profile.id, body.skinId, Date.now());
+    if (!result.ok) return jsonApi(result, shopStatus(result));
+    const profile = await readProfile(env.DB, auth.profile.id);
+    return jsonApi({ ...result, profile, catalog: SKIN_CATALOG });
+  } catch {
+    return persistenceUnavailable();
+  }
 }
 
 export class GameRoom extends DurableObject {
@@ -147,6 +327,18 @@ export class GameRoom extends DurableObject {
     if (ws.readyState === WebSocket.OPEN) {
       ws.send(JSON.stringify({ type: 'error', v: PROTOCOL_VERSION, code }));
     }
+  }
+
+  async settleDeath(player, now) {
+    if (!player?.profileId || !databaseReady(this.env)) return;
+    const rewardEventId = `death:${player.room}:${player.id}:${player.deaths + 1}`;
+    try {
+      await applySessionReward(this.env.DB, player.profileId, rewardEventId, {
+        score: player.score,
+        mass: player.mass,
+        eaten: player.eaten || 0,
+      }, now);
+    } catch {}
   }
 
   async readReconnectIndex() {
@@ -233,6 +425,7 @@ export class GameRoom extends DurableObject {
     const room = boundedText(url.searchParams.get('room'), 'ocean-1', 24).toLowerCase();
     const requestedName = boundedText(url.searchParams.get('name'), 'Little Fish', 20);
     const requestedResume = boundedResumeKey(url.searchParams.get('resume'));
+    const requestedProfileId = boundedProfileId(url.searchParams.get('profile'));
     const now = Date.now();
     await this.cleanupReconnectSlots(now);
 
@@ -260,10 +453,12 @@ export class GameRoom extends DurableObject {
         id: crypto.randomUUID().slice(0, 12),
         name: requestedName,
         room,
+        profileId: requestedProfileId,
         position: spawnPoint(),
         mass: START_MASS,
         score: 0,
         deaths: 0,
+        eaten: 0,
         seq: 0,
         lastAt: now,
         rate: makeRateState(),
@@ -358,11 +553,13 @@ export class GameRoom extends DurableObject {
           ...player,
           mass: player.mass + actor.mass * 0.7,
           score: player.score + Math.max(1, Math.round(actor.mass * 100)),
+          eaten: Math.max(0, Number(player.eaten || 0)) + 1,
         };
         this.wildlife[i] = respawnWildlife(actor, spawnPoint);
         this.wildlifeDirty = true;
       } else if (winner === 'b') {
-        player = respawnPlayer(player, spawnPoint());
+        await this.settleDeath(player, now);
+        player = { ...respawnPlayer(player, spawnPoint()), eaten: 0 };
         player.lastAt = now;
         playerWasEaten = true;
         ws.send(JSON.stringify({
@@ -399,8 +596,10 @@ export class GameRoom extends DurableObject {
             ...player,
             mass: player.mass + other.mass * 0.7,
             score: player.score + Math.max(1, Math.round(other.mass * 100)),
+            eaten: Math.max(0, Number(player.eaten || 0)) + 1,
           };
-          other = respawnPlayer(other, spawnPoint());
+          await this.settleDeath(other, now);
+          other = { ...respawnPlayer(other, spawnPoint()), eaten: 0 };
           other.lastAt = now;
           peer.socket.serializeAttachment(other);
           peer.socket.send(JSON.stringify({
@@ -413,9 +612,11 @@ export class GameRoom extends DurableObject {
             ...other,
             mass: other.mass + player.mass * 0.7,
             score: other.score + Math.max(1, Math.round(player.mass * 100)),
+            eaten: Math.max(0, Number(other.eaten || 0)) + 1,
           };
           peer.socket.serializeAttachment(other);
-          player = respawnPlayer(player, spawnPoint());
+          await this.settleDeath(player, now);
+          player = { ...respawnPlayer(player, spawnPoint()), eaten: 0 };
           player.lastAt = now;
           playerWasEaten = true;
           ws.send(JSON.stringify({
@@ -468,7 +669,28 @@ export default {
         roomPoolSize: ROOM_POOL_SIZE,
         snapshotHzCap: Math.round(1000 / SNAPSHOT_MIN_INTERVAL_MS),
         wildlifePerRoom: WILDLIFE_COUNT,
+        persistence: databaseReady(env) ? 'configured' : 'unavailable',
       });
+    }
+
+    if (url.pathname === '/api/session') {
+      return handleSessionApi(request, env);
+    }
+
+    if (url.pathname === '/api/profile') {
+      return handleProfileApi(request, env);
+    }
+
+    if (url.pathname === '/api/leaderboard') {
+      return handleLeaderboardApi(request, env, url);
+    }
+
+    if (url.pathname === '/api/shop/purchase') {
+      return handleShopPurchaseApi(request, env);
+    }
+
+    if (url.pathname === '/api/profile/skin') {
+      return handleSelectSkinApi(request, env);
     }
 
     if (url.pathname === '/ws') {
@@ -477,6 +699,11 @@ export default {
       }
       const roomLabel = boundedText(url.searchParams.get('room'), 'ocean', 24);
       const room = roomIdFor(roomLabel, ROOM_POOL_SIZE);
+      const sessionToken = url.searchParams.get('session') || '';
+      url.searchParams.delete('session');
+      url.searchParams.delete('profile');
+      const profileId = await profileIdForSessionToken(sessionToken, env);
+      if (profileId) url.searchParams.set('profile', profileId);
       url.searchParams.set('room', room);
       const stub = env.GAME_ROOM.getByName(room);
       return stub.fetch(new Request(url.toString(), request));
