@@ -94,3 +94,9 @@ test('scene and fish presentation lift exposure and keep non-local fish visibly 
   assert.match(fish, /emissiveIntensity:\s*isLocal\s*\?\s*1\.[0-9]+\s*:\s*0\.[6-9]/);
   assert.match(themes, /id:\s*'deep-sea'[\s\S]*hemi:\s*0\.[89]/);
 });
+
+test('lobby CTA keeps its arrow encoding portable', async () => {
+  const html = await readFile('public/index.html', 'utf8');
+  assert.ok(html.includes('aria-hidden="true">&rarr;</b>'));
+  assert.ok(!html.includes('â†’'));
+});
