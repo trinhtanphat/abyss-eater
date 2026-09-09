@@ -133,7 +133,7 @@ export function applyFishSnapshot(rig, player) {
   const data = rig.userData;
   data.previousTarget.copy(data.target);
   data.target.set(Number(player.position.x) || 0, Number(player.position.y) || 0, Number(player.position.z) || 0);
-  data.mass = Math.max(1, Number(player.mass) || 1);
+  data.mass = Math.max(0.2, Number(player.mass) || 1);
   data.score = Math.max(0, Number(player.score) || 0);
   data.deaths = Math.max(0, Number(player.deaths) || 0);
 }
@@ -141,7 +141,7 @@ export function applyFishSnapshot(rig, player) {
 export function animateFishRig(rig, time, local = false) {
   const data = rig.userData;
   rig.position.lerp(data.target, local ? 0.24 : 0.16);
-  const size = Math.cbrt(Math.max(1, data.mass));
+  const size = Math.cbrt(Math.max(0.2, data.mass));
   TARGET_SCALE.set(size, size, size);
   rig.scale.lerp(TARGET_SCALE, 0.11);
 

@@ -65,6 +65,7 @@ let lastFrameAt = performance.now();
 let respawnTimer = null;
 
 const playerMeshes = new Map();
+const wildlifeMeshes = new Map();
 const foodMeshes = new Map();
 
 function effectiveReducedMotion() {
@@ -133,6 +134,7 @@ function setTheme(id) {
   sceneContext?.applyTheme(activeTheme);
   environment?.applyTheme(activeTheme);
   for (const rig of playerMeshes.values()) applyFishTheme(rig, activeTheme);
+  for (const rig of wildlifeMeshes.values()) applyFishTheme(rig, activeTheme);
   for (const mesh of foodMeshes.values()) applyFoodTheme(mesh, activeTheme);
   if (demoFish) applyFishTheme(demoFish, activeTheme);
 }
@@ -178,6 +180,20 @@ function ensurePlayerMesh(player) {
   return rig;
 }
 
+function ensureWildlifeMesh(actor) {
+  let rig = wildlifeMeshes.get(actor.id);
+  if (!rig) {
+    rig = createFishRig({ id: `wildlife-${actor.id}`, isLocal: false, theme: activeTheme });
+    rig.position.set(Number(actor.position?.x) || 0, Number(actor.position?.y) || 0, Number(actor.position?.z) || 0);
+    rig.userData.target.copy(rig.position);
+    rig.userData.previousTarget.copy(rig.position);
+    sceneContext.scene.add(rig);
+    wildlifeMeshes.set(actor.id, rig);
+  }
+  applyFishSnapshot(rig, actor);
+  return rig;
+}
+
 function ensureFoodMesh(food) {
   let mesh = foodMeshes.get(food.id);
   if (!mesh) {
@@ -209,6 +225,19 @@ function syncSnapshot(changes = null) {
       sceneContext.scene.remove(rig);
       disposeFishRig(rig);
       playerMeshes.delete(id);
+    }
+  }
+
+  const liveWildlife = new Set();
+  for (const actor of state.snapshot.wildlife) {
+    liveWildlife.add(actor.id);
+    ensureWildlifeMesh(actor);
+  }
+  for (const [id, rig] of wildlifeMeshes) {
+    if (!liveWildlife.has(id)) {
+      sceneContext.scene.remove(rig);
+      disposeFishRig(rig);
+      wildlifeMeshes.delete(id);
     }
   }
 
@@ -389,6 +418,7 @@ function animate(time) {
     mesh.scale.setScalar(pulse);
   }
   for (const [id, rig] of playerMeshes) animateFishRig(rig, time, id === state.clientId);
+  for (const rig of wildlifeMeshes.values()) animateFishRig(rig, time, false);
 
   let cameraTarget = playerMeshes.get(state.clientId) || null;
   let cameraMass = state.localPlayer()?.mass || 1;

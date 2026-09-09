@@ -50,12 +50,14 @@ function replaceRequired(source, marker, replacement) {
 }
 
 const gameLogic = stripExports(await readFile('src/game-logic.mjs', 'utf8'));
+const wildlife = stripExports(await readFile('src/wildlife.mjs', 'utf8'));
 const protocol = stripExports(await readFile('src/protocol.mjs', 'utf8'));
 const spatialGrid = stripExports(await readFile('src/spatial-grid.mjs', 'utf8'));
 const roomState = stripExports(await readFile('src/room-state.mjs', 'utf8'));
 
 let template = await readFile('src/worker.template.mjs', 'utf8');
 template = replaceRequired(template, '/*__GAME_LOGIC__*/', gameLogic);
+template = replaceRequired(template, '/*__WILDLIFE__*/', wildlife);
 template = replaceRequired(template, '/*__PROTOCOL__*/', protocol);
 template = replaceRequired(template, '/*__SPATIAL_GRID__*/', spatialGrid);
 template = replaceRequired(template, '/*__ROOM_STATE__*/', roomState);

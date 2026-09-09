@@ -2,7 +2,7 @@ export function createClientState() {
   let clientId = null;
   let room = 'ocean-1';
   let bounds = { x: 80, y: 28, z: 80 };
-  let snapshot = { players: [], food: [] };
+  let snapshot = { players: [], food: [], wildlife: [] };
   let previousLocal = null;
 
   function localPlayer(source = snapshot) {
@@ -20,7 +20,8 @@ export function createClientState() {
     if (!next || !Array.isArray(next.players)) return null;
     const before = previousLocal;
     const nextFood = Array.isArray(next.food) ? next.food : snapshot.food;
-    snapshot = { ...next, food: nextFood };
+    const nextWildlife = Array.isArray(next.wildlife) ? next.wildlife : snapshot.wildlife;
+    snapshot = { ...next, food: nextFood, wildlife: nextWildlife };
     const me = localPlayer();
     const changes = {
       me,

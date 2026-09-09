@@ -1,6 +1,7 @@
 import { DurableObject } from 'cloudflare:workers';
 
 /*__GAME_LOGIC__*/
+/*__WILDLIFE__*/
 /*__PROTOCOL__*/
 /*__SPATIAL_GRID__*/
 /*__ROOM_STATE__*/
@@ -68,6 +69,16 @@ function publicPlayer(player) {
   };
 }
 
+function publicWildlife(actor) {
+  return {
+    id: actor.id,
+    kind: 'wildlife',
+    name: actor.name,
+    position: actor.position,
+    mass: actor.mass,
+  };
+}
+
 function securityHeaders(contentType) {
   return {
     'content-type': contentType,
@@ -85,9 +96,12 @@ export class GameRoom extends DurableObject {
     this.ctx = ctx;
     this.env = env;
     this.food = [];
+    this.wildlife = makeWildlifePopulation(spawnPoint, () => crypto.randomUUID().slice(0, 12));
     this.snapshotSeq = 0;
     this.lastBroadcastAt = 0;
+    this.lastWildlifeStepAt = 0;
     this.foodDirty = true;
+    this.wildlifeDirty = true;
     this.ctx.blockConcurrencyWhile(async () => {
       const stored = await this.ctx.storage.get('food');
       this.food = Array.isArray(stored) && stored.length ? stored : makeFood();
@@ -101,7 +115,7 @@ export class GameRoom extends DurableObject {
       .filter(({ player }) => player?.id && player.interactive !== false);
   }
 
-  snapshot(includeFood = false) {
+  snapshot(includeFood = false, includeWildlife = false) {
     const value = {
       type: 'snapshot',
       v: PROTOCOL_VERSION,
@@ -110,6 +124,7 @@ export class GameRoom extends DurableObject {
       players: this.socketsWithPlayers().map(({ player }) => publicPlayer(player)),
     };
     if (includeFood) value.food = this.food;
+    if (includeWildlife) value.wildlife = this.wildlife.map(publicWildlife);
     return value;
   }
 
@@ -117,12 +132,14 @@ export class GameRoom extends DurableObject {
     const now = Date.now();
     if (!force && !shouldBroadcast(this.lastBroadcastAt, now, SNAPSHOT_MIN_INTERVAL_MS)) return false;
     const includeFood = this.foodDirty;
-    const payload = JSON.stringify(this.snapshot(includeFood));
+    const includeWildlife = this.wildlifeDirty;
+    const payload = JSON.stringify(this.snapshot(includeFood, includeWildlife));
     for (const { socket } of this.socketsWithPlayers()) {
       if (socket.readyState === WebSocket.OPEN) socket.send(payload);
     }
     this.lastBroadcastAt = now;
     if (includeFood) this.foodDirty = false;
+    if (includeWildlife) this.wildlifeDirty = false;
     return true;
   }
 
@@ -268,7 +285,7 @@ export class GameRoom extends DurableObject {
       inputSeq: player.seq,
       room,
       bounds: WORLD_BOUNDS,
-      snapshot: this.snapshot(true),
+      snapshot: this.snapshot(true, true),
     }));
     this.broadcastSnapshot(true);
     return new Response(null, { status: 101, webSocket: client });
@@ -324,57 +341,91 @@ export class GameRoom extends DurableObject {
     }
 
     const peers = this.socketsWithPlayers().filter(({ socket }) => socket !== ws);
-    const buckets = buildSpatialBuckets(peers, COLLISION_CELL_SIZE, (entry) => entry.player.position);
-    const nearbyPeers = nearbyFromBuckets(buckets, player.position, COLLISION_CELL_SIZE);
-    const playerRadius = radiusForMass(player.mass);
-    const oversizedPeers = peers.filter(({ player: other }) => {
-      const otherRadius = radiusForMass(other.mass);
-      const maxReach = Math.max(
-        playerRadius + otherRadius * 0.35,
-        otherRadius + playerRadius * 0.35,
-      );
-      return maxReach > COLLISION_CELL_SIZE;
-    });
-    const candidates = [...new Set([...nearbyPeers, ...oversizedPeers])]
-      .sort((a, b) => String(a.player.id).localeCompare(String(b.player.id)));
+    if (this.lastWildlifeStepAt === 0 || now - this.lastWildlifeStepAt >= WILDLIFE_STEP_MS) {
+      const dt = this.lastWildlifeStepAt === 0 ? WILDLIFE_STEP_MS / 1000 : (now - this.lastWildlifeStepAt) / 1000;
+      const activeForWildlife = [publicPlayer(player), ...peers.map(({ player: other }) => publicPlayer(other))];
+      this.wildlife = stepWildlife(this.wildlife, activeForWildlife, dt, WORLD_BOUNDS, now);
+      this.lastWildlifeStepAt = now;
+      this.wildlifeDirty = true;
+    }
 
     let playerWasEaten = false;
-    for (const peer of candidates) {
-      let other = peer.socket.deserializeAttachment();
-      if (!other?.id || other.interactive === false) continue;
-      const winner = resolveEatPair(player, other);
-
+    for (let i = 0; i < this.wildlife.length; i += 1) {
+      const actor = this.wildlife[i];
+      const winner = resolveEatPair(player, actor);
       if (winner === 'a') {
         player = {
           ...player,
-          mass: player.mass + other.mass * 0.7,
-          score: player.score + Math.max(1, Math.round(other.mass * 100)),
+          mass: player.mass + actor.mass * 0.7,
+          score: player.score + Math.max(1, Math.round(actor.mass * 100)),
         };
-        other = respawnPlayer(other, spawnPoint());
-        other.lastAt = now;
-        peer.socket.serializeAttachment(other);
-        peer.socket.send(JSON.stringify({
-          type: 'eaten',
-          v: PROTOCOL_VERSION,
-          by: player.name,
-        }));
+        this.wildlife[i] = respawnWildlife(actor, spawnPoint);
+        this.wildlifeDirty = true;
       } else if (winner === 'b') {
-        other = {
-          ...other,
-          mass: other.mass + player.mass * 0.7,
-          score: other.score + Math.max(1, Math.round(player.mass * 100)),
-        };
-        peer.socket.serializeAttachment(other);
         player = respawnPlayer(player, spawnPoint());
         player.lastAt = now;
         playerWasEaten = true;
         ws.send(JSON.stringify({
           type: 'eaten',
           v: PROTOCOL_VERSION,
-          by: other.name,
+          by: actor.name || 'Abyss predator',
         }));
+        break;
       }
-      if (playerWasEaten) break;
+    }
+
+    if (!playerWasEaten) {
+      const buckets = buildSpatialBuckets(peers, COLLISION_CELL_SIZE, (entry) => entry.player.position);
+      const nearbyPeers = nearbyFromBuckets(buckets, player.position, COLLISION_CELL_SIZE);
+      const playerRadius = radiusForMass(player.mass);
+      const oversizedPeers = peers.filter(({ player: other }) => {
+        const otherRadius = radiusForMass(other.mass);
+        const maxReach = Math.max(
+          playerRadius + otherRadius * 0.35,
+          otherRadius + playerRadius * 0.35,
+        );
+        return maxReach > COLLISION_CELL_SIZE;
+      });
+      const candidates = [...new Set([...nearbyPeers, ...oversizedPeers])]
+        .sort((a, b) => String(a.player.id).localeCompare(String(b.player.id)));
+
+      for (const peer of candidates) {
+        let other = peer.socket.deserializeAttachment();
+        if (!other?.id || other.interactive === false) continue;
+        const winner = resolveEatPair(player, other);
+
+        if (winner === 'a') {
+          player = {
+            ...player,
+            mass: player.mass + other.mass * 0.7,
+            score: player.score + Math.max(1, Math.round(other.mass * 100)),
+          };
+          other = respawnPlayer(other, spawnPoint());
+          other.lastAt = now;
+          peer.socket.serializeAttachment(other);
+          peer.socket.send(JSON.stringify({
+            type: 'eaten',
+            v: PROTOCOL_VERSION,
+            by: player.name,
+          }));
+        } else if (winner === 'b') {
+          other = {
+            ...other,
+            mass: other.mass + player.mass * 0.7,
+            score: other.score + Math.max(1, Math.round(player.mass * 100)),
+          };
+          peer.socket.serializeAttachment(other);
+          player = respawnPlayer(player, spawnPoint());
+          player.lastAt = now;
+          playerWasEaten = true;
+          ws.send(JSON.stringify({
+            type: 'eaten',
+            v: PROTOCOL_VERSION,
+            by: other.name,
+          }));
+        }
+        if (playerWasEaten) break;
+      }
     }
 
     ws.serializeAttachment(player);
@@ -416,6 +467,7 @@ export default {
         realtime: 'durable-objects',
         roomPoolSize: ROOM_POOL_SIZE,
         snapshotHzCap: Math.round(1000 / SNAPSHOT_MIN_INTERVAL_MS),
+        wildlifePerRoom: WILDLIFE_COUNT,
       });
     }
 
