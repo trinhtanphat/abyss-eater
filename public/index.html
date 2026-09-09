@@ -1,0 +1,64 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
+  <meta name="theme-color" content="#041b2d">
+  <meta name="description" content="Abyss Eater: Ocean Survival — a 3D multiplayer fish-eat-fish game.">
+  <link rel="manifest" href="/manifest.webmanifest">
+  <link rel="stylesheet" href="/styles.css">
+  <title>Abyss Eater: Ocean Survival</title>
+</head>
+<body>
+  <div id="game"></div>
+
+  <section id="start-screen" class="panel start-panel" aria-label="Start game">
+    <div class="brand-mark" aria-hidden="true">◉</div>
+    <p class="eyebrow">3D MULTIPLAYER OCEAN SURVIVAL</p>
+    <h1>Abyss Eater</h1>
+    <p class="subtitle">Eat. Grow. Descend.</p>
+    <label>
+      Fish name
+      <input id="player-name" maxlength="20" autocomplete="nickname" value="Little Fish">
+    </label>
+    <label>
+      Ocean room
+      <input id="room-name" maxlength="24" value="ocean-1">
+    </label>
+    <button id="play-button" type="button">Dive into the abyss</button>
+    <p class="controls-hint">WASD / arrows to swim · Space up · Shift down</p>
+  </section>
+
+  <aside id="hud" class="hud" aria-live="polite">
+    <div class="hud-brand">ABYSS EATER</div>
+    <div class="hud-grid">
+      <span>Mass <strong id="hud-mass">1.00</strong></span>
+      <span>Score <strong id="hud-score">0</strong></span>
+      <span>Fish <strong id="hud-players">0</strong></span>
+      <span>Ping <strong id="hud-ping">—</strong></span>
+    </div>
+    <div class="hud-status"><span id="connection-dot"></span><span id="hud-status">Ready</span></div>
+    <div class="hud-room">Room: <strong id="hud-room">ocean-1</strong></div>
+  </aside>
+
+  <div id="toast" class="toast" role="status" aria-live="polite"></div>
+
+  <div id="touch-controls" class="touch-controls" aria-label="Touch controls">
+    <div class="dpad">
+      <button data-touch="forward" aria-label="Swim forward">▲</button>
+      <div>
+        <button data-touch="left" aria-label="Swim left">◀</button>
+        <button data-touch="back" aria-label="Swim backward">▼</button>
+        <button data-touch="right" aria-label="Swim right">▶</button>
+      </div>
+    </div>
+    <div class="depth-buttons">
+      <button data-touch="up" aria-label="Swim up">UP</button>
+      <button data-touch="down" aria-label="Swim down">DOWN</button>
+    </div>
+  </div>
+
+  <noscript>Abyss Eater requires JavaScript.</noscript>
+  <script type="module" src="/app.js"></script>
+</body>
+</html>
