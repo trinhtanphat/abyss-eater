@@ -88,6 +88,9 @@ function publicWildlife(actor) {
     name: actor.name,
     position: actor.position,
     mass: actor.mass,
+    behavior: actor.behavior,
+    aiState: actor.aiState,
+    biome: actor.biome,
   };
 }
 
