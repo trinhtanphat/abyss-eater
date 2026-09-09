@@ -5,6 +5,9 @@ const loadingScreen = document.querySelector('#loading-screen');
 const unsupportedScreen = document.querySelector('#unsupported-screen');
 const unsupportedTitle = document.querySelector('#unsupported-title');
 const unsupportedMessage = document.querySelector('#unsupported-message');
+const reloadButton = document.querySelector('#reload-button');
+
+reloadButton?.addEventListener('click', () => location.reload());
 
 function hasWebGL() {
   try {
