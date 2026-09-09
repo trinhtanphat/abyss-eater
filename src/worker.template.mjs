@@ -38,6 +38,11 @@ function boundedResumeKey(value) {
   return /^[a-f0-9]{64}$/i.test(key) ? key : '';
 }
 
+function boundedProfileId(value) {
+  const id = String(value ?? '').trim();
+  return /^[A-Za-z0-9._:-]{1,128}$/.test(id) ? id : '';
+}
+
 function reconnectStorageKey(resumeKey) {
   return `reconnect:${resumeKey}`;
 }
@@ -118,8 +123,12 @@ async function readSmallJson(request) {
   }
 }
 
+function databaseReady(env) {
+  return Boolean(env?.DB && typeof env.DB.prepare === 'function');
+}
+
 function persistenceReady(env) {
-  return Boolean(env?.DB && typeof env.DB.prepare === 'function' && typeof env.SESSION_SECRET === 'string' && env.SESSION_SECRET.length >= 16);
+  return Boolean(databaseReady(env) && typeof env.SESSION_SECRET === 'string' && env.SESSION_SECRET.length >= 16);
 }
 
 async function authenticatedProfile(request, env, now = Date.now()) {
@@ -136,6 +145,19 @@ async function authenticatedProfile(request, env, now = Date.now()) {
     return { session, profile };
   } catch {
     return { response: persistenceUnavailable() };
+  }
+}
+
+async function profileIdForSessionToken(token, env, now = Date.now()) {
+  if (!token || !persistenceReady(env)) return '';
+  try {
+    const session = await verifySession(token, env.SESSION_SECRET, now);
+    if (!session) return '';
+    const profile = await readProfile(env.DB, session.profileId);
+    if (!profile || profile.status !== 'active' || profile.sessionVersion !== session.version) return '';
+    return profile.id;
+  } catch {
+    return '';
   }
 }
 
@@ -180,6 +202,19 @@ async function handleProfileApi(request, env) {
   try {
     const ownedSkins = await readOwnedSkins(env.DB, auth.profile.id);
     return jsonApi({ ok: true, profile: auth.profile, ownedSkins, catalog: SKIN_CATALOG });
+  } catch {
+    return persistenceUnavailable();
+  }
+}
+
+async function handleLeaderboardApi(request, env, url) {
+  if (request.method !== 'GET') return jsonApi({ ok: false, code: 'method_not_allowed' }, 405);
+  if (!databaseReady(env)) return persistenceUnavailable();
+  try {
+    const season = url.searchParams.get('season') || 'all-time';
+    const limit = Number(url.searchParams.get('limit') || 10);
+    const leaderboard = await readLeaderboard(env.DB, season, limit);
+    return jsonApi({ ok: true, season: 'all-time', leaderboard });
   } catch {
     return persistenceUnavailable();
   }
@@ -322,6 +357,7 @@ export class GameRoom extends DurableObject {
     const room = boundedText(url.searchParams.get('room'), 'ocean-1', 24).toLowerCase();
     const requestedName = boundedText(url.searchParams.get('name'), 'Little Fish', 20);
     const requestedResume = boundedResumeKey(url.searchParams.get('resume'));
+    const requestedProfileId = boundedProfileId(url.searchParams.get('profile'));
     const now = Date.now();
     await this.cleanupReconnectSlots(now);
 
@@ -349,10 +385,12 @@ export class GameRoom extends DurableObject {
         id: crypto.randomUUID().slice(0, 12),
         name: requestedName,
         room,
+        profileId: requestedProfileId,
         position: spawnPoint(),
         mass: START_MASS,
         score: 0,
         deaths: 0,
+        eaten: 0,
         seq: 0,
         lastAt: now,
         rate: makeRateState(),
@@ -455,8 +493,19 @@ export class GameRoom extends DurableObject {
           ...player,
           mass: player.mass + other.mass * 0.7,
           score: player.score + Math.max(1, Math.round(other.mass * 100)),
+          eaten: Math.max(0, Number(player.eaten || 0)) + 1,
         };
-        other = respawnPlayer(other, spawnPoint());
+        if (other.profileId && databaseReady(this.env)) {
+          const rewardEventId = `death:${other.room}:${other.id}:${other.deaths + 1}`;
+          try {
+            await applySessionReward(this.env.DB, other.profileId, rewardEventId, {
+              score: other.score,
+              mass: other.mass,
+              eaten: other.eaten || 0,
+            }, now);
+          } catch {}
+        }
+        other = { ...respawnPlayer(other, spawnPoint()), eaten: 0 };
         other.lastAt = now;
         peer.socket.serializeAttachment(other);
         peer.socket.send(JSON.stringify({
@@ -469,9 +518,20 @@ export class GameRoom extends DurableObject {
           ...other,
           mass: other.mass + player.mass * 0.7,
           score: other.score + Math.max(1, Math.round(player.mass * 100)),
+          eaten: Math.max(0, Number(other.eaten || 0)) + 1,
         };
         peer.socket.serializeAttachment(other);
-        player = respawnPlayer(player, spawnPoint());
+        if (player.profileId && databaseReady(this.env)) {
+          const rewardEventId = `death:${player.room}:${player.id}:${player.deaths + 1}`;
+          try {
+            await applySessionReward(this.env.DB, player.profileId, rewardEventId, {
+              score: player.score,
+              mass: player.mass,
+              eaten: player.eaten || 0,
+            }, now);
+          } catch {}
+        }
+        player = { ...respawnPlayer(player, spawnPoint()), eaten: 0 };
         player.lastAt = now;
         playerWasEaten = true;
         ws.send(JSON.stringify({
@@ -533,12 +593,21 @@ export default {
       return handleProfileApi(request, env);
     }
 
+    if (url.pathname === '/api/leaderboard') {
+      return handleLeaderboardApi(request, env, url);
+    }
+
     if (url.pathname === '/ws') {
       if (request.headers.get('Upgrade')?.toLowerCase() !== 'websocket') {
         return new Response('Expected WebSocket upgrade', { status: 426 });
       }
       const roomLabel = boundedText(url.searchParams.get('room'), 'ocean', 24);
       const room = roomIdFor(roomLabel, ROOM_POOL_SIZE);
+      const sessionToken = url.searchParams.get('session') || '';
+      url.searchParams.delete('session');
+      url.searchParams.delete('profile');
+      const profileId = await profileIdForSessionToken(sessionToken, env);
+      if (profileId) url.searchParams.set('profile', profileId);
       url.searchParams.set('room', room);
       const stub = env.GAME_ROOM.getByName(room);
       return stub.fetch(new Request(url.toString(), request));
