@@ -6,6 +6,12 @@ import {
   evolutionTierForMass,
   silhouetteForMass,
 } from '../public/game/fish-evolution.mjs';
+import {
+  SKIN_FAMILIES,
+  skinFamilyForId,
+  skinPaletteFor,
+} from '../public/game/fish-skins.mjs';
+import { getTheme } from '../public/game/themes.js';
 
 test('fish evolution tiers preserve the existing log2 mass progression', () => {
   assert.deepEqual(
@@ -75,10 +81,38 @@ test('effect manager owns bounded disposable eat and growth pulse rings', async 
   assert.ok(effects.includes('if (reducedMotion) return;'), 'pulse rings must respect reduced-effects mode');
 });
 
-test('offline shell precaches fish evolution, TTS and progression dependencies', async () => {
+test('the approved skin catalog exposes twelve deterministic families', () => {
+  assert.equal(SKIN_FAMILIES.length, 12);
+  assert.equal(new Set(SKIN_FAMILIES.map((skin) => skin.id)).size, 12);
+  assert.equal(skinFamilyForId('player-42').id, skinFamilyForId('player-42').id);
+  assert.ok(skinFamilyForId('player-42').id);
+});
+
+test('skin palettes remain numeric and bounded across ocean themes', () => {
+  for (const themeId of ['stylized', 'deep-sea', 'twilight-garden', 'blue-trench', 'volcanic-rift', 'leviathan-depths']) {
+    const palette = skinPaletteFor('player-42', getTheme(themeId));
+    for (const key of ['body', 'fin', 'accent', 'emissive']) assert.equal(Number.isInteger(palette[key]), true, `${key} must be a numeric hex color`);
+    assert.ok(palette.roughnessOffset >= -0.25 && palette.roughnessOffset <= 0.25);
+    assert.ok(palette.metalnessOffset >= -0.1 && palette.metalnessOffset <= 0.18);
+  }
+});
+
+test('fish renderer preserves verified cosmetics and uses deterministic palettes only as fallback', async () => {
+  const fish = await readFile('public/game/fish.js', 'utf8');
+  assert.ok(fish.includes("import { skinVisual } from './skins.js';"), 'server-verified cosmetic palette must remain authoritative');
+  assert.ok(fish.includes("import { skinPaletteFor } from './fish-skins.mjs';"), 'deterministic family fallback must remain available');
+  assert.ok(fish.includes('skinVisual(data.skinId)'), 'snapshot skin id must be resolved first');
+  assert.ok(fish.includes('const fallback = skinPaletteFor(data.id, theme);'), 'fallback palette must be derived from fish id only after verified skin lookup');
+  assert.ok(fish.includes('data.skinFamilyId = fallback.id;'));
+  assert.ok(fish.includes('theme.fish.local'), 'local recognition must remain theme-driven bioluminescence');
+});
+
+test('offline shell precaches fish evolution, TTS, progression and skin dependencies', async () => {
   const sw = await readFile('public/sw.js', 'utf8');
   assert.ok(sw.includes("'/client-tts.mjs'"), 'reconciled shell must preserve the Vietnamese TTS dependency');
   assert.ok(sw.includes("'/client-progression.mjs'"), 'reconciled shell must cache the progression client');
-  assert.ok(sw.includes("'/game/fish-evolution.mjs'"), 'service worker shell must cache the module imported by fish.js');
-  assert.ok(sw.includes("CACHE_NAME = 'abyss-eater-shell-v7'"), 'shell version must advance when its dependency list changes');
+  assert.ok(sw.includes("'/game/fish-evolution.mjs'"), 'service worker shell must cache fish evolution');
+  assert.ok(sw.includes("'/game/skins.js'"), 'service worker shell must preserve verified cosmetic visuals');
+  assert.ok(sw.includes("'/game/fish-skins.mjs'"), 'service worker shell must cache deterministic fallback palettes');
+  assert.ok(sw.includes("CACHE_NAME = 'abyss-eater-shell-v8'"), 'shell version must advance when second-slice dependencies are added');
 });
