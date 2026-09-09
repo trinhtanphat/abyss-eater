@@ -18,7 +18,7 @@ jobs:
   screenshot:
     name: abyssal-assets-screenshot
     runs-on: ubuntu-latest
-    timeout-minutes: 8
+    timeout-minutes: 4
     steps:
       - name: Checkout
         uses: actions/checkout@v4
@@ -31,31 +31,53 @@ jobs:
           python3 -m http.server 4173 --bind 127.0.0.1 > /tmp/abyss-review-http.log 2>&1 &
           server_pid=$!
           trap 'kill "$server_pid" 2>/dev/null || true' EXIT
+          ready=0
           for attempt in $(seq 1 20); do
             if curl --fail --silent http://127.0.0.1:4173/review/abyssal-assets.html >/dev/null; then
+              ready=1
               break
             fi
             sleep 0.25
           done
+          if [ "$ready" -ne 1 ]; then
+            cat /tmp/abyss-review-http.log || true
+            echo '::error::Visual review HTTP server did not become ready.'
+            exit 1
+          fi
           browser="$(command -v google-chrome || command -v chromium || command -v chromium-browser || true)"
           if [ -z "$browser" ]; then
             echo '::error::No Chromium-compatible browser is available on the runner.'
             exit 1
           fi
-          "$browser" \
+          set +e
+          timeout 50s "$browser" \
             --headless=new \
             --no-sandbox \
+            --no-first-run \
+            --no-default-browser-check \
             --disable-dev-shm-usage \
+            --user-data-dir=/tmp/abyss-chrome \
             --use-gl=swiftshader \
             --enable-webgl \
             --enable-unsafe-swiftshader \
             --ignore-gpu-blocklist \
             --hide-scrollbars \
+            --run-all-compositor-stages-before-draw \
             --window-size=1600,1000 \
             --virtual-time-budget=6000 \
             --screenshot="$PWD/artifacts/abyssal-assets.png" \
-            http://127.0.0.1:4173/review/abyssal-assets.html
-          test -s artifacts/abyssal-assets.png
+            http://127.0.0.1:4173/review/abyssal-assets.html \
+            > /tmp/abyss-review-chrome.log 2>&1
+          browser_status=$?
+          set -e
+          if [ ! -s artifacts/abyssal-assets.png ]; then
+            cat /tmp/abyss-review-chrome.log || true
+            echo "::error::Browser failed to produce visual-review PNG (exit ${browser_status})."
+            exit 1
+          fi
+          if [ "$browser_status" -ne 0 ]; then
+            echo "Browser exited ${browser_status} after producing the PNG; accepting the bounded artifact."
+          fi
 
       - name: Upload visual review
         uses: actions/upload-artifact@v4
