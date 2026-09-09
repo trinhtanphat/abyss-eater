@@ -40,7 +40,9 @@ for (const file of await listFiles(PUBLIC_DIR)) {
 
 function stripExports(source) {
   return source
+    .replace(/^import\s+.*?from\s+['"][^'"]+['"];?\s*$/gm, '')
     .replace(/^export\s+const\s+/gm, 'const ')
+    .replace(/^export\s+async\s+function\s+/gm, 'async function ')
     .replace(/^export\s+function\s+/gm, 'function ');
 }
 
@@ -53,12 +55,18 @@ const gameLogic = stripExports(await readFile('src/game-logic.mjs', 'utf8'));
 const protocol = stripExports(await readFile('src/protocol.mjs', 'utf8'));
 const spatialGrid = stripExports(await readFile('src/spatial-grid.mjs', 'utf8'));
 const roomState = stripExports(await readFile('src/room-state.mjs', 'utf8'));
+const progression = stripExports(await readFile('src/progression.mjs', 'utf8'));
+const sessionToken = stripExports(await readFile('src/session-token.mjs', 'utf8'));
+const profileStore = stripExports(await readFile('src/profile-store.mjs', 'utf8'));
 
 let template = await readFile('src/worker.template.mjs', 'utf8');
 template = replaceRequired(template, '/*__GAME_LOGIC__*/', gameLogic);
 template = replaceRequired(template, '/*__PROTOCOL__*/', protocol);
 template = replaceRequired(template, '/*__SPATIAL_GRID__*/', spatialGrid);
 template = replaceRequired(template, '/*__ROOM_STATE__*/', roomState);
+template = replaceRequired(template, '/*__PROGRESSION__*/', progression);
+template = replaceRequired(template, '/*__SESSION_TOKEN__*/', sessionToken);
+template = replaceRequired(template, '/*__PROFILE_STORE__*/', profileStore);
 template = replaceRequired(template, '/*__ASSETS__*/', JSON.stringify(assets));
 
 await mkdir('dist', { recursive: true });
