@@ -70,6 +70,8 @@ test('embedded client negotiates protocol v1 and resumes the same room presence'
     "message.v !== PROTOCOL_VERSION",
     "message.resumeKey",
     "message.resumed",
+    'inputSeq: player.seq',
+    'message.inputSeq',
     'Reconnected to your fish',
     'Upgrade required',
   ]) {
