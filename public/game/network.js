@@ -22,6 +22,12 @@ export function createNetworkClient({
     return (String(value || '').replace(/[^\p{L}\p{N} _.-]/gu, '').replace(/\s+/g, ' ').trim() || fallback).slice(0, max);
   }
 
+  function sanitizedSession(value) {
+    const token = typeof value === 'string' ? value.trim() : '';
+    if (token.length < 3 || token.length > 4096) return '';
+    return /^[A-Za-z0-9_-]+\.[A-Za-z0-9_-]+$/.test(token) ? token : '';
+  }
+
   function resumeStorageKey(room) {
     return `abyss-eater-resume:${room}`;
   }
@@ -46,7 +52,7 @@ export function createNetworkClient({
     if (socket && socket.readyState < WebSocket.CLOSING) socket.close(1002, 'protocol-version');
   }
 
-  function connect({ name, room }) {
+  function connect({ name, room, session = '' }) {
     clearTimeout(reconnectTimer);
     if (protocolBlocked) {
       onStatus('Upgrade required', false);
@@ -57,6 +63,7 @@ export function createNetworkClient({
     credentials = {
       name: sanitized(name, 'Little Fish', 20),
       room: sanitized(room, 'ocean-1', 24).toLowerCase(),
+      session: sanitizedSession(session),
     };
     const resumeKey = readResumeKey(credentials.room);
     shouldReconnect = true;
@@ -66,6 +73,7 @@ export function createNetworkClient({
     wsUrl.protocol = location.protocol === 'https:' ? 'wss:' : 'ws:';
     wsUrl.searchParams.set('name', credentials.name);
     wsUrl.searchParams.set('room', credentials.room);
+    if (credentials.session) wsUrl.searchParams.set('session', credentials.session);
     if (resumeKey) wsUrl.searchParams.set('resume', resumeKey);
     socket = new WebSocket(wsUrl);
 

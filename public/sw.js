@@ -10,6 +10,7 @@ const SHELL = [
   '/client-settings.mjs',
   '/client-audio.mjs',
   '/client-tts.mjs',
+  '/client-progression.mjs',
   '/client-capabilities.mjs',
   '/game/config.js',
   '/game/effects.js',
