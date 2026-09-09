@@ -24,8 +24,9 @@ test('SVG assets stay dependency-free and compact', async () => {
   for (const asset of ASSETS) {
     const source = await readFile(`public${asset}`, 'utf8');
     assert.match(source, /<svg\b/);
-    assert.ok(!source.includes('<script'));
-    assert.ok(!source.includes('http://') && !source.includes('https://'), `${asset} must not require external resources`);
+    assert.ok(!/<script\b/i.test(source), `${asset} must not contain scripts`);
+    assert.ok(!/<image\b/i.test(source), `${asset} must not embed raster images`);
+    assert.ok(!/\b(?:href|src)=["']https?:\/\//i.test(source), `${asset} must not require external resources`);
     assert.ok(source.length < 5000, `${asset} must stay lightweight`);
   }
 });
