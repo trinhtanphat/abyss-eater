@@ -145,6 +145,7 @@ body.connected #connection-dot { background: #63efb8; }
 .hunt-stat.threat-stat strong { color: #ff9bad; }
 .room-line { margin: 9px 1px 0; color: #5f8290; font-size: 9px; }
 .room-line strong { color: #92bac5; }
+.room-line #hud-biome { color: var(--accent-2); font-weight: 850; letter-spacing: .04em; }
 
 .leaderboard-card { position: absolute; right: max(16px, env(safe-area-inset-right)); top: max(16px, env(safe-area-inset-top)); width: 240px; padding: 13px; border-radius: 18px; }
 .section-title > span { color: #84b7c4; font-size: 9px; font-weight: 900; letter-spacing: .13em; }
