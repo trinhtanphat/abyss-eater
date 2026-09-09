@@ -52,7 +52,10 @@ test('modular client accepts player-only delta snapshots and reuses GPU resource
     'const BODY_GEOMETRY',
     'const TAIL_GEOMETRY',
     'const FIN_GEOMETRY',
-    'const FOOD_GEOMETRY',
+    'const FOOD_BODY_GEOMETRY',
+    'const FOOD_FIN_GEOMETRY',
+    'const FOOD_CORE_GEOMETRY',
+    'const FOOD_TENDRIL_GEOMETRY',
     'disposeFishRig',
   ]) {
     assert.ok(fish.includes(marker), `fish renderer must include ${marker}`);
