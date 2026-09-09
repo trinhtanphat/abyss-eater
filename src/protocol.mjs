@@ -34,6 +34,9 @@ export function parseClientMessage(rawMessage) {
       || !finiteNumber(parsed.dir.z)) {
       return { ok: false, code: 'bad_dir' };
     }
+    if (parsed.boost !== undefined && typeof parsed.boost !== 'boolean') {
+      return { ok: false, code: 'bad_boost' };
+    }
     return {
       ok: true,
       message: {
@@ -41,6 +44,7 @@ export function parseClientMessage(rawMessage) {
         v: PROTOCOL_VERSION,
         seq: parsed.seq,
         dir: { x: parsed.dir.x, y: parsed.dir.y, z: parsed.dir.z },
+        boost: parsed.boost === true,
       },
     };
   }

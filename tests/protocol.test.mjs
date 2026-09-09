@@ -12,7 +12,7 @@ test('parseClientMessage accepts only protocol v2 bounded input messages', () =>
   const parseClientMessage = requireFn('parseClientMessage');
   assert.deepEqual(
     parseClientMessage('{"type":"input","v":2,"seq":2,"dir":{"x":1,"y":0,"z":-0.5}}'),
-    { ok: true, message: { type: 'input', v: 2, seq: 2, dir: { x: 1, y: 0, z: -0.5 } } },
+    { ok: true, message: { type: 'input', v: 2, seq: 2, dir: { x: 1, y: 0, z: -0.5 }, boost: false } },
   );
   assert.deepEqual(
     parseClientMessage('{"type":"input","v":1,"seq":2,"dir":{"x":1,"y":0,"z":0}}'),
