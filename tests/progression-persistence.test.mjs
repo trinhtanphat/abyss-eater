@@ -85,9 +85,11 @@ test('Worker binds validated persistent identity to WebSocket without trusting c
     "url.searchParams.get('session')",
     "url.searchParams.delete('session')",
     "url.searchParams.set('profile'",
+    'async settleDeath(player, now)',
     'applySessionReward',
     "`death:${player.room}:${player.id}:${player.deaths + 1}`",
-    "`death:${other.room}:${other.id}:${other.deaths + 1}`",
+    'await this.settleDeath(other, now)',
+    'await this.settleDeath(player, now)',
   ]) {
     assert.ok(worker.includes(marker), `Worker reward integration must include ${marker}`);
   }
