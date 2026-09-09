@@ -75,9 +75,10 @@ test('effect manager owns bounded disposable eat and growth pulse rings', async 
   assert.ok(effects.includes('if (reducedMotion) return;'), 'pulse rings must respect reduced-effects mode');
 });
 
-test('offline shell precaches the fish evolution dependency without dropping TTS', async () => {
+test('offline shell precaches fish evolution, TTS and progression dependencies', async () => {
   const sw = await readFile('public/sw.js', 'utf8');
   assert.ok(sw.includes("'/client-tts.mjs'"), 'reconciled shell must preserve the Vietnamese TTS dependency');
+  assert.ok(sw.includes("'/client-progression.mjs'"), 'reconciled shell must cache the progression client');
   assert.ok(sw.includes("'/game/fish-evolution.mjs'"), 'service worker shell must cache the module imported by fish.js');
-  assert.ok(sw.includes("CACHE_NAME = 'abyss-eater-shell-v6'"), 'shell version must advance when its dependency list changes');
+  assert.ok(sw.includes("CACHE_NAME = 'abyss-eater-shell-v7'"), 'shell version must advance when its dependency list changes');
 });

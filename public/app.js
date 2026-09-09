@@ -12,6 +12,7 @@ import { createToast } from './ui/toast.js';
 import { DEFAULT_SETTINGS, normalizeSettings } from '/client-settings.mjs';
 import { createAudioController } from '/client-audio.mjs';
 import { createTtsController } from '/client-tts.mjs';
+import { createProgressionClient, profileProgress, skinAction } from '/client-progression.mjs';
 
 const SETTINGS_STORAGE_KEY = 'abyss-eater-settings-v1';
 const gameRoot = document.querySelector('#game');
@@ -32,6 +33,13 @@ const masterVolumeValue = document.querySelector('#master-volume-value');
 const musicVolumeValue = document.querySelector('#music-volume-value');
 const sfxVolumeValue = document.querySelector('#sfx-volume-value');
 const ttsVolumeValue = document.querySelector('#tts-volume-value');
+const profileLevel = document.querySelector('#profile-level');
+const profileXp = document.querySelector('#profile-xp');
+const profilePearls = document.querySelector('#profile-pearls');
+const profileXpProgress = document.querySelector('#profile-xp-progress');
+const profileStatus = document.querySelector('#profile-status');
+const skinGrid = document.querySelector('#skin-grid');
+const persistentLeaderboard = document.querySelector('#persistent-leaderboard');
 const systemReducedMotion = matchMedia('(prefers-reduced-motion: reduce)').matches;
 
 function readClientSettings() {
@@ -50,6 +58,7 @@ function writeClientSettings(value) {
 let settings = readClientSettings();
 const audio = createAudioController({ getSettings: () => settings });
 const tts = createTtsController({ getSettings: () => settings });
+const progression = createProgressionClient();
 const showToast = createToast(toastElement);
 const state = createClientState();
 const hud = createHud();
@@ -133,6 +142,112 @@ for (const control of [reducedEffectsSetting, masterVolume, musicVolume, sfxVolu
   control?.addEventListener('change', updateLocalSettings);
 }
 syncVolumeOutputs();
+
+function progressionErrorLabel(code) {
+  const labels = {
+    locked: 'Level locked',
+    insufficient_pearls: 'More pearls needed',
+    already_owned: 'Already owned',
+    not_owned: 'Skin not owned',
+    persistence_unavailable: 'Profile service unavailable',
+  };
+  return labels[code] || 'Profile sync unavailable';
+}
+
+function renderProgression() {
+  const snapshot = progression.snapshot();
+  const profile = snapshot.profile;
+  if (profile) {
+    const progress = profileProgress(profile);
+    if (profileLevel) profileLevel.textContent = String(progress.level);
+    if (profileXp) profileXp.textContent = `${progress.xp} / ${progress.nextXp}`;
+    if (profilePearls) profilePearls.textContent = String(Math.floor(Number(profile.pearls) || 0));
+    if (profileXpProgress) profileXpProgress.style.width = `${Math.round(progress.progress * 100)}%`;
+    if (profileStatus) profileStatus.textContent = profile.displayName || 'Ocean profile';
+  } else {
+    if (profileLevel) profileLevel.textContent = '\u2014';
+    if (profileXp) profileXp.textContent = 'Sync on dive';
+    if (profilePearls) profilePearls.textContent = '\u2014';
+    if (profileXpProgress) profileXpProgress.style.width = '0%';
+    if (profileStatus) profileStatus.textContent = 'Guest progression';
+  }
+
+  if (skinGrid) {
+    const fragment = document.createDocumentFragment();
+    for (const skin of snapshot.catalog) {
+      const action = skinAction(skin, profile || {}, snapshot.ownedSkins);
+      const button = document.createElement('button');
+      button.type = 'button';
+      button.className = 'skin-card';
+      button.dataset.action = action;
+      button.dataset.skinId = skin.id;
+      button.style.setProperty('--skin-body', skin.bodyColor || '#5de7d7');
+      button.style.setProperty('--skin-accent', skin.accentColor || '#d9fff7');
+      const swatch = document.createElement('i');
+      swatch.className = 'skin-swatch';
+      const title = document.createElement('strong');
+      title.textContent = skin.title || skin.id;
+      const hint = document.createElement('small');
+      const hints = {
+        selected: 'Selected',
+        select: 'Select',
+        buy: `${Math.max(0, Number(skin.price) || 0)} pearls`,
+        locked: `Lv ${Math.max(1, Number(skin.unlockLevel) || 1)}`,
+        insufficient: `${Math.max(0, Number(skin.price) || 0)} pearls`,
+      };
+      hint.textContent = hints[action] || 'Unavailable';
+      button.append(swatch, title, hint);
+      button.disabled = !profile || ['selected', 'locked', 'insufficient', 'unavailable'].includes(action);
+      if (action === 'buy' || action === 'select') {
+        button.addEventListener('click', async () => {
+          button.disabled = true;
+          try {
+            if (action === 'buy') await progression.purchaseSkin(skin.id);
+            else await progression.selectSkin(skin.id);
+            renderProgression();
+            showToast(action === 'buy' ? `${skin.title || skin.id} unlocked` : `${skin.title || skin.id} selected`, 'success', 1500);
+          } catch (error) {
+            showToast(progressionErrorLabel(error?.code), 'danger', 1800);
+            renderProgression();
+          }
+        });
+      }
+      fragment.append(button);
+    }
+    skinGrid.replaceChildren(fragment);
+  }
+
+  if (persistentLeaderboard) {
+    const fragment = document.createDocumentFragment();
+    snapshot.leaderboard.slice(0, 5).forEach((row, index) => {
+      const item = document.createElement('li');
+      item.className = 'persistent-row';
+      const place = document.createElement('b');
+      place.textContent = `#${index + 1}`;
+      const name = document.createElement('span');
+      name.textContent = row.displayName || 'Little Fish';
+      const score = document.createElement('strong');
+      score.textContent = String(Math.max(0, Math.floor(Number(row.bestScore) || 0)));
+      item.append(place, name, score);
+      fragment.append(item);
+    });
+    if (!snapshot.leaderboard.length) {
+      const item = document.createElement('li');
+      item.className = 'persistent-row';
+      item.textContent = 'No ranked sessions yet';
+      fragment.append(item);
+    }
+    persistentLeaderboard.replaceChildren(fragment);
+  }
+}
+
+async function refreshProgression({ profile = true, leaderboard = true } = {}) {
+  const jobs = [];
+  if (profile && progression.token) jobs.push(progression.refreshProfile());
+  if (leaderboard) jobs.push(progression.refreshLeaderboard(5));
+  await Promise.allSettled(jobs);
+  renderProgression();
+}
 
 function renderHud() {
   const threat = hud.render({ snapshot: state.snapshot, clientId: state.clientId, bounds: state.bounds, room: state.room, pingMs, statusText, connected });
@@ -308,7 +423,16 @@ const lobby = createLobby({
         audio.startAmbience();
       }
     });
-    network.connect({ name: preferences.name, room: preferences.room });
+    void progression.ensureSession(preferences.name)
+      .then(() => {
+        renderProgression();
+        network.connect({ name: preferences.name, room: preferences.room, session: progression.token });
+      })
+      .catch((error) => {
+        renderProgression();
+        showToast(progressionErrorLabel(error?.code), 'info', 1800);
+        network.connect({ name: preferences.name, room: preferences.room, session: '' });
+      });
     statusText = 'Connecting…';
     setConnectionState('connecting', 'Connecting', 'Reaching the ocean server…');
     renderHud();
@@ -374,6 +498,7 @@ network = createNetworkClient({
   onWelcome(message) {
     const changes = state.welcome(message);
     syncSnapshot(changes);
+    void refreshProgression();
     setConnectionState('online', 'Online', message.resumed ? 'Your fish was resumed.' : 'You entered the ocean.', true);
     showToast(message.resumed ? 'Reconnected to your fish' : `Entered ${message.room || 'the ocean'}`, 'success', 1500);
     void tts.speak(message.resumed ? 'Đã kết nối lại với cá của bạn.' : 'Đã kết nối. Bạn đã vào đại dương.');
@@ -387,6 +512,7 @@ network = createNetworkClient({
     renderHud();
   },
   onEaten(message) {
+    void refreshProgression();
     audio.playDeath();
     effects?.respawn();
     showRespawn(message.by);
@@ -412,6 +538,8 @@ demoFish.userData.mass = 2.4;
 sceneContext.scene.add(demoFish);
 
 setConnectionState('ready', 'Ready', 'Choose a fish name and dive into the ocean.');
+renderProgression();
+void refreshProgression({ profile: true, leaderboard: true });
 setInterval(() => { if (started) network.sendInput(input.direction()); }, 100);
 setInterval(() => { if (started) network.ping(); }, 2000);
 
