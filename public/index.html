@@ -1,5 +1,5 @@
 <!doctype html>
-<html lang="en">
+<html lang="en" data-app-state="loading">
 <head>
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
@@ -11,6 +11,26 @@
 </head>
 <body>
   <div id="game"></div>
+
+  <section id="loading-screen" class="system-screen" role="status" aria-live="polite">
+    <div class="system-card panel">
+      <div class="brand-mark" aria-hidden="true">◉</div>
+      <p class="eyebrow">ABYSS EATER</p>
+      <h2>Preparing the ocean…</h2>
+      <p>Checking 3D graphics and loading the game client.</p>
+      <div class="loading-bar" aria-hidden="true"><span></span></div>
+    </div>
+  </section>
+
+  <section id="unsupported-screen" class="system-screen" role="alert" hidden>
+    <div class="system-card panel">
+      <div class="brand-mark" aria-hidden="true">!</div>
+      <p class="eyebrow">ABYSS EATER</p>
+      <h2 id="unsupported-title">Game unavailable</h2>
+      <p id="unsupported-message">This browser could not start the 3D game client.</p>
+      <button type="button" onclick="location.reload()">Reload</button>
+    </div>
+  </section>
 
   <section id="start-screen" class="panel start-panel" aria-label="Start game">
     <div class="brand-mark" aria-hidden="true">◉</div>
@@ -59,6 +79,6 @@
   </div>
 
   <noscript>Abyss Eater requires JavaScript.</noscript>
-  <script type="module" src="/app.js"></script>
+  <script type="module" src="/bootstrap.js"></script>
 </body>
 </html>
