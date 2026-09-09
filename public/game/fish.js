@@ -1,5 +1,5 @@
 import * as THREE from 'https://cdn.jsdelivr.net/npm/three@0.185.1/build/three.module.js';
-import { silhouetteForMass } from './fish-evolution.mjs';
+import { fishLevelForMass, silhouetteForLevel } from './fish-evolution.mjs';
 import { skinVisual } from './skins.js';
 import { skinPaletteFor } from './fish-skins.mjs';
 
@@ -75,9 +75,9 @@ function applyFishAppearance(rig, theme) {
   data.glowMaterial.color.set(visual?.emissive || (data.isLocal ? theme.fish.local : fallback.emissive));
 }
 
-function applyEvolutionSilhouette(rig, mass) {
+function applyEvolutionSilhouette(rig, fishLevel) {
   const data = rig.userData;
-  const profile = silhouetteForMass(mass);
+  const profile = silhouetteForLevel(fishLevel);
   if (data.appliedEvolutionTier === profile.id) return;
 
   data.body.scale.set(...profile.body);
@@ -244,6 +244,7 @@ export function createFishRig({ id, isLocal = false, theme }) {
     target: new THREE.Vector3(),
     previousTarget: new THREE.Vector3(),
     mass: 1,
+    fishLevel: 1,
     score: 0,
     deaths: 0,
     lastSpeed: 0,
@@ -259,12 +260,15 @@ export function applyFishSnapshot(rig, player) {
   data.previousTarget.copy(data.target);
   data.target.set(Number(player.position.x) || 0, Number(player.position.y) || 0, Number(player.position.z) || 0);
   data.mass = Math.max(0.2, Number(player.mass) || 1);
+  data.fishLevel = Number.isInteger(player.fishLevel)
+    ? Math.max(1, Math.min(6, player.fishLevel))
+    : fishLevelForMass(data.mass);
   data.score = Math.max(0, Number(player.score) || 0);
   data.deaths = Math.max(0, Number(player.deaths) || 0);
   const previousSkinId = data.skinId;
   data.skinId = typeof player.skinId === 'string' ? player.skinId : '';
   if (data.skinId !== previousSkinId) applyFishAppearance(rig, data.theme);
-  applyEvolutionSilhouette(rig, data.mass);
+  applyEvolutionSilhouette(rig, data.fishLevel);
 }
 
 export function animateFishRig(rig, time, local = false) {

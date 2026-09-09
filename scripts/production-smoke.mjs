@@ -24,14 +24,23 @@ export const CRITICAL_ASSETS = Object.freeze([
   '/game/biomes.js',
   '/game/world-actors.js',
   '/game/fish.js',
+  '/game/fish-evolution.mjs',
   '/game/fish-skins.mjs',
   '/game/environment.js',
   '/game/themes.js',
   '/game/presentation.js',
+  '/ui/hud.js',
 ]);
 
 export function normalizeStaticText(value) {
   return String(value).replace(/^\uFEFF/, '').replace(/\r\n/g, '\n');
+}
+
+export function fishLevelsLookReady(snapshot = {}) {
+  const players = Array.isArray(snapshot?.players) ? snapshot.players : [];
+  const wildlife = Array.isArray(snapshot?.wildlife) ? snapshot.wildlife : [];
+  if (players.length === 0) return false;
+  return [...players, ...wildlife].every((fish) => Number.isInteger(fish?.fishLevel) && fish.fishLevel >= 1 && fish.fishLevel <= 6);
 }
 
 const delay = (ms) => new Promise((resolve) => setTimeout(resolve, ms));
@@ -167,6 +176,11 @@ async function verifyRealtime(base) {
       8000,
       'all four players in shared snapshots',
     );
+
+    for (const { state } of players) {
+      const snapshot = state.snapshot || state.welcome?.snapshot;
+      assert.equal(fishLevelsLookReady(snapshot), true, 'authoritative snapshots must publish Fish Level for all fish');
+    }
 
     for (const { socket, state } of players) {
       state.pong = null;

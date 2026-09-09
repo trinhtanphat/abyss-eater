@@ -2,6 +2,7 @@ export const START_MASS = 1;
 export const MIN_EDIBLE_MASS = 0.2;
 export const FOOD_RADIUS = 0.45;
 export const MAX_STEP_SECONDS = 0.25;
+export const FISH_LEVEL_MAX = 6;
 export const MANUAL_BOOST_MULTIPLIER = 1.55;
 export const MANUAL_BOOST_GRACE_MS = 3000;
 export const MANUAL_BOOST_SCORE_DRAIN_PER_SECOND = 5;
@@ -12,6 +13,12 @@ function finite(value) {
 
 function clamp(value, min, max) {
   return Math.max(min, Math.min(max, value));
+}
+
+export function fishLevelForMass(mass) {
+  const value = Number(mass);
+  if (!Number.isFinite(value) || value < 1) return 1;
+  return clamp(Math.floor(Math.log2(value)) + 1, 1, FISH_LEVEL_MAX);
 }
 
 function distance3(a, b) {
