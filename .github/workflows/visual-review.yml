@@ -128,7 +128,7 @@ jobs:
           fi
 
       - name: Upload visual review
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v7
         with:
           name: abyssal-assets-visual-review
           path: artifacts/*.png
