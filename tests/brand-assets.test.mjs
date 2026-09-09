@@ -36,14 +36,16 @@ test('lobby and HUD markup use the new asset family without changing metric ids'
   for (const id of ['hud-mass', 'hud-score', 'hud-rank', 'hud-players', 'hud-ping', 'growth-progress', 'depth-meter', 'settings-button']) {
     assert.ok(html.includes(`id=\"${id}\"`), `${id} must remain stable`);
   }
-  assert.ok(html.includes('class="hud-brand-mark"'));
-  assert.ok(html.includes('class="metric-icon"'));
+  assert.ok(html.includes('class="hud-brand-mark'));
+  assert.ok(html.includes('class="metric-icon'));
 });
 
 test('HUD icon styles remain compact and service worker precaches all visual assets', async () => {
-  const css = await readFile('public/styles.css', 'utf8');
+  const css = await readFile('public/hud-assets.css', 'utf8');
+  const themes = await readFile('public/themes.css', 'utf8');
   const sw = await readFile('public/sw.js', 'utf8');
   assert.ok(css.includes('.metric-icon'));
   assert.ok(css.includes('.hud-brand-mark'));
+  assert.ok(themes.includes("@import url('/hud-assets.css')"), 'theme shell must load the dedicated HUD asset stylesheet');
   for (const asset of ASSETS) assert.ok(sw.includes(`'${asset}'`), `service worker must precache ${asset}`);
 });
