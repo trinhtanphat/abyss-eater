@@ -23,7 +23,7 @@ test('Carrier 3 migration defines durable profile, ownership, rewards and leader
   assert.equal(/DROP\s+TABLE/i.test(sql), false, 'initial migration must not destroy durable state');
 });
 
-test('authoritative Worker config binds one real D1 database without weakening existing Durable Object config', () => {
+test('authoritative Worker uses a Wrangler draft D1 binding without weakening existing Durable Object config', () => {
   const config = JSON.parse(readFileSync('wrangler.jsonc', 'utf8'));
   assert.equal(config.account_id, '6c5207813df3d5b83b9508125e0e9e12');
   assert.ok(config.durable_objects?.bindings?.some((binding) => binding.name === 'GAME_ROOM' && binding.class_name === 'GameRoom'));
@@ -31,7 +31,19 @@ test('authoritative Worker config binds one real D1 database without weakening e
   assert.equal(config.d1_databases?.length, 1);
   const database = config.d1_databases?.[0];
   assert.equal(database?.binding, 'DB');
-  assert.equal(database?.database_name, 'abyss-eater-progression');
-  assert.match(database?.database_id ?? '', /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i);
-  assert.equal(String(database?.database_id ?? '').includes('<'), false, 'database id must not be a placeholder');
+  assert.equal(database?.database_id, undefined, 'draft binding must not commit an account-specific database id');
+});
+
+test('production deployment fails closed on paid Workers and applies D1 migrations before game deploy', () => {
+  const workflow = readFileSync('.github/workflows/deploy-production.yml', 'utf8');
+  for (const marker of [
+    'Fail closed unless Workers account is free',
+    '/subscriptions',
+    'Paid Workers subscription detected',
+    'wrangler@4.129.1 d1 migrations apply DB --remote',
+    'npm run deploy:game',
+  ]) {
+    assert.ok(workflow.includes(marker), `production deploy must include ${marker}`);
+  }
+  assert.ok(workflow.indexOf('d1 migrations apply DB --remote') < workflow.indexOf('npm run deploy:game'), 'migration must run before game deploy');
 });
