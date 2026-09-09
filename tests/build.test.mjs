@@ -7,63 +7,95 @@ function build() {
   return spawnSync(process.execPath, ['scripts/build.mjs'], { encoding: 'utf8' });
 }
 
-test('production Worker bundle contains multiplayer room protocol and embedded assets', () => {
+function builtWorker() {
   const result = build();
   assert.equal(result.status, 0, `build must succeed:\n${result.stdout}\n${result.stderr}`);
-  const worker = readFileSync('dist/worker.mjs', 'utf8');
+  return readFileSync('dist/worker.mjs', 'utf8');
+}
+
+test('production Worker bundle contains hardened multiplayer protocol and modular assets', () => {
+  const worker = builtWorker();
   for (const marker of [
     'export class GameRoom',
     'this.ctx.acceptWebSocket(server)',
     "url.pathname === '/health'",
     "url.pathname === '/ws'",
-    '\"/\":',
-    '\"/app.js\":',
-    '\"/styles.css\":',
-    '\"/manifest.webmanifest\":',
-    '\"/game/presentation.js\":',
-    '\"/game/themes.js\":',
-    '\"/game/fish.js\":',
-    '\"/ui/hud.js\":',
-    '\"/ui/lobby.js\":',
+    '"/":',
+    '"/app.js":',
+    '"/styles.css":',
+    '"/themes.css":',
+    '"/manifest.webmanifest":',
+    '"/client-input.mjs":',
+    '"/game/presentation.js":',
+    '"/game/themes.js":',
+    '"/game/fish.js":',
+    '"/game/network.js":',
+    '"/ui/hud.js":',
+    '"/ui/lobby.js":',
     'GAME_ROOM.getByName',
     'serializeAttachment',
-  ]) {
-    assert.ok(worker.includes(marker), `bundle must include ${marker}`);
-  }
+  ]) assert.ok(worker.includes(marker), `bundle must include ${marker}`);
 });
 
-test('embedded client contains pinned 3D renderer, HUD, touch controls and realtime connection', () => {
-  const result = build();
-  assert.equal(result.status, 0, `build must succeed:\n${result.stdout}\n${result.stderr}`);
-  const worker = readFileSync('dist/worker.mjs', 'utf8');
+test('embedded client contains pinned 3D renderer, premium HUD, touch controls and realtime connection', () => {
+  const worker = builtWorker();
   for (const marker of [
     'cdn.jsdelivr.net/npm/three@0.185.1/build/three.module.js',
     'id=\\"hud-mass\\"',
     'id=\\"touch-controls\\"',
-    'new WebSocket',
-    "new URL('/ws'",
-    'Abyss Eater: Ocean Survival',
-  ]) {
-    assert.ok(worker.includes(marker), `client bundle must include ${marker}`);
-  }
-});
-
-test('phase A bundle exposes premium lobby HUD environment fish effects and analog controls', () => {
-  const result = build();
-  assert.equal(result.status, 0, `build must succeed:\n${result.stdout}\n${result.stderr}`);
-  const worker = readFileSync('dist/worker.mjs', 'utf8');
-  for (const marker of [
     'id=\\"quality-select\\"',
     'id=\\"leaderboard\\"',
     'id=\\"depth-meter\\"',
     'id=\\"touch-joystick\\"',
+    'new WebSocket',
+    "new URL('/ws'",
+    'Abyss Eater: Ocean Survival',
     'createOceanEnvironment',
     'createFishRig',
     'createEffectManager',
     'createInputController',
     'createNetworkClient',
     'prefers-reduced-motion',
-  ]) {
-    assert.ok(worker.includes(marker), `phase A bundle must include ${marker}`);
-  }
+  ]) assert.ok(worker.includes(marker), `client bundle must include ${marker}`);
+});
+
+test('embedded client preserves desktop mouse-look and camera-relative controls', () => {
+  const worker = builtWorker();
+  for (const marker of [
+    'cameraRelativeDirection',
+    'requestPointerLock',
+    'pointerLockElement',
+    'Mouse look',
+  ]) assert.ok(worker.includes(marker), `desktop controls bundle must include ${marker}`);
+});
+
+test('embedded client negotiates protocol v1, resumes presence and fails closed on mismatch', () => {
+  const worker = builtWorker();
+  for (const marker of [
+    'const PROTOCOL_VERSION = 1;',
+    'VERSIONED_MESSAGE_TYPES',
+    'sessionStorage',
+    "wsUrl.searchParams.set('resume'",
+    'v: PROTOCOL_VERSION',
+    'message.v !== PROTOCOL_VERSION',
+    'message.resumeKey',
+    'message.inputSeq',
+    'message.resumed',
+    'Reconnected to your fish',
+    'Upgrade required',
+  ]) assert.ok(worker.includes(marker), `versioned reconnect client must include ${marker}`);
+});
+
+test('phase B keeps stylized default and ships switchable realistic deep sea presentation', () => {
+  const worker = builtWorker();
+  for (const marker of [
+    'const DEEP_SEA',
+    "'deep-sea': DEEP_SEA",
+    'id=\\"settings-theme-select\\"',
+    'id=\\"settings-quality-select\\"',
+    'data-theme=\\"stylized\\"',
+    'html[data-theme=\\"deep-sea\\"]',
+    'shaftOpacity',
+    'planktonSize',
+  ]) assert.ok(worker.includes(marker), `deep sea bundle must include ${marker}`);
 });

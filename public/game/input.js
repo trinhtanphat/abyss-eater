@@ -1,9 +1,10 @@
+import { cameraRelativeDirection, updateLook } from '/client-input.mjs';
 import { normalizePlanarInput } from './presentation.js';
 
 const BLOCKED_CODES = new Set(['Space', 'ArrowUp', 'ArrowDown', 'ArrowLeft', 'ArrowRight']);
 const INTERACTIVE_SELECTOR = 'input, select, button, textarea, a, [role="button"], [data-no-steer]';
 
-export function createInputController({ canvas, joystick, joystickKnob, upButton, downButton, pointerToggle } = {}) {
+export function createInputController({ canvas, joystick, joystickKnob, upButton, downButton, pointerToggle, onHint = () => {} } = {}) {
   const keys = new Set();
   const vertical = new Set();
   let enabled = false;
@@ -11,6 +12,8 @@ export function createInputController({ canvas, joystick, joystickKnob, upButton
   let pointer = { x: 0, z: 0 };
   let stick = { x: 0, z: 0 };
   let stickPointerId = null;
+  let lookYaw = 0;
+  let lookPitch = -0.12;
 
   function setEnabled(value) {
     enabled = Boolean(value);
@@ -24,7 +27,7 @@ export function createInputController({ canvas, joystick, joystickKnob, upButton
   }
 
   function isInteractiveTarget(target) {
-    return target instanceof Element && Boolean(target.closest(INTERACTIVE_SELECTOR));
+    return typeof Element !== 'undefined' && target instanceof Element && Boolean(target.closest(INTERACTIVE_SELECTOR));
   }
 
   function onKeyDown(event) {
@@ -39,6 +42,12 @@ export function createInputController({ canvas, joystick, joystickKnob, upButton
 
   function onPointerMove(event) {
     if (!enabled || !pointerEnabled || event.pointerType === 'touch' || isInteractiveTarget(event.target)) return;
+    if (document.pointerLockElement === canvas) {
+      const next = updateLook({ yaw: lookYaw, pitch: lookPitch }, event.movementX, event.movementY);
+      lookYaw = next.yaw;
+      lookPitch = next.pitch;
+      return;
+    }
     const width = Math.max(1, innerWidth);
     const height = Math.max(1, innerHeight);
     const dx = (event.clientX - width / 2) / (width * 0.36);
@@ -49,9 +58,20 @@ export function createInputController({ canvas, joystick, joystickKnob, upButton
       pointer = { x: 0, z: 0 };
       return;
     }
-    const adjusted = (length - deadZone) / (1 - deadZone);
+    const adjusted = Math.min(1, (length - deadZone) / (1 - deadZone));
     const direction = normalizePlanarInput({ x: dx, z: dz });
-    pointer = normalizePlanarInput({ x: direction.x * Math.min(1, adjusted), z: direction.z * Math.min(1, adjusted) });
+    pointer = { x: direction.x * adjusted, z: direction.z * adjusted };
+  }
+
+  function onCanvasClick(event) {
+    if (!enabled || !pointerEnabled || event.pointerType === 'touch' || !matchMedia('(pointer: fine)').matches) return;
+    if (document.pointerLockElement !== canvas) canvas?.requestPointerLock?.();
+  }
+
+  function onPointerLockChange() {
+    if (!enabled) return;
+    if (document.pointerLockElement === canvas) onHint('Mouse look active · Esc releases cursor');
+    else if (pointerEnabled && matchMedia('(pointer: fine)').matches) onHint('Mouse released · move to steer or click the ocean for mouse look');
   }
 
   function updateStick(event) {
@@ -75,13 +95,7 @@ export function createInputController({ canvas, joystick, joystickKnob, upButton
     joystick?.setPointerCapture?.(event.pointerId);
     updateStick(event);
   }
-
-  function onStickMove(event) {
-    if (event.pointerId !== stickPointerId) return;
-    event.preventDefault();
-    updateStick(event);
-  }
-
+  function onStickMove(event) { if (event.pointerId === stickPointerId) { event.preventDefault(); updateStick(event); } }
   function onStickEnd(event) {
     if (event.pointerId !== stickPointerId) return;
     event.preventDefault();
@@ -107,34 +121,42 @@ export function createInputController({ canvas, joystick, joystickKnob, upButton
   }
 
   function direction() {
-    let x = 0;
-    let z = 0;
-    if (keys.has('KeyA') || keys.has('ArrowLeft')) x -= 1;
-    if (keys.has('KeyD') || keys.has('ArrowRight')) x += 1;
-    if (keys.has('KeyW') || keys.has('ArrowUp')) z -= 1;
-    if (keys.has('KeyS') || keys.has('ArrowDown')) z += 1;
+    let strafe = 0;
+    let forward = 0;
+    if (keys.has('KeyA') || keys.has('ArrowLeft')) strafe -= 1;
+    if (keys.has('KeyD') || keys.has('ArrowRight')) strafe += 1;
+    if (keys.has('KeyW') || keys.has('ArrowUp')) forward += 1;
+    if (keys.has('KeyS') || keys.has('ArrowDown')) forward -= 1;
 
-    let planar = normalizePlanarInput({ x, z });
-    if (Math.hypot(stick.x, stick.z) > 0.02) planar = stick;
-    else if (Math.hypot(planar.x, planar.z) < 0.02 && pointerEnabled) planar = pointer;
+    if (Math.hypot(stick.x, stick.z) > 0.02) {
+      strafe = stick.x;
+      forward = -stick.z;
+    } else if (Math.hypot(strafe, forward) < 0.02 && pointerEnabled && document.pointerLockElement !== canvas) {
+      strafe = pointer.x;
+      forward = -pointer.z;
+    }
 
-    let y = 0;
-    if (keys.has('Space') || vertical.has('up')) y += 1;
-    if (keys.has('ShiftLeft') || keys.has('ShiftRight') || vertical.has('down')) y -= 1;
-    const length = Math.hypot(planar.x, y, planar.z);
-    if (length > 1) return { x: planar.x / length, y: y / length, z: planar.z / length };
-    return { x: planar.x, y, z: planar.z };
+    let verticalAmount = 0;
+    if (keys.has('Space') || vertical.has('up')) verticalAmount += 1;
+    if (keys.has('ShiftLeft') || keys.has('ShiftRight') || vertical.has('down')) verticalAmount -= 1;
+    return cameraRelativeDirection({ forward, strafe, vertical: verticalAmount }, lookYaw, lookPitch);
   }
 
   function syncPointerToggle() {
     pointerEnabled = pointerToggle ? Boolean(pointerToggle.checked) : true;
-    if (!pointerEnabled) pointer = { x: 0, z: 0 };
+    if (!pointerEnabled) {
+      pointer = { x: 0, z: 0 };
+      if (document.pointerLockElement === canvas) document.exitPointerLock?.();
+    }
   }
 
+  const clear = () => { keys.clear(); vertical.clear(); pointer = { x: 0, z: 0 }; };
   addEventListener('keydown', onKeyDown, { passive: false });
   addEventListener('keyup', onKeyUp);
-  addEventListener('blur', () => { keys.clear(); vertical.clear(); pointer = { x: 0, z: 0 }; });
+  addEventListener('blur', clear);
   canvas?.addEventListener('pointermove', onPointerMove, { passive: true });
+  canvas?.addEventListener('click', onCanvasClick);
+  document.addEventListener('pointerlockchange', onPointerLockChange);
   joystick?.addEventListener('pointerdown', onStickDown, { passive: false });
   joystick?.addEventListener('pointermove', onStickMove, { passive: false });
   joystick?.addEventListener('pointerup', onStickEnd, { passive: false });
@@ -147,11 +169,18 @@ export function createInputController({ canvas, joystick, joystickKnob, upButton
   return {
     direction,
     setEnabled,
-    setPointerEnabled(value) { pointerEnabled = Boolean(value); if (pointerToggle) pointerToggle.checked = pointerEnabled; },
+    setPointerEnabled(value) {
+      pointerEnabled = Boolean(value);
+      if (pointerToggle) pointerToggle.checked = pointerEnabled;
+      if (!pointerEnabled && document.pointerLockElement === canvas) document.exitPointerLock?.();
+    },
     destroy() {
       removeEventListener('keydown', onKeyDown);
       removeEventListener('keyup', onKeyUp);
+      removeEventListener('blur', clear);
       canvas?.removeEventListener('pointermove', onPointerMove);
+      canvas?.removeEventListener('click', onCanvasClick);
+      document.removeEventListener('pointerlockchange', onPointerLockChange);
       joystick?.removeEventListener('pointerdown', onStickDown);
       joystick?.removeEventListener('pointermove', onStickMove);
       joystick?.removeEventListener('pointerup', onStickEnd);

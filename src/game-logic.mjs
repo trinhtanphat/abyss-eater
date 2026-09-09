@@ -11,7 +11,12 @@ function clamp(value, min, max) {
 }
 
 function distance3(a, b) {
-  return Math.hypot(a.x - b.x, a.y - b.y, a.z - b.z);
+  if (!a || !b) return Number.POSITIVE_INFINITY;
+  return Math.hypot(
+    finite(a.x) - finite(b.x),
+    finite(a.y) - finite(b.y),
+    finite(a.z) - finite(b.z),
+  );
 }
 
 export function clampDirection(dir = {}) {
@@ -56,9 +61,23 @@ export function advancePlayer(player, dir, dt, bounds) {
 
 export function canEat(predator, prey) {
   if (!predator || !prey || predator === prey) return false;
-  if (finite(predator.mass) < finite(prey.mass) * 1.15) return false;
-  const reach = radiusForMass(predator.mass) + radiusForMass(prey.mass) * 0.35;
+  const predatorMass = predator.mass;
+  const preyMass = prey.mass;
+  if (!Number.isFinite(predatorMass) || !Number.isFinite(preyMass)) return false;
+  if (predatorMass < START_MASS || preyMass < START_MASS) return false;
+  if (predatorMass < preyMass * 1.15) return false;
+  const reach = radiusForMass(predatorMass) + radiusForMass(preyMass) * 0.35;
   return distance3(predator.position, prey.position) <= reach;
+}
+
+export function resolveEatPair(a, b) {
+  const aCanEat = canEat(a, b);
+  const bCanEat = canEat(b, a);
+  if (aCanEat && !bCanEat) return 'a';
+  if (bCanEat && !aCanEat) return 'b';
+  if (!aCanEat && !bCanEat) return null;
+  if (a.mass !== b.mass) return a.mass > b.mass ? 'a' : 'b';
+  return String(a.id ?? '') <= String(b.id ?? '') ? 'a' : 'b';
 }
 
 export function collectFood(player, food) {

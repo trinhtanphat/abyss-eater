@@ -36,15 +36,7 @@ const playerMeshes = new Map();
 const foodMeshes = new Map();
 
 function renderHud() {
-  const threat = hud.render({
-    snapshot: state.snapshot,
-    clientId: state.clientId,
-    bounds: state.bounds,
-    room: state.room,
-    pingMs,
-    statusText,
-    connected,
-  });
+  const threat = hud.render({ snapshot: state.snapshot, clientId: state.clientId, bounds: state.bounds, room: state.room, pingMs, statusText, connected });
   effects?.danger(threat.level !== 'safe');
 }
 
@@ -61,10 +53,7 @@ function setTheme(id) {
 function rebuildEnvironment() {
   if (!sceneContext) return;
   environment?.dispose();
-  environment = createOceanEnvironment(sceneContext.scene, {
-    theme: activeTheme,
-    profile: sceneContext.profile,
-  });
+  environment = createOceanEnvironment(sceneContext.scene, { theme: activeTheme, profile: sceneContext.profile });
 }
 
 function rebuildEffects() {
@@ -144,7 +133,6 @@ function syncSnapshot(changes = null) {
       Number(changes.me.position?.y) || 0,
       Number(changes.me.position?.z) || 0,
     );
-
     if (changes.scoreDelta > 0) {
       if (changes.scoreDelta >= 50) {
         effects?.eat(effectPosition, changes.scoreDelta, activeTheme.fish.local);
@@ -153,13 +141,11 @@ function syncSnapshot(changes = null) {
         effects?.food(effectPosition, changes.scoreDelta, activeTheme.food.color);
       }
     }
-
     const previousTier = Math.floor(Math.log2(Math.max(1, Number(changes.previous.mass) || 1)));
     const currentTier = Math.floor(Math.log2(Math.max(1, Number(changes.me.mass) || 1)));
     if (changes.massDelta > 0 && currentTier > previousTier) effects?.growth(effectPosition);
     if (changes.deathDelta > 0) effects?.respawn();
   }
-
   renderHud();
 }
 
@@ -189,15 +175,8 @@ activeTheme = getTheme(initialPreferences.theme);
 activeQuality = initialPreferences.quality;
 applyDocumentTheme(activeTheme);
 
-sceneContext = createGameScene(gameRoot, {
-  theme: activeTheme,
-  quality: activeQuality,
-  reducedMotion,
-});
-environment = createOceanEnvironment(sceneContext.scene, {
-  theme: activeTheme,
-  profile: sceneContext.profile,
-});
+sceneContext = createGameScene(gameRoot, { theme: activeTheme, quality: activeQuality, reducedMotion });
+environment = createOceanEnvironment(sceneContext.scene, { theme: activeTheme, profile: sceneContext.profile });
 effects = createEffectManager(sceneContext.scene, {
   profile: sceneContext.profile,
   reducedMotion,
@@ -212,6 +191,7 @@ input = createInputController({
   upButton: document.querySelector('#touch-up'),
   downButton: document.querySelector('#touch-down'),
   pointerToggle: document.querySelector('#pointer-steering'),
+  onHint: (message) => showToast(message, 'info', 1500),
 });
 input.setPointerEnabled(initialPreferences.pointerSteering);
 
@@ -224,7 +204,7 @@ network = createNetworkClient({
   onWelcome(message) {
     const changes = state.welcome(message);
     syncSnapshot(changes);
-    showToast(`Entered ${message.room || 'the ocean'}`, 'success', 1500);
+    showToast(message.resumed ? 'Reconnected to your fish' : `Entered ${message.room || 'the ocean'}`, 'success', 1500);
   },
   onSnapshot(message) {
     const changes = state.applySnapshot(message);
@@ -241,9 +221,13 @@ network = createNetworkClient({
   onError(message) {
     showToast(`Server rejected input: ${message.code || 'unknown'}`, 'danger', 1800);
   },
+  onProtocolMismatch() {
+    input.setEnabled(false);
+    showToast('Upgrade required · reload the game', 'danger', 3200);
+  },
 });
 
-// A lightweight procedural hero fish keeps the lobby alive without loading a model asset.
+// Lightweight procedural hero fish: no binary model asset or paid dependency.
 demoFish = createFishRig({ id: 'abyss-hero', isLocal: true, theme: activeTheme });
 demoFish.position.set(-1, 1.2, 0);
 demoFish.userData.target.copy(demoFish.position);
@@ -251,18 +235,12 @@ demoFish.userData.previousTarget.copy(demoFish.position);
 demoFish.userData.mass = 2.4;
 sceneContext.scene.add(demoFish);
 
-setInterval(() => {
-  if (started) network.sendInput(input.direction());
-}, 100);
-
-setInterval(() => {
-  if (started) network.ping();
-}, 2000);
+setInterval(() => { if (started) network.sendInput(input.direction()); }, 100);
+setInterval(() => { if (started) network.ping(); }, 2000);
 
 function animate(time) {
   const delta = Math.min(0.05, Math.max(0, (time - lastFrameAt) / 1000));
   lastFrameAt = time;
-
   environment?.update(time);
   effects?.update(delta);
 
@@ -272,14 +250,10 @@ function animate(time) {
     const pulse = 1 + Math.sin(time * 0.0025 + mesh.position.x) * 0.035;
     mesh.scale.setScalar(pulse);
   }
-
-  for (const [id, rig] of playerMeshes) {
-    animateFishRig(rig, time, id === state.clientId);
-  }
+  for (const [id, rig] of playerMeshes) animateFishRig(rig, time, id === state.clientId);
 
   let cameraTarget = playerMeshes.get(state.clientId) || null;
   let cameraMass = state.localPlayer()?.mass || 1;
-
   if (!started && demoFish) {
     const seconds = time * 0.001;
     demoFish.userData.previousTarget.copy(demoFish.userData.target);
@@ -292,7 +266,6 @@ function animate(time) {
     cameraTarget = demoFish;
     cameraMass = 2.4;
   }
-
   sceneContext.follow(cameraTarget, cameraMass, delta);
   sceneContext.render();
 }
