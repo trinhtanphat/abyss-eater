@@ -13,7 +13,7 @@ function builtWorker() {
   return readFileSync('dist/worker.mjs', 'utf8');
 }
 
-test('production Worker bundle contains hardened multiplayer protocol and modular assets', () => {
+test('production Worker bundle contains hardened multiplayer protocol, PWA and modular assets', () => {
   const worker = builtWorker();
   for (const marker of [
     'export class GameRoom',
@@ -25,6 +25,9 @@ test('production Worker bundle contains hardened multiplayer protocol and modula
     '"/styles.css":',
     '"/themes.css":',
     '"/manifest.webmanifest":',
+    '"/sw.js":',
+    '"/icon-192.svg":',
+    '"/icon-512.svg":',
     '"/client-input.mjs":',
     '"/game/presentation.js":',
     '"/game/themes.js":',
@@ -69,10 +72,10 @@ test('embedded client preserves desktop mouse-look and camera-relative controls'
   ]) assert.ok(worker.includes(marker), `desktop controls bundle must include ${marker}`);
 });
 
-test('embedded client negotiates protocol v1, resumes presence and fails closed on mismatch', () => {
+test('embedded client negotiates protocol v2, resumes presence and fails closed on mismatch', () => {
   const worker = builtWorker();
   for (const marker of [
-    'const PROTOCOL_VERSION = 1;',
+    'const PROTOCOL_VERSION = 2;',
     'VERSIONED_MESSAGE_TYPES',
     'sessionStorage',
     "wsUrl.searchParams.set('resume'",
