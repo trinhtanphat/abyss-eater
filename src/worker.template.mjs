@@ -4,6 +4,7 @@ import { DurableObject } from 'cloudflare:workers';
 /*__WORLD__*/
 /*__WORLD_ACTORS__*/
 /*__WILDLIFE__*/
+/*__CHAT__*/
 /*__PROTOCOL__*/
 /*__SPATIAL_GRID__*/
 /*__ROOM_STATE__*/
@@ -449,6 +450,24 @@ async function socialDoJson(stub, path, body) {
   const value = await response.json().catch(() => null);
   return { response, value };
 }
+async function handleReportApi(request, env) {
+  if (request.method !== 'POST') return jsonApi({ ok: false, code: 'method_not_allowed' }, 405);
+  const auth = await authenticatedProfile(request, env);
+  if (auth.response) return auth.response;
+  const body = await readSmallJson(request);
+  if (!body) return jsonApi({ ok: false, code: 'invalid_request' }, 400);
+  try {
+    const result = await createModerationReport(env.PROFILE_DB, auth.profile.id, {
+      targetPlayerId: body.targetPlayerId, room: body.room, reason: body.reason,
+    }, Date.now(), crypto.randomUUID());
+    return jsonApi(result, 201);
+  } catch (error) {
+    const code = String(error?.message || 'report_failed');
+    if (code.startsWith('report-')) return jsonApi({ ok: false, code }, 400);
+    return persistenceUnavailable();
+  }
+}
+
 async function handleQuickDiveApi(request, env) {
   if (request.method !== 'POST') return jsonApi({ ok: false, code: 'method_not_allowed' }, 405);
   const stub = matchmakerStub(env);
@@ -538,6 +557,7 @@ export class GameRoom extends DurableObject {
     this.foodDirty = true;
     this.wildlifeDirty = true;
     this.worldDirty = true;
+    this.chatState = new Map();
     this.ctx.blockConcurrencyWhile(async () => {
       const stored = await this.ctx.storage.get('food');
       this.food = Array.isArray(stored) && stored.length ? stored : makeFood();
@@ -559,6 +579,15 @@ export class GameRoom extends DurableObject {
         room, players: this.socketsWithPlayers().length, now,
       });
     } catch {}
+  }
+
+  broadcastChat(player, text, now = Date.now()) {
+    const payload = JSON.stringify({
+      type: 'chat', v: PROTOCOL_VERSION, id: player.id, name: player.name, text, at: now,
+    });
+    for (const { socket } of this.socketsWithPlayers()) {
+      if (socket.readyState === WebSocket.OPEN) socket.send(payload);
+    }
   }
 
   snapshot(includeFood = false, includeWildlife = false, includeWorld = false) {
@@ -822,6 +851,18 @@ export class GameRoom extends DurableObject {
     }
     const message = parsed.message;
 
+    if (message.type === 'chat') {
+      const chatState = this.chatState.get(player.id);
+      const accepted = acceptChatMessage(message.text, chatState, now);
+      this.chatState.set(player.id, accepted.state);
+      if (!accepted.ok) {
+        this.sendError(ws, accepted.code);
+        return;
+      }
+      this.broadcastChat(player, accepted.text, now);
+      return;
+    }
+
     if (message.type === 'ping') {
       ws.send(JSON.stringify({
         type: 'pong',
@@ -997,6 +1038,7 @@ export class GameRoom extends DurableObject {
     const now = Date.now();
     player = await this.settleCheckpoint(player, now);
     const detached = { ...player, interactive: false };
+    this.chatState.delete(player.id);
     ws.serializeAttachment(detached);
     await this.notifyMatchmakerOccupancy(detached.matchRoom, now);
     await this.saveReconnectSlot(detached, now);
@@ -1031,6 +1073,10 @@ export default {
         pickupsPerRoom: PICKUP_COUNT,
         persistence: persistenceReady(env) ? 'configured' : 'unavailable',
       });
+    }
+
+    if (url.pathname === '/api/report') {
+      return handleReportApi(request, env);
     }
 
     if (url.pathname === '/api/matchmaking/quick') {
