@@ -1,0 +1,90 @@
+@import url('/integration.css');
+
+/* Theme-specific presentation overrides live separately from the shared responsive shell. */
+.settings-controls { display: grid; gap: 4px; margin: 14px 0; }
+.settings-controls .field { margin: 6px 0; }
+.toggle-row.compact { margin: 6px 0; min-height: 50px; }
+
+html[data-theme="stylized"] .surface-glow {
+  opacity: 1;
+}
+
+html[data-theme="deep-sea"] .surface-glow {
+  opacity: .42;
+  background:
+    radial-gradient(ellipse at 47% -8%, rgba(103, 153, 158, .12), transparent 31%),
+    radial-gradient(ellipse at 76% 25%, rgba(35, 85, 81, .05), transparent 27%);
+}
+
+html[data-theme="deep-sea"] .water-vignette {
+  background: radial-gradient(circle at 50% 36%, rgba(0,0,0,.03) 20%, rgba(0, 5, 7, .38) 67%, rgba(0, 2, 3, .78) 112%);
+}
+
+html[data-theme="deep-sea"] .panel,
+html[data-theme="deep-sea"] .panel-mini {
+  border-color: rgba(137, 177, 179, .12);
+  background: linear-gradient(145deg, rgba(7, 21, 24, .84), rgba(1, 9, 12, .75));
+  box-shadow: 0 24px 80px rgba(0, 0, 0, .56), inset 0 1px 0 rgba(211, 232, 230, .025);
+}
+
+html[data-theme="deep-sea"] .lobby-shell {
+  background:
+    linear-gradient(90deg, rgba(0, 5, 7, .82) 0%, rgba(0, 5, 7, .19) 49%, rgba(0, 5, 7, .54) 100%),
+    radial-gradient(circle at 72% 22%, rgba(65, 106, 105, .05), transparent 28%);
+}
+
+html[data-theme="deep-sea"] h1 {
+  text-shadow: 0 18px 48px rgba(0,0,0,.54);
+}
+
+html[data-theme="deep-sea"] h1 em {
+  -webkit-text-stroke-color: rgba(139, 192, 197, .58);
+  text-shadow: 0 0 32px rgba(110, 166, 168, .07);
+}
+
+html[data-theme="deep-sea"] .brand-mark {
+  background: linear-gradient(145deg, rgba(80, 126, 128, .24), rgba(14, 45, 48, .44));
+  border-color: rgba(139, 192, 197, .18);
+  box-shadow: 0 0 42px rgba(84, 137, 137, .1);
+}
+
+html[data-theme="deep-sea"] #play-button {
+  background: linear-gradient(135deg, #a0c9c9, #75aaa7 55%, #9bbda9);
+  color: #041415;
+  box-shadow: 0 14px 34px rgba(78, 122, 121, .18);
+}
+
+html[data-theme="deep-sea"] input,
+html[data-theme="deep-sea"] select,
+html[data-theme="deep-sea"] .toggle-row {
+  border-color: rgba(133, 176, 178, .11);
+  background-color: rgba(1, 10, 12, .72);
+}
+
+html[data-theme="deep-sea"] .feature-pills span,
+html[data-theme="deep-sea"] .hud-stats div {
+  background: rgba(0, 7, 9, .42);
+  border-color: rgba(130, 171, 171, .08);
+}
+
+html[data-theme="deep-sea"] .growth-track i {
+  box-shadow: 0 0 9px rgba(139, 192, 197, .22);
+}
+
+html[data-theme="deep-sea"] .joystick-ring {
+  background: radial-gradient(circle, rgba(4, 18, 20, .18), rgba(1, 11, 13, .62));
+  border-color: rgba(151, 191, 191, .14);
+}
+
+html[data-theme="deep-sea"] .joystick-knob {
+  background: linear-gradient(145deg, rgba(74, 115, 117, .48), rgba(6, 29, 32, .76));
+  border-color: rgba(168, 204, 203, .2);
+}
+
+html[data-theme="deep-sea"] .depth-meter {
+  background: linear-gradient(90deg, rgba(116, 158, 160, .18), rgba(3, 25, 30, .62));
+}
+
+@media (prefers-reduced-motion: reduce) {
+  html[data-theme="deep-sea"] .surface-glow { mix-blend-mode: normal; }
+}

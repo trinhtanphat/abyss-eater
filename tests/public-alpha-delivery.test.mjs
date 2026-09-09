@@ -43,17 +43,19 @@ test('Worker coalesces snapshots, carries food dirtiness, canonicalizes rooms an
   }
 });
 
-test('client accepts player-only delta snapshots and reuses GPU resources', () => {
-  const client = readFileSync('public/app.js', 'utf8');
+test('modular client accepts player-only delta snapshots and reuses GPU resources', () => {
+  const state = readFileSync('public/game/state.js', 'utf8');
+  assert.ok(state.includes('Array.isArray(next.food) ? next.food : snapshot.food'));
+
+  const fish = readFileSync('public/game/fish.js', 'utf8');
   for (const marker of [
-    'Array.isArray(next.food) ? next.food : snapshot.food',
-    'const fishBodyGeometry',
-    'const fishTailGeometry',
-    'const foodGeometry',
-    'const foodMaterial',
-    'disposeFishMesh',
+    'const BODY_GEOMETRY',
+    'const TAIL_GEOMETRY',
+    'const FIN_GEOMETRY',
+    'const FOOD_GEOMETRY',
+    'disposeFishRig',
   ]) {
-    assert.ok(client.includes(marker), `client must include ${marker}`);
+    assert.ok(fish.includes(marker), `fish renderer must include ${marker}`);
   }
 });
 

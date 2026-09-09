@@ -1,23 +1,41 @@
-import { mkdir, readFile, writeFile } from 'node:fs/promises';
+import { mkdir, readdir, readFile, writeFile } from 'node:fs/promises';
+import path from 'node:path';
 
-const assetFiles = {
-  '/': ['public/index.html', 'text/html; charset=utf-8'],
-  '/bootstrap.js': ['public/bootstrap.js', 'text/javascript; charset=utf-8'],
-  '/app.js': ['public/app.js', 'text/javascript; charset=utf-8'],
-  '/client-input.mjs': ['public/client-input.mjs', 'text/javascript; charset=utf-8'],
-  '/client-settings.mjs': ['public/client-settings.mjs', 'text/javascript; charset=utf-8'],
-  '/client-audio.mjs': ['public/client-audio.mjs', 'text/javascript; charset=utf-8'],
-  '/client-capabilities.mjs': ['public/client-capabilities.mjs', 'text/javascript; charset=utf-8'],
-  '/styles.css': ['public/styles.css', 'text/css; charset=utf-8'],
-  '/manifest.webmanifest': ['public/manifest.webmanifest', 'application/manifest+json; charset=utf-8'],
-  '/sw.js': ['public/sw.js', 'text/javascript; charset=utf-8'],
-  '/icon-192.svg': ['public/icon-192.svg', 'image/svg+xml'],
-  '/icon-512.svg': ['public/icon-512.svg', 'image/svg+xml'],
-};
+const PUBLIC_DIR = 'public';
+const MIME_TYPES = new Map([
+  ['.html', 'text/html; charset=utf-8'],
+  ['.js', 'text/javascript; charset=utf-8'],
+  ['.mjs', 'text/javascript; charset=utf-8'],
+  ['.css', 'text/css; charset=utf-8'],
+  ['.webmanifest', 'application/manifest+json; charset=utf-8'],
+  ['.json', 'application/json; charset=utf-8'],
+  ['.svg', 'image/svg+xml; charset=utf-8'],
+  ['.txt', 'text/plain; charset=utf-8'],
+]);
+
+async function listFiles(directory) {
+  const entries = await readdir(directory, { withFileTypes: true });
+  const files = [];
+  for (const entry of entries) {
+    const absolute = path.join(directory, entry.name);
+    if (entry.isDirectory()) files.push(...await listFiles(absolute));
+    else if (entry.isFile()) files.push(absolute);
+  }
+  return files;
+}
+
+function routeFor(file) {
+  const relative = path.relative(PUBLIC_DIR, file).split(path.sep).join('/');
+  return relative === 'index.html' ? '/' : `/${relative}`;
+}
+
+function contentTypeFor(file) {
+  return MIME_TYPES.get(path.extname(file).toLowerCase()) || 'application/octet-stream';
+}
 
 const assets = {};
-for (const [route, [file, contentType]] of Object.entries(assetFiles)) {
-  assets[route] = { body: await readFile(file, 'utf8'), contentType };
+for (const file of await listFiles(PUBLIC_DIR)) {
+  assets[routeFor(file)] = { body: await readFile(file, 'utf8'), contentType: contentTypeFor(file) };
 }
 
 function stripExports(source) {
@@ -45,4 +63,4 @@ template = replaceRequired(template, '/*__ASSETS__*/', JSON.stringify(assets));
 
 await mkdir('dist', { recursive: true });
 await writeFile('dist/worker.mjs', template);
-console.log(`Built dist/worker.mjs (${Buffer.byteLength(template)} bytes)`);
+console.log(`Built dist/worker.mjs (${Buffer.byteLength(template)} bytes, ${Object.keys(assets).length} assets)`);
