@@ -1,5 +1,5 @@
 <!doctype html>
-<html lang="en" data-theme="stylized">
+<html lang="en" data-app-state="loading" data-theme="stylized">
 <head>
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
@@ -10,10 +10,30 @@
   <link rel="stylesheet" href="/themes.css">
   <title>Abyss Eater: Ocean Survival</title>
 </head>
-<body>
+<body data-connection-state="ready">
   <div id="game" aria-hidden="true"></div>
   <div class="water-vignette" aria-hidden="true"></div>
   <div class="surface-glow" aria-hidden="true"></div>
+
+  <section id="loading-screen" class="system-screen lobby-shell" role="status" aria-live="polite">
+    <div class="panel dive-card system-card">
+      <div class="brand-mark" aria-hidden="true"><span></span></div>
+      <p class="eyebrow">ABYSS EATER</p>
+      <h2>Preparing the ocean…</h2>
+      <p>Checking 3D graphics and loading the premium game client.</p>
+      <div class="loading-bar" aria-hidden="true"><span></span></div>
+    </div>
+  </section>
+
+  <section id="unsupported-screen" class="system-screen lobby-shell" role="alert" hidden>
+    <div class="panel dive-card system-card">
+      <div class="brand-mark" aria-hidden="true"><span></span></div>
+      <p class="eyebrow">ABYSS EATER</p>
+      <h2 id="unsupported-title">Game unavailable</h2>
+      <p id="unsupported-message">This browser could not start the 3D game client.</p>
+      <button id="reload-button" type="button">Reload</button>
+    </div>
+  </section>
 
   <main id="start-screen" class="lobby-shell" aria-label="Abyss Eater lobby">
     <section class="lobby-copy">
@@ -37,7 +57,7 @@
       <label class="field"><span>Ocean room</span><input id="room-name" maxlength="24" value="ocean-1" placeholder="ocean-1"></label>
       <div class="field-row">
         <label class="field"><span>Ocean style</span><select id="theme-select" aria-label="Ocean style"><option value="stylized">Stylized</option><option value="deep-sea">Deep Sea</option></select></label>
-        <label class="field"><span>Quality</span><select id="quality-select" aria-label="Graphics quality"><option value="auto">Auto</option><option value="high">High</option><option value="balanced">Balanced</option><option value="low">Low</option></select></label>
+        <label class="field"><span>Quality</span><select id="quality-select" aria-label="Graphics quality"><option value="auto">Auto</option><option value="high">High</option><option value="medium">Balanced</option><option value="low">Low</option></select></label>
       </div>
       <label class="toggle-row"><span><strong>Pointer steering</strong><small>Swim toward your mouse cursor</small></span><input id="pointer-steering" type="checkbox" checked><i aria-hidden="true"></i></label>
       <button id="play-button" type="button"><span>DIVE IN</span><b aria-hidden="true">→</b></button>
@@ -59,15 +79,30 @@
     <button id="settings-button" class="icon-button settings-button" type="button" aria-label="Game settings" aria-expanded="false" data-no-steer>⚙</button>
   </section>
 
+  <div id="connection-banner" class="connection-banner panel-mini" role="status" aria-live="polite" hidden>
+    <strong id="connection-banner-title">Connecting</strong>
+    <span id="connection-banner-message">Reaching the ocean server…</span>
+  </div>
+
+  <div id="respawn-card" class="respawn-card panel-mini" role="status" aria-live="polite" hidden>
+    <p class="eyebrow">RESPAWN</p>
+    <strong id="respawn-message">A bigger fish got you.</strong>
+    <span>The server has already placed you back in the ocean.</span>
+  </div>
+
   <aside id="settings-panel" class="settings-panel panel" aria-label="Game settings" data-no-steer>
     <div class="settings-heading"><div><p class="eyebrow">LIVE SETTINGS</p><h2>Ocean controls</h2></div><button id="settings-close" class="icon-button" type="button" aria-label="Close settings">×</button></div>
     <p>Switch presentation live without reconnecting or changing authoritative gameplay.</p>
     <div class="settings-controls">
       <label class="field"><span>Ocean style</span><select id="settings-theme-select" aria-label="Live ocean style"><option value="stylized">Stylized</option><option value="deep-sea">Deep Sea</option></select></label>
-      <label class="field"><span>Quality</span><select id="settings-quality-select" aria-label="Live graphics quality"><option value="auto">Auto</option><option value="high">High</option><option value="balanced">Balanced</option><option value="low">Low</option></select></label>
+      <label class="field"><span>Quality</span><select id="settings-quality-select" aria-label="Live graphics quality"><option value="auto">Auto</option><option value="high">High</option><option value="medium">Balanced</option><option value="low">Low</option></select></label>
       <label class="toggle-row compact"><span><strong>Pointer steering</strong><small>Mouse follows cursor offset</small></span><input id="settings-pointer-steering" type="checkbox" checked><i aria-hidden="true"></i></label>
+      <label class="toggle-row compact"><span><strong>Reduced effects</strong><small>Lower motion and visual intensity</small></span><input id="reduced-effects-setting" type="checkbox"><i aria-hidden="true"></i></label>
+      <label class="field audio-field"><span>Master volume <output id="master-volume-value">65%</output></span><input id="master-volume" type="range" min="0" max="1" step="0.05" value="0.65"></label>
+      <label class="field audio-field"><span>Music volume <output id="music-volume-value">35%</output></span><input id="music-volume" type="range" min="0" max="1" step="0.05" value="0.35"></label>
+      <label class="field audio-field"><span>SFX volume <output id="sfx-volume-value">75%</output></span><input id="sfx-volume" type="range" min="0" max="1" step="0.05" value="0.75"></label>
     </div>
-    <div class="settings-note"><span>Network</span><strong>Realtime WebSocket · unchanged</strong></div>
+    <div class="settings-note"><span>Network</span><strong>Realtime WebSocket · server authoritative</strong></div>
   </aside>
 
   <div id="toast" class="toast" role="status" aria-live="polite"></div>
@@ -78,6 +113,6 @@
   </div>
 
   <noscript>Abyss Eater requires JavaScript.</noscript>
-  <script type="module" src="/app.js"></script>
+  <script type="module" src="/bootstrap.js"></script>
 </body>
 </html>
