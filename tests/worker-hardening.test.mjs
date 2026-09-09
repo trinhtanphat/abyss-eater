@@ -71,5 +71,5 @@ test('all gameplay WebSocket messages are protocol-versioned', async () => {
     const pattern = new RegExp(`type:\\s*['\"]${type}['\"][\\s\\S]{0,180}v:\\s*PROTOCOL_VERSION`);
     assert.match(source, pattern, `${type} message must carry protocol version`);
   }
-  assert.ok(source.includes("const VERSION = '0.2.0';"));
+  assert.ok(source.includes("const VERSION = '0.3.0';"));
 });
