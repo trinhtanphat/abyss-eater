@@ -47,3 +47,23 @@ test('embedded client contains pinned 3D renderer, HUD, touch controls and realt
     assert.ok(worker.includes(marker), `client bundle must include ${marker}`);
   }
 });
+
+test('phase A bundle exposes premium lobby HUD environment fish effects and analog controls', () => {
+  const result = build();
+  assert.equal(result.status, 0, `build must succeed:\n${result.stdout}\n${result.stderr}`);
+  const worker = readFileSync('dist/worker.mjs', 'utf8');
+  for (const marker of [
+    'id=\\"quality-select\\"',
+    'id=\\"leaderboard\\"',
+    'id=\\"depth-meter\\"',
+    'id=\\"touch-joystick\\"',
+    'createOceanEnvironment',
+    'createFishRig',
+    'createEffectManager',
+    'createInputController',
+    'createNetworkClient',
+    'prefers-reduced-motion',
+  ]) {
+    assert.ok(worker.includes(marker), `phase A bundle must include ${marker}`);
+  }
+});
