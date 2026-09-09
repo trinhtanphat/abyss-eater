@@ -58,3 +58,17 @@ test('food renderer uses a grouped marine silhouette instead of a standalone pol
   assert.ok(foodRenderer.includes('group.userData.foodMaterial = material;'), 'food group must preserve the existing theme/lifecycle material hook');
   assert.ok(!foodRenderer.includes('new THREE.Mesh(FOOD_GEOMETRY, material)'), 'food must not remain a standalone icosahedron');
 });
+
+test('effect manager owns bounded disposable eat and growth pulse rings', async () => {
+  const effects = await readFile('public/game/effects.js', 'utf8');
+
+  assert.ok(effects.includes('const RING_GEOMETRY'), 'pulse rings must reuse one shared geometry');
+  assert.ok(effects.includes('const rings = []'), 'effect manager must track transient rings');
+  assert.ok(effects.includes('function pulseRing'), 'effect manager must have a bounded ring creation path');
+  assert.ok(effects.includes('function removeRing'), 'effect manager must have a ring cleanup path');
+  assert.ok(effects.includes('ring.mesh.material.dispose();'), 'each transient ring material must be disposed');
+  assert.ok(effects.includes('pulseRing(position, color, 1.75'), 'eat must trigger the stronger pulse ring');
+  assert.ok(effects.includes('pulseRing(position, 0xb9ffe9, 1.1'), 'growth must trigger the softer pulse ring');
+  assert.ok(effects.includes('for (const ring of [...rings])'), 'rings must update and clean up during the normal effect loop');
+  assert.ok(effects.includes('if (reducedMotion) return;'), 'pulse rings must respect reduced-effects mode');
+});
