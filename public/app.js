@@ -1,6 +1,7 @@
 import * as THREE from 'https://cdn.jsdelivr.net/npm/three@0.185.1/build/three.module.js';
 import { cameraRelativeDirection, updateLook } from '/client-input.mjs';
 import { DEFAULT_SETTINGS, normalizeSettings, resolveQualityPreset } from '/client-settings.mjs';
+import { createAudioController } from '/client-audio.mjs';
 
 const PROTOCOL_VERSION = 1;
 const VERSIONED_MESSAGE_TYPES = new Set(['welcome', 'snapshot', 'pong', 'eaten', 'error']);
@@ -57,6 +58,7 @@ function qualityEnvironment() {
 
 let settings = readClientSettings();
 let qualityPreset = resolveQualityPreset(settings, qualityEnvironment());
+const audio = createAudioController({ getSettings: () => settings });
 
 const scene = new THREE.Scene();
 scene.background = new THREE.Color(0x031722);
@@ -121,6 +123,8 @@ let lastToastTimer = null;
 let lookYaw = 0;
 let lookPitch = -0.12;
 let protocolBlocked = false;
+let lastLocalMass = null;
+let lastLocalScore = null;
 
 function fishColor(id, isLocal) {
   if (isLocal) return 0x64edff;
@@ -213,7 +217,12 @@ function updateSnapshot(next) {
 
   const me = snapshot.players.find((player) => player.id === clientId);
   if (me) {
-    hudMass.textContent = Number(me.mass).toFixed(2);
+    const nextMass = Number(me.mass) || 0;
+    const nextScore = Number(me.score) || 0;
+    if (lastLocalMass !== null && (nextMass > lastLocalMass || nextScore > lastLocalScore)) audio.playEat();
+    lastLocalMass = nextMass;
+    lastLocalScore = nextScore;
+    hudMass.textContent = nextMass.toFixed(2);
     hudScore.textContent = String(me.score ?? 0);
   }
   hudPlayers.textContent = String(snapshot.players.length);
@@ -270,11 +279,14 @@ function persistSettingsFromControls(changedControl) {
     || previous.quality !== settings.quality || previous.reducedEffects !== settings.reducedEffects) {
     applyVisualSettings();
   }
+  audio.stopAmbience();
+  audio.startAmbience();
 }
 
 function openSettings() {
   syncSettingsControls();
   if (document.pointerLockElement) document.exitPointerLock?.();
+  void audio.unlock().then((unlocked) => { if (unlocked) audio.playUi(); });
   if (!settingsDialog.open) settingsDialog.showModal();
 }
 
@@ -282,6 +294,7 @@ settingsButton?.addEventListener('click', openSettings);
 hudSettingsButton?.addEventListener('click', openSettings);
 settingsDialog?.addEventListener('input', (event) => persistSettingsFromControls(event.target));
 settingsDialog?.addEventListener('change', (event) => persistSettingsFromControls(event.target));
+settingsDialog?.addEventListener('close', () => audio.playUi());
 syncSettingsControls();
 
 function sanitized(value, fallback, max) {
@@ -365,6 +378,7 @@ function connect() {
       return;
     }
     if (message.type === 'eaten') {
+      audio.playDeath();
       showToast(`Eaten by ${message.by || 'a bigger fish'} — respawning`);
       return;
     }
@@ -372,6 +386,8 @@ function connect() {
   });
   socket.addEventListener('close', () => {
     clientId = null;
+    lastLocalMass = null;
+    lastLocalScore = null;
     if (protocolBlocked) {
       setStatus('Upgrade required');
       return;
@@ -412,6 +428,10 @@ addEventListener('keydown', (event) => {
 addEventListener('keyup', (event) => inputKeys.delete(event.code));
 addEventListener('blur', () => inputKeys.clear());
 
+document.addEventListener('visibilitychange', () => {
+  void audio.setSuspended(document.hidden);
+});
+
 renderer.domElement.addEventListener('click', () => {
   if (!started || settingsDialog?.open || !matchMedia('(pointer: fine)').matches) return;
   renderer.domElement.requestPointerLock?.();
@@ -447,6 +467,12 @@ playButton.addEventListener('click', () => {
   started = true;
   document.body.classList.add('playing');
   startScreen.classList.add('hidden');
+  void audio.unlock().then((unlocked) => {
+    if (unlocked) {
+      audio.playUi();
+      audio.startAmbience();
+    }
+  });
   connect();
   if (!settingsDialog?.open && matchMedia('(pointer: fine)').matches) renderer.domElement.requestPointerLock?.();
 });
