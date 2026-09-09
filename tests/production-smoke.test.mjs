@@ -94,3 +94,21 @@ test('static parity normalizes transport-neutral BOM and line endings', () => {
   assert.equal(normalizeStaticText('a\nb\n'), 'a\nb\n');
   assert.equal(normalizeStaticText('\uFEFFa\r\nb\r\n'), 'a\nb\n');
 });
+
+test('production smoke covers Carrier 5 social assets and protocol messages', () => {
+  assert.ok(CRITICAL_ASSETS.includes('/client-social.mjs'));
+  assert.ok(CRITICAL_ASSETS.includes('/ui/lobby.js'));
+  assert.equal(typeof smoke.validateQuickDivePlacement, 'function');
+  assert.equal(typeof smoke.buildChatMessage, 'function');
+  assert.deepEqual(
+    smoke.buildChatMessage(' hello social '),
+    { type: 'chat', v: 2, text: 'hello social' },
+  );
+});
+
+test('Quick Dive smoke validator accepts only bounded public regional rooms', () => {
+  const valid = { ok: true, room: 'public-sea-2', region: 'SEA' };
+  assert.doesNotThrow(() => smoke.validateQuickDivePlacement(valid));
+  assert.throws(() => smoke.validateQuickDivePlacement({ ...valid, room: 'private-room' }), /public/i);
+  assert.throws(() => smoke.validateQuickDivePlacement({ ...valid, region: 'MARS' }), /region/i);
+});
