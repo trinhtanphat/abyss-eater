@@ -10,10 +10,12 @@ import {
   normalizeTheme,
 } from '../public/game/presentation.js';
 
-test('theme normalization keeps supported modes and defaults to stylized', () => {
-  assert.equal(normalizeTheme('stylized'), 'stylized');
-  assert.equal(normalizeTheme('deep-sea'), 'deep-sea');
+const THEMES = ['stylized', 'deep-sea', 'twilight-garden', 'blue-trench', 'volcanic-rift', 'leviathan-depths'];
+
+test('theme normalization keeps all supported modes and defaults to stylized', () => {
+  for (const value of THEMES) assert.equal(normalizeTheme(value), value);
   assert.equal(normalizeTheme('DEEP-SEA'), 'deep-sea');
+  assert.equal(normalizeTheme('TWILIGHT-GARDEN'), 'twilight-garden');
   assert.equal(normalizeTheme('unknown'), 'stylized');
   assert.equal(normalizeTheme(null), 'stylized');
 });
