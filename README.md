@@ -82,6 +82,12 @@ The client renders at display refresh rate and sends movement intent at 10 Hz. C
 
 Protocol v2 supports delta snapshots so unchanged food/wildlife data does not need to be resent every network update. Incompatible clients fail closed on the version mismatch instead of silently misreading state.
 
+## Measured scale profile
+
+Carrier 6 profiles the JSON path reproducibly with `npm run profile:network`. At the 20-player V1 cap, the measured full snapshot was **13,135 B p95** and the player-only delta snapshot was **3,084 B p95**; full `JSON.stringify` time was about **0.121 ms p95** in the recorded Node run. These remain below the explicit 32 KiB and 2 ms budgets, so binary snapshots are **evidence-deferred** and protocol v2 JSON stays canonical.
+
+Remote fish now use bounded server-time interpolation for visual position only; local input and all authoritative mass/score/collision state remain unchanged. Hidden tabs skip routine input/ping sends without disconnecting, and the Worker keeps only a bounded in-memory serialization sample window with coarse aggregate logging. See `docs/performance/carrier-6-network-profile.md` for the recorded evidence and decision rule.
+
 ## Persistent guest progression
 
 The first profile bootstrap creates a random server-side profile and a separate opaque session id. The signed browser token contains only that opaque session id, token version and expiry. D1 maps the session id to the profile; clearing the local token intentionally starts a new guest identity on the next bootstrap.
@@ -116,6 +122,7 @@ Node.js 22 or newer is required.
 
 ```bash
 npm test
+npm run profile:network
 npm run build
 node --check dist/worker.mjs
 ```
@@ -145,4 +152,4 @@ No paid Cloudflare product or paid-plan setting is enabled by this implementatio
 
 ## Still intentionally deferred
 
-Email/OAuth account linking, real-money payments, binary snapshots, deeper client-side prediction, and external authored 3D model packs remain future work. Binary networking stays evidence-gated: V1 will measure the JSON path before adding codec complexity. The public alpha now includes persistent guest profiles, opaque sessions, pearls/XP/levels, canonical cosmetics, four authoritative depth biomes with bounded AI/hazards/pickups, Quick Dive, parties, moderated room chat, local mute/report controls, and durable all-time / seasonal leaderboards.
+Email/OAuth account linking, real-money payments, binary snapshots, deeper client-side prediction, and external authored 3D model packs remain future work. Binary networking is evidence-deferred after the Carrier 6 profile showed the 20-player JSON path inside its byte and serialization budgets. The public alpha now includes persistent guest profiles, opaque sessions, pearls/XP/levels, canonical cosmetics, four authoritative depth biomes with bounded AI/hazards/pickups, Quick Dive, parties, moderated room chat, local mute/report controls, and durable all-time / seasonal leaderboards.
