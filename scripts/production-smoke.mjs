@@ -45,7 +45,10 @@ export function healthLooksReady(payload = {}) {
     && payload?.wildlifePerRoom === 24
     && payload?.biomes === 4
     && payload?.hazardsPerRoom === 8
-    && payload?.pickupsPerRoom === 12;
+    && payload?.pickupsPerRoom === 12
+    && payload?.manualBoostMultiplier === 1.55
+    && payload?.manualBoostGraceMs === 3000
+    && payload?.manualBoostScoreDrainPerSecond === 5;
 }
 
 export function validateWelcome(message) {
