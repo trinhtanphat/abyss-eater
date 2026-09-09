@@ -19,15 +19,14 @@ test('runbook documents social DOs, release evidence, live probes and CI-only de
   assert.equal(runbook.includes('Production workflow order is strict'), false);
 });
 
-test('plan index marks carriers 1-6 done and Carrier 7 qualification explicit', async () => {
+test('plan index marks all seven carriers done', async () => {
   const plan = await readFile('docs/superpowers/plans/2026-09-09-v1-plan-index.md', 'utf8');
-  for (let carrier = 1; carrier <= 6; carrier += 1) assert.ok(plan.includes(`Carrier ${carrier}: DONE`));
-  assert.ok(plan.includes('Carrier 7: QUALIFICATION'));
+  for (let carrier = 1; carrier <= 7; carrier += 1) assert.ok(plan.includes(`Carrier ${carrier}: DONE`));
 });
 
 test('V1 qualification document is fail-closed and explains exact-head evidence', async () => {
   const doc = await readFile('docs/releases/v1-qualification.md', 'utf8');
-  for (const marker of ['release-evidence.json', 'live-probe.json', 'exact Git SHA', 'Worker SHA-256', 'no paid service', 'Rollback']) {
+  for (const marker of ['release-evidence.json', 'live-probe.json', 'exact Git SHA', 'Worker SHA-256', 'no paid service', 'Rollback', 'v1-full-abc', '34361234094', 'c55f2db52e82c491d29b47dc29b9c9fb39cb2a05']) {
     assert.ok(doc.includes(marker), `qualification missing ${marker}`);
   }
   assert.ok(doc.includes('connected Cloudflare deployment integration'));
