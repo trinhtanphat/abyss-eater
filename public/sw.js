@@ -1,4 +1,4 @@
-const CACHE_NAME = 'abyss-eater-shell-v3';
+const CACHE_NAME = 'abyss-eater-shell-v4';
 const SHELL = [
   '/',
   '/styles.css',
