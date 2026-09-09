@@ -57,3 +57,22 @@ test('embedded client exposes desktop mouse-look and camera-relative keyboard co
     assert.ok(worker.includes(marker), `desktop controls bundle must include ${marker}`);
   }
 });
+
+test('embedded client negotiates protocol v1 and resumes the same room presence', () => {
+  const result = build();
+  assert.equal(result.status, 0, `build must succeed:\n${result.stdout}\n${result.stderr}`);
+  const worker = readFileSync('dist/worker.mjs', 'utf8');
+  for (const marker of [
+    'const PROTOCOL_VERSION = 1;',
+    'sessionStorage',
+    "wsUrl.searchParams.set('resume'",
+    "v: PROTOCOL_VERSION",
+    "message.v !== PROTOCOL_VERSION",
+    "message.resumeKey",
+    "message.resumed",
+    'Reconnected to your fish',
+    'Upgrade required',
+  ]) {
+    assert.ok(worker.includes(marker), `versioned reconnect client must include ${marker}`);
+  }
+});
