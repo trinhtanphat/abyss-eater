@@ -237,6 +237,12 @@ demoFish.userData.previousTarget.copy(demoFish.position);
 demoFish.userData.mass = 2.4;
 sceneContext.scene.add(demoFish);
 
+if ('serviceWorker' in navigator) {
+  addEventListener('load', () => {
+    navigator.serviceWorker.register('/sw.js').catch(() => {});
+  });
+}
+
 setInterval(() => { if (started) network.sendInput(input.direction()); }, 100);
 setInterval(() => { if (started) network.ping(); }, 2000);
 
