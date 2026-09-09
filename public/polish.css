@@ -1,0 +1,54 @@
+.system-screen {
+  position: fixed;
+  inset: 0;
+  z-index: 80;
+  display: grid;
+  place-items: center;
+  padding: max(24px, env(safe-area-inset-top)) max(18px, env(safe-area-inset-right)) max(24px, env(safe-area-inset-bottom)) max(18px, env(safe-area-inset-left));
+  background: radial-gradient(circle at 50% 30%, rgba(21, 94, 112, .22), rgba(1, 8, 14, .9));
+}
+.system-screen[hidden] { display: none; }
+.system-card { width: min(430px, 92vw); text-align: center; }
+.loading-bar { height: 4px; margin-top: 20px; overflow: hidden; border-radius: 999px; background: rgba(255,255,255,.08); }
+.loading-bar span { display: block; width: 38%; height: 100%; border-radius: inherit; background: linear-gradient(90deg, transparent, #6ee7ff, transparent); animation: shell-loading 1.15s linear infinite; }
+@keyframes shell-loading { from { transform: translateX(-120%); } to { transform: translateX(320%); } }
+
+.connection-banner,
+.respawn-card {
+  position: fixed;
+  z-index: 34;
+  left: 50%;
+  transform: translateX(-50%);
+  width: min(460px, calc(100vw - 32px));
+  padding: 12px 16px;
+  text-align: center;
+  pointer-events: none;
+  backdrop-filter: blur(18px);
+}
+.connection-banner { top: max(16px, env(safe-area-inset-top)); }
+.connection-banner strong,
+.connection-banner span,
+.respawn-card strong,
+.respawn-card span { display: block; }
+.connection-banner span,
+.respawn-card span { margin-top: 3px; font-size: 12px; opacity: .72; }
+.respawn-card { bottom: calc(30px + env(safe-area-inset-bottom)); }
+.respawn-card .eyebrow { margin: 0 0 4px; }
+body[data-connection-state="reconnecting"] .connection-banner,
+body[data-connection-state="offline"] .connection-banner,
+body[data-connection-state="upgrade-required"] .connection-banner { border-color: rgba(255, 151, 113, .25); }
+body[data-connection-state="upgrade-required"] .connection-banner { box-shadow: 0 18px 60px rgba(99, 16, 18, .28); }
+
+.audio-field > span { display: flex; align-items: center; justify-content: space-between; gap: 12px; }
+.audio-field output { color: var(--accent, #78e9ff); font-variant-numeric: tabular-nums; }
+.audio-field input[type="range"] { width: 100%; padding: 0; accent-color: var(--accent, #78e9ff); }
+body.settings-open #touch-controls { opacity: .18; pointer-events: none; }
+
+@media (max-width: 720px) {
+  .connection-banner { top: max(10px, env(safe-area-inset-top)); }
+  .respawn-card { bottom: calc(148px + env(safe-area-inset-bottom)); }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .loading-bar span { animation-duration: 2.2s; }
+}
