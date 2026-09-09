@@ -8,12 +8,17 @@ import {
   validateWelcome,
   buildWsUrl,
   normalizeStaticText,
+  buildInputMessage,
 } from '../scripts/production-smoke.mjs';
 
 test('production smoke keeps a four-player protocol-v2 Carrier 4 contract', () => {
   assert.equal(PROTOCOL_VERSION, 2);
   assert.equal(PLAYER_COUNT, 4);
   for (const asset of [
+    '/styles.css',
+    '/game/input.js',
+    '/game/network.js',
+    '/game/scene.js',
     '/game/fish.js',
     '/game/fish-skins.mjs',
     '/client-progression.mjs',
@@ -26,6 +31,13 @@ test('production smoke keeps a four-player protocol-v2 Carrier 4 contract', () =
     assert.ok(CRITICAL_ASSETS.includes(asset), `missing critical asset ${asset}`);
   }
 });
+test('production smoke sends the manual boost intent through protocol v2', () => {
+  assert.deepEqual(
+    buildInputMessage(12, { x: 0.35, y: 0, z: 0.2 }, true),
+    { type: 'input', v: 2, seq: 12, dir: { x: 0.35, y: 0, z: 0.2 }, boost: true },
+  );
+});
+
 test('health validator requires the live Carrier 4 authoritative contract', () => {
   const ready = {
     ok: true,
@@ -37,10 +49,15 @@ test('health validator requires the live Carrier 4 authoritative contract', () =
     biomes: 4,
     hazardsPerRoom: 8,
     pickupsPerRoom: 12,
+    manualBoostMultiplier: 1.55,
+    manualBoostGraceMs: 3000,
+    manualBoostScoreDrainPerSecond: 5,
   };
   assert.equal(healthLooksReady(ready), true);
   assert.equal(healthLooksReady({ ...ready, protocolVersion: 1 }), false);
   assert.equal(healthLooksReady({ ...ready, hazardsPerRoom: 7 }), false);
+  assert.equal(healthLooksReady({ ...ready, manualBoostMultiplier: 1 }), false);
+  assert.equal(healthLooksReady({ ...ready, manualBoostGraceMs: 0 }), false);
 });
 
 test('welcome validator requires resume-capable world state', () => {

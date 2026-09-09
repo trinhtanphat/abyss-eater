@@ -15,7 +15,11 @@ export const CRITICAL_ASSETS = Object.freeze([
   '/hud-assets.css',
   '/client-progression.mjs',
   '/client-tts.mjs',
+  '/styles.css',
   '/app.js',
+  '/game/input.js',
+  '/game/network.js',
+  '/game/scene.js',
   '/game/state.js',
   '/game/biomes.js',
   '/game/world-actors.js',
@@ -41,7 +45,10 @@ export function healthLooksReady(payload = {}) {
     && payload?.wildlifePerRoom === 24
     && payload?.biomes === 4
     && payload?.hazardsPerRoom === 8
-    && payload?.pickupsPerRoom === 12;
+    && payload?.pickupsPerRoom === 12
+    && payload?.manualBoostMultiplier === 1.55
+    && payload?.manualBoostGraceMs === 3000
+    && payload?.manualBoostScoreDrainPerSecond === 5;
 }
 
 export function validateWelcome(message) {
@@ -63,6 +70,10 @@ export function buildWsUrl(base, { name, room, resumeKey = '' } = {}) {
   url.searchParams.set('room', String(room || 'smoke-room').slice(0, 24));
   if (resumeKey) url.searchParams.set('resume', String(resumeKey).slice(0, 160));
   return url;
+}
+
+export function buildInputMessage(seq, dir, boost = false) {
+  return { type: 'input', v: PROTOCOL_VERSION, seq, dir, boost: Boolean(boost) };
 }
 
 function localAssetPath(asset) {
@@ -160,12 +171,11 @@ async function verifyRealtime(base) {
     }
 
     const mover = players[1];
-    mover.socket.send(JSON.stringify({
-      type: 'input',
-      v: PROTOCOL_VERSION,
-      seq: mover.state.welcome.inputSeq + 1,
-      dir: { x: 0.35, y: 0, z: 0.2 },
-    }));
+    mover.socket.send(JSON.stringify(buildInputMessage(
+      mover.state.welcome.inputSeq + 1,
+      { x: 0.35, y: 0, z: 0.2 },
+      true,
+    )));
     await delay(180);
     assert.equal(mover.state.errors.length, 0, 'valid movement input must not be rejected');
 

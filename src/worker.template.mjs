@@ -797,6 +797,9 @@ export default {
         biomes: BIOME_IDS.length,
         hazardsPerRoom: HAZARD_COUNT,
         pickupsPerRoom: PICKUP_COUNT,
+        manualBoostMultiplier: MANUAL_BOOST_MULTIPLIER,
+        manualBoostGraceMs: MANUAL_BOOST_GRACE_MS,
+        manualBoostScoreDrainPerSecond: MANUAL_BOOST_SCORE_DRAIN_PER_SECOND,
         persistence: persistenceReady(env) ? 'configured' : 'unavailable',
       });
     }
