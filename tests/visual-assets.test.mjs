@@ -72,3 +72,9 @@ test('effect manager owns bounded disposable eat and growth pulse rings', async 
   assert.ok(effects.includes('for (const ring of [...rings])'), 'rings must update and clean up during the normal effect loop');
   assert.ok(effects.includes('if (reducedMotion) return;'), 'pulse rings must respect reduced-effects mode');
 });
+
+test('offline shell precaches the fish evolution dependency', async () => {
+  const sw = await readFile('public/sw.js', 'utf8');
+  assert.ok(sw.includes("'/game/fish-evolution.mjs'"), 'service worker shell must cache the module imported by fish.js');
+  assert.ok(sw.includes("CACHE_NAME = 'abyss-eater-shell-v4'"), 'shell version must advance when its dependency list changes');
+});
