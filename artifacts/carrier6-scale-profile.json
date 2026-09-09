@@ -13,9 +13,9 @@
       "count": 2000,
       "averageBytes": 7541,
       "p95Bytes": 7541,
-      "messagesPerSecond": 5525.89,
-      "serializationMs": 361.933,
-      "serializationMsPerSnapshot": 0.180966,
+      "messagesPerSecond": 16157.15,
+      "serializationMs": 123.784,
+      "serializationMsPerSnapshot": 0.061892,
       "estimatedMessagesPerSecond": 20
     },
     {
@@ -23,9 +23,9 @@
       "count": 2000,
       "averageBytes": 194,
       "p95Bytes": 194,
-      "messagesPerSecond": 106733.84,
-      "serializationMs": 18.738,
-      "serializationMsPerSnapshot": 0.009369,
+      "messagesPerSecond": 517357.34,
+      "serializationMs": 3.866,
+      "serializationMsPerSnapshot": 0.001933,
       "estimatedMessagesPerSecond": 20
     },
     {
@@ -33,9 +33,9 @@
       "count": 2000,
       "averageBytes": 8649,
       "p95Bytes": 8649,
-      "messagesPerSecond": 6627.69,
-      "serializationMs": 301.764,
-      "serializationMsPerSnapshot": 0.150882,
+      "messagesPerSecond": 15353.62,
+      "serializationMs": 130.262,
+      "serializationMsPerSnapshot": 0.065131,
       "estimatedMessagesPerSecond": 20
     },
     {
@@ -43,9 +43,9 @@
       "count": 2000,
       "averageBytes": 1302,
       "p95Bytes": 1302,
-      "messagesPerSecond": 42471.41,
-      "serializationMs": 47.091,
-      "serializationMsPerSnapshot": 0.023545,
+      "messagesPerSecond": 68883.1,
+      "serializationMs": 29.035,
+      "serializationMsPerSnapshot": 0.014517,
       "estimatedMessagesPerSecond": 20
     },
     {
@@ -53,9 +53,9 @@
       "count": 2000,
       "averageBytes": 9926,
       "p95Bytes": 9926,
-      "messagesPerSecond": 6113.67,
-      "serializationMs": 327.136,
-      "serializationMsPerSnapshot": 0.163568,
+      "messagesPerSecond": 10663.87,
+      "serializationMs": 187.549,
+      "serializationMsPerSnapshot": 0.093775,
       "estimatedMessagesPerSecond": 20
     },
     {
@@ -63,9 +63,9 @@
       "count": 2000,
       "averageBytes": 2579,
       "p95Bytes": 2579,
-      "messagesPerSecond": 26248.99,
-      "serializationMs": 76.193,
-      "serializationMsPerSnapshot": 0.038097,
+      "messagesPerSecond": 31040.96,
+      "serializationMs": 64.431,
+      "serializationMsPerSnapshot": 0.032215,
       "estimatedMessagesPerSecond": 20
     }
   ]
