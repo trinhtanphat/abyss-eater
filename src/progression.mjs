@@ -20,7 +20,8 @@ export function rewardForSession(summary = {}) {
   const score = Math.floor(nonNegativeFinite(summary?.score));
   const massGain = Math.max(0, nonNegativeFinite(summary?.mass) - 1);
   const xp = Math.min(5000, Math.floor(score * 2 + massGain * 10));
-  const pearls = Math.min(500, Math.floor(score / 5 + massGain * 2));
+  const bonusPearls = Math.min(100, Math.floor(nonNegativeFinite(summary?.bonusPearls)));
+  const pearls = Math.min(500, Math.floor(score / 5 + massGain * 2) + bonusPearls);
   return { xp, pearls };
 }
 

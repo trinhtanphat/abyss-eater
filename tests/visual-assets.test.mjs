@@ -1,4 +1,4 @@
-import test from 'node:test';
+﻿import test from 'node:test';
 import assert from 'node:assert/strict';
 import { readFile } from 'node:fs/promises';
 import {
@@ -114,5 +114,7 @@ test('offline shell precaches fish evolution, TTS, progression and skin dependen
   assert.ok(sw.includes("'/game/fish-evolution.mjs'"), 'service worker shell must cache fish evolution');
   assert.ok(sw.includes("'/game/skins.js'"), 'service worker shell must preserve verified cosmetic visuals');
   assert.ok(sw.includes("'/game/fish-skins.mjs'"), 'service worker shell must cache deterministic fallback palettes');
-  assert.ok(sw.includes("CACHE_NAME = 'abyss-eater-shell-v8'"), 'shell version must advance when second-slice dependencies are added');
+  assert.ok(sw.includes("'/game/biomes.js'"), 'service worker shell must cache biome presentation');
+  assert.ok(sw.includes("'/game/world-actors.js'"), 'service worker shell must cache world actor presentation');
+  assert.ok(sw.includes("CACHE_NAME = 'abyss-eater-shell-v8'"), 'shell version must match the reconciled visual dependency set');
 });

@@ -1,4 +1,4 @@
-import { mkdir, readdir, readFile, writeFile } from 'node:fs/promises';
+import { mkdir, readdir, readFile, rename, writeFile } from 'node:fs/promises';
 import path from 'node:path';
 
 const PUBLIC_DIR = 'public';
@@ -52,6 +52,8 @@ function replaceRequired(source, marker, replacement) {
 }
 
 const gameLogic = stripModuleSyntax(await readFile('src/game-logic.mjs', 'utf8'));
+const world = stripModuleSyntax(await readFile('src/world.mjs', 'utf8'));
+const worldActors = stripModuleSyntax(await readFile('src/world-actors.mjs', 'utf8'));
 const wildlife = stripModuleSyntax(await readFile('src/wildlife.mjs', 'utf8'));
 const protocol = stripModuleSyntax(await readFile('src/protocol.mjs', 'utf8'));
 const spatialGrid = stripModuleSyntax(await readFile('src/spatial-grid.mjs', 'utf8'));
@@ -62,6 +64,8 @@ const profileStore = stripModuleSyntax(await readFile('src/profile-store.mjs', '
 
 let template = await readFile('src/worker.template.mjs', 'utf8');
 template = replaceRequired(template, '/*__GAME_LOGIC__*/', gameLogic);
+template = replaceRequired(template, '/*__WORLD__*/', world);
+template = replaceRequired(template, '/*__WORLD_ACTORS__*/', worldActors);
 template = replaceRequired(template, '/*__WILDLIFE__*/', wildlife);
 template = replaceRequired(template, '/*__PROTOCOL__*/', protocol);
 template = replaceRequired(template, '/*__SPATIAL_GRID__*/', spatialGrid);
@@ -72,5 +76,8 @@ template = replaceRequired(template, '/*__PROFILE_STORE__*/', profileStore);
 template = replaceRequired(template, '/*__ASSETS__*/', JSON.stringify(assets));
 
 await mkdir('dist', { recursive: true });
-await writeFile('dist/worker.mjs', template);
+const outputPath = 'dist/worker.mjs';
+const temporaryPath = `dist/worker.${process.pid}.${Date.now()}.tmp`;
+await writeFile(temporaryPath, template);
+await rename(temporaryPath, outputPath);
 console.log(`Built dist/worker.mjs (${Buffer.byteLength(template)} bytes, ${Object.keys(assets).length} assets)`);

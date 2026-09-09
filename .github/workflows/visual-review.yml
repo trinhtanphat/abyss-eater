@@ -7,6 +7,11 @@ on:
       - 'public/game/fish.js'
       - 'public/game/fish-evolution.mjs'
       - 'public/game/effects.js'
+      - 'public/game/environment.js'
+      - 'public/game/biomes.js'
+      - 'public/game/world-actors.js'
+      - 'public/app.js'
+      - 'public/styles.css'
       - 'review/abyssal-assets.html'
       - '.github/workflows/visual-review.yml'
   workflow_dispatch:

@@ -67,10 +67,19 @@ export function speedForMass(mass) {
   return Math.max(4, 12 / (1 + (scale - 1) * 0.22));
 }
 
-export function advancePlayer(player, dir, dt, bounds) {
+export function movementMultiplierForPlayer(player = {}, now = 0) {
+  const timestamp = Number.isFinite(now) ? now : 0;
+  const slowed = Number.isFinite(player.slowUntil) && player.slowUntil > timestamp;
+  const boosted = Number.isFinite(player.speedBoostUntil) && player.speedBoostUntil > timestamp;
+  if (slowed) return 0.65;
+  if (boosted) return 1.2;
+  return 1;
+}
+
+export function advancePlayer(player, dir, dt, bounds, now = 0) {
   const direction = clampDirection(dir);
   const step = clamp(finite(dt), 0, MAX_STEP_SECONDS);
-  const speed = speedForMass(player.mass);
+  const speed = speedForMass(player.mass) * movementMultiplierForPlayer(player, now);
   const position = player.position ?? { x: 0, y: 0, z: 0 };
   return {
     ...player,
@@ -122,6 +131,9 @@ export function respawnPlayer(player, spawn) {
     ...player,
     mass: START_MASS,
     score: 0,
+    bonusPearls: 0,
+    slowUntil: 0,
+    speedBoostUntil: 0,
     deaths: Math.max(0, Math.round(finite(player.deaths))) + 1,
     position: {
       x: finite(spawn.x),

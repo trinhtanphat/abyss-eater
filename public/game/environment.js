@@ -1,5 +1,6 @@
 import * as THREE from 'https://cdn.jsdelivr.net/npm/three@0.185.1/build/three.module.js';
 import { WORLD_VISUAL_RADIUS } from './config.js';
+import { biomeVisual } from './biomes.js';
 
 function seeded(index, salt = 0) {
   const value = Math.sin((index + 1) * 12.9898 + salt * 78.233) * 43758.5453;
@@ -49,6 +50,7 @@ function createInstancedDecor(geometry, material, count, radius, y, scaleRange, 
 
 export function createOceanEnvironment(scene, { theme, profile }) {
   let activeTheme = theme;
+  let activeBiome = biomeVisual('reef');
   const root = new THREE.Group();
   root.name = 'ocean-environment';
   scene.add(root);
@@ -146,6 +148,16 @@ export function createOceanEnvironment(scene, { theme, profile }) {
   }
   root.add(shafts);
 
+  function applyBiome(id) {
+    activeBiome = biomeVisual(id);
+    if (scene.fog) scene.fog.density = activeTheme.scene.fogDensity * activeBiome.fogScale;
+    ringMaterial.opacity = activeTheme.atmosphere.ringOpacity * activeBiome.ambientScale;
+    bubbles.material.opacity = activeTheme.atmosphere.bubbleOpacity * activeBiome.ambientScale;
+    plankton.material.opacity = activeTheme.atmosphere.planktonOpacity * activeBiome.ambientScale;
+    shaftMaterial.opacity = activeTheme.atmosphere.shaftOpacity * activeBiome.ambientScale;
+    return activeBiome;
+  }
+
   function applyTheme(nextTheme) {
     activeTheme = nextTheme;
     floorMaterial.color.setHex(nextTheme.floor.color);
@@ -153,7 +165,6 @@ export function createOceanEnvironment(scene, { theme, profile }) {
     floorMaterial.emissive.setHex(nextTheme.floor.emissive);
     floorMaterial.emissiveIntensity = nextTheme.floor.emissiveIntensity;
     ringMaterial.color.setHex(nextTheme.water.shaft);
-    ringMaterial.opacity = nextTheme.atmosphere.ringOpacity;
     rockMaterial.color.setHex(nextTheme.decor.rock);
     kelpMaterial.color.setHex(nextTheme.decor.kelp);
     coralMaterial.color.setHex(nextTheme.decor.coral);
@@ -170,13 +181,11 @@ export function createOceanEnvironment(scene, { theme, profile }) {
     accentAltMaterial.emissiveIntensity = nextTheme.id === 'volcanic-rift' ? 0.14 : 0.08;
     bubbles.material.color.setHex(nextTheme.water.bubble);
     bubbles.material.size = nextTheme.atmosphere.bubbleSize;
-    bubbles.material.opacity = nextTheme.atmosphere.bubbleOpacity;
     plankton.material.color.setHex(nextTheme.water.plankton);
     plankton.material.size = nextTheme.atmosphere.planktonSize;
-    plankton.material.opacity = nextTheme.atmosphere.planktonOpacity;
     shaftMaterial.color.setHex(nextTheme.water.shaft);
-    shaftMaterial.opacity = nextTheme.atmosphere.shaftOpacity;
     for (const shaft of shafts.children) shaft.scale.x = shaft.userData.baseScaleX * nextTheme.atmosphere.shaftWidth;
+    applyBiome(activeBiome.id);
   }
 
   function update(time) {
@@ -201,5 +210,5 @@ export function createOceanEnvironment(scene, { theme, profile }) {
     scene.remove(root);
   }
 
-  return { root, update, applyTheme, dispose };
+  return { root, update, applyTheme, applyBiome, dispose };
 }

@@ -1,10 +1,12 @@
 import { createEffectManager } from './game/effects.js';
 import { createOceanEnvironment } from './game/environment.js';
+import { biomeVisual } from './game/biomes.js';
 import { animateFishRig, applyFishSnapshot, applyFishTheme, applyFoodTheme, createFishRig, createFoodMesh, disposeFishRig } from './game/fish.js';
 import { createInputController } from './game/input.js';
 import { createNetworkClient } from './game/network.js';
 import { createGameScene } from './game/scene.js';
 import { createClientState } from './game/state.js';
+import { applyHazardSnapshot, applyPickupSnapshot, createHazardMesh, createPickupMesh, disposeWorldActorMesh } from './game/world-actors.js';
 import { applyDocumentTheme, getTheme, themeIds } from './game/themes.js';
 import { createHud } from './ui/hud.js';
 import { createLobby } from './ui/lobby.js';
@@ -40,6 +42,7 @@ const profileXpProgress = document.querySelector('#profile-xp-progress');
 const profileStatus = document.querySelector('#profile-status');
 const skinGrid = document.querySelector('#skin-grid');
 const persistentLeaderboard = document.querySelector('#persistent-leaderboard');
+const hudBiome = document.querySelector('#hud-biome');
 const systemReducedMotion = matchMedia('(prefers-reduced-motion: reduce)').matches;
 
 function readClientSettings() {
@@ -81,6 +84,8 @@ let respawnTimer = null;
 const playerMeshes = new Map();
 const wildlifeMeshes = new Map();
 const foodMeshes = new Map();
+const hazardMeshes = new Map();
+const pickupMeshes = new Map();
 
 function effectiveReducedMotion() {
   return systemReducedMotion || settings.reducedEffects;
@@ -250,6 +255,9 @@ async function refreshProgression({ profile = true, leaderboard = true } = {}) {
 }
 
 function renderHud() {
+  const currentBiome = biomeVisual(state.localPlayer()?.biome);
+  if (hudBiome) hudBiome.textContent = currentBiome.label;
+  environment?.applyBiome(currentBiome.id);
   const threat = hud.render({ snapshot: state.snapshot, clientId: state.clientId, bounds: state.bounds, room: state.room, pingMs, statusText, connected });
   effects?.danger(threat.level !== 'safe');
 }
@@ -269,6 +277,7 @@ function rebuildEnvironment() {
   if (!sceneContext) return;
   environment?.dispose();
   environment = createOceanEnvironment(sceneContext.scene, { theme: activeTheme, profile: sceneContext.profile });
+  environment.applyBiome(biomeVisual(state.localPlayer()?.biome).id);
 }
 
 function rebuildEffects() {
@@ -331,6 +340,28 @@ function ensureFoodMesh(food) {
   return mesh;
 }
 
+function ensureHazardMesh(actor) {
+  let mesh = hazardMeshes.get(actor.id);
+  if (!mesh) {
+    mesh = createHazardMesh(activeTheme);
+    sceneContext.scene.add(mesh);
+    hazardMeshes.set(actor.id, mesh);
+  }
+  applyHazardSnapshot(mesh, actor);
+  return mesh;
+}
+
+function ensurePickupMesh(actor) {
+  let mesh = pickupMeshes.get(actor.id);
+  if (!mesh) {
+    mesh = createPickupMesh(activeTheme);
+    sceneContext.scene.add(mesh);
+    pickupMeshes.set(actor.id, mesh);
+  }
+  applyPickupSnapshot(mesh, actor);
+  return mesh;
+}
+
 function showRespawn(by) {
   clearTimeout(respawnTimer);
   if (respawnMessage) respawnMessage.textContent = `Eaten by ${by || 'a larger fish'}.`;
@@ -377,6 +408,32 @@ function syncSnapshot(changes = null) {
       sceneContext.scene.remove(mesh);
       mesh.userData.foodMaterial?.dispose?.();
       foodMeshes.delete(id);
+    }
+  }
+
+  const liveHazards = new Set();
+  for (const actor of state.snapshot.hazards) {
+    liveHazards.add(actor.id);
+    ensureHazardMesh(actor);
+  }
+  for (const [id, mesh] of hazardMeshes) {
+    if (!liveHazards.has(id)) {
+      sceneContext.scene.remove(mesh);
+      disposeWorldActorMesh(mesh);
+      hazardMeshes.delete(id);
+    }
+  }
+
+  const livePickups = new Set();
+  for (const actor of state.snapshot.pickups) {
+    livePickups.add(actor.id);
+    ensurePickupMesh(actor);
+  }
+  for (const [id, mesh] of pickupMeshes) {
+    if (!livePickups.has(id)) {
+      sceneContext.scene.remove(mesh);
+      disposeWorldActorMesh(mesh);
+      pickupMeshes.delete(id);
     }
   }
 
@@ -559,6 +616,11 @@ function animate(time) {
     mesh.rotation.y += delta * 0.94;
     const pulse = settings.reducedEffects ? 1 : 1 + Math.sin(time * 0.0025 + mesh.position.x) * 0.035;
     mesh.scale.setScalar(pulse);
+  }
+  for (const mesh of hazardMeshes.values()) mesh.rotation.y += delta * 0.12;
+  for (const mesh of pickupMeshes.values()) {
+    mesh.rotation.y += delta * 0.85;
+    if (!settings.reducedEffects) mesh.rotation.z = Math.sin(time * 0.0017 + mesh.position.x) * 0.12;
   }
   for (const [id, rig] of playerMeshes) animateFishRig(rig, time, id === state.clientId);
   for (const rig of wildlifeMeshes.values()) animateFishRig(rig, time, false);

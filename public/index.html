@@ -1,10 +1,10 @@
-<!doctype html>
+﻿<!doctype html>
 <html lang="en" data-app-state="loading" data-theme="stylized">
 <head>
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
   <meta name="theme-color" content="#031827">
-  <meta name="description" content="Abyss Eater: Ocean Survival — a polished 3D multiplayer fish-eat-fish survival game.">
+  <meta name="description" content="Abyss Eater: Ocean Survival â€” a polished 3D multiplayer fish-eat-fish survival game.">
   <link rel="manifest" href="/manifest.webmanifest">
   <link rel="stylesheet" href="/styles.css">
   <link rel="stylesheet" href="/themes.css">
@@ -19,7 +19,7 @@
     <div class="system-card panel">
       <img class="hud-brand-mark compact-mark" src="/assets/brand/abyss-eater-mark.svg" alt="">
       <p class="eyebrow">ABYSS EATER</p>
-      <h2>Preparing the ocean…</h2>
+      <h2>Preparing the oceanâ€¦</h2>
       <p>Checking 3D graphics and loading the premium ocean client.</p>
       <div class="loading-bar" aria-hidden="true"><span></span></div>
     </div>
@@ -67,7 +67,7 @@
         <div class="skin-section"><div class="section-title"><span>SKIN LOADOUT</span><small>Cosmetic only</small></div><div id="skin-grid" class="skin-grid" aria-live="polite"></div></div>
         <div class="persistent-ranking"><div class="section-title"><span>ALL-TIME</span><small>Best score</small></div><ol id="persistent-leaderboard" aria-label="Persistent leaderboard"></ol></div>
       </section>
-      <button id="play-button" type="button"><span>DIVE IN</span><b aria-hidden="true">→</b></button>
+      <button id="play-button" type="button"><span>DIVE IN</span><b aria-hidden="true">â†’</b></button>
       <div class="controls-legend" aria-label="Controls"><span><kbd>WASD</kbd> Swim</span><span><kbd>SPACE</kbd> Rise</span><span><kbd>SHIFT</kbd> Descend</span><span><kbd>MOUSE</kbd> Steer</span></div>
     </section>
   </main>
@@ -77,16 +77,16 @@
       <div class="hud-topline"><span class="hud-logo"><img class="hud-brand-mark" src="/assets/brand/abyss-eater-mark.svg" alt="">ABYSS EATER</span><span class="connection"><i id="connection-dot"></i><span id="hud-status">Ready</span></span></div>
       <div class="mass-row"><div><span class="metric-label"><i class="metric-icon" style="--metric-icon:url('/assets/ui/icons/mass.svg')"></i>MASS</span><strong id="hud-mass">1.00</strong></div><span id="growth-label"><i class="metric-icon" style="--metric-icon:url('/assets/ui/icons/evolution.svg')"></i>0% evolution</span></div>
       <div class="growth-track" aria-label="Growth progress"><i id="growth-progress"></i></div>
-        <div class="hud-stats">
-          <div><span><i class="metric-icon" style="--metric-icon:url('/assets/ui/icons/jaw.svg')"></i>Score</span><strong id="hud-score">0</strong></div>
-          <div><span><i class="metric-icon" style="--metric-icon:url('/assets/ui/icons/crown.svg')"></i>Rank</span><strong id="hud-rank">—</strong></div>
-          <div class="hunt-stat prey-stat"><span>Edible</span><strong id="hud-prey">0</strong></div>
-          <div class="hunt-stat threat-stat"><span>Threats</span><strong id="hud-threats">0</strong></div>
-          <div><span>Players</span><strong id="hud-players">0</strong></div>
-          <div><span>Ping</span><strong id="hud-ping">—</strong></div>
-        </div>
+      <div class="hud-stats">
+        <div><span><i class="metric-icon" style="--metric-icon:url('/assets/ui/icons/jaw.svg')"></i>Score</span><strong id="hud-score">0</strong></div>
+        <div><span><i class="metric-icon" style="--metric-icon:url('/assets/ui/icons/crown.svg')"></i>Rank</span><strong id="hud-rank">—</strong></div>
+        <div class="hunt-stat prey-stat"><span>Edible</span><strong id="hud-prey">0</strong></div>
+        <div class="hunt-stat threat-stat"><span>Threats</span><strong id="hud-threats">0</strong></div>
+        <div><span>Players</span><strong id="hud-players">0</strong></div>
+        <div><span>Ping</span><strong id="hud-ping">—</strong></div>
+      </div>
 
-      <p class="room-line">Current <strong id="hud-room">ocean-1</strong></p>
+      <p class="room-line">Current <strong id="hud-room">ocean-1</strong> &middot; <span id="hud-biome">Reef</span></p>
     </div>
     <aside class="leaderboard-card panel-mini" aria-label="Leaderboard"><div class="section-title"><span><i class="metric-icon" style="--metric-icon:url('/assets/ui/icons/crown.svg')"></i>TOP PREDATORS</span><small>Score</small></div><ol id="leaderboard"></ol></aside>
     <div class="depth-card panel-mini"><div class="section-title"><span><i class="metric-icon" style="--metric-icon:url('/assets/ui/icons/depth.svg')"></i>DEPTH</span><strong id="depth-value">28 m</strong></div><div id="depth-meter" class="depth-meter" role="progressbar" aria-label="Ocean depth" aria-valuemin="0" aria-valuemax="56" aria-valuenow="28"><i></i><b></b></div></div>
@@ -96,7 +96,7 @@
 
   <div id="connection-banner" class="connection-banner panel" role="status" aria-live="polite" hidden>
     <strong id="connection-banner-title">Connecting</strong>
-    <span id="connection-banner-message">Reaching the ocean server…</span>
+    <span id="connection-banner-message">Reaching the ocean serverâ€¦</span>
   </div>
 
   <div id="respawn-card" class="respawn-card panel" role="status" aria-live="polite" hidden>
@@ -106,7 +106,7 @@
   </div>
 
   <aside id="settings-panel" class="settings-panel panel" aria-label="Game settings" data-no-steer>
-    <div class="settings-heading"><div><p class="eyebrow">LIVE SETTINGS</p><h2>Ocean controls</h2></div><button id="settings-close" class="icon-button" type="button" aria-label="Close settings">×</button></div>
+    <div class="settings-heading"><div><p class="eyebrow">LIVE SETTINGS</p><h2>Ocean controls</h2></div><button id="settings-close" class="icon-button" type="button" aria-label="Close settings">Ã—</button></div>
     <p>Switch presentation live without reconnecting or changing authoritative gameplay.</p>
     <div class="settings-controls">
       <label class="field"><span>Ocean style</span><select id="settings-theme-select" aria-label="Live ocean style"><option value="stylized">Sunken Reef</option><option value="deep-sea">Ancient Abyss</option><option value="twilight-garden">Twilight Garden</option><option value="blue-trench">Blue Trench</option><option value="volcanic-rift">Volcanic Rift</option><option value="leviathan-depths">Leviathan Depths</option></select></label>
@@ -119,15 +119,15 @@
       <label class="toggle-row compact"><span><strong>Vietnamese voice</strong><small>Local Piper TTS. First use downloads about 63 MB and caches it in your browser.</small></span><input id="tts-enabled-setting" type="checkbox"><i aria-hidden="true"></i></label>
       <label class="audio-field" for="tts-volume"><span>TTS volume <output id="tts-volume-value">80%</output></span><input id="tts-volume" type="range" min="0" max="1" step="0.05" value="0.8"></label>
     </div>
-    <div class="settings-note"><span>Voice</span><strong>Piper vi_VN-vais1000-medium · VAIS-1000 dataset CC BY 4.0 · no paid TTS service</strong></div>
-    <div class="settings-note"><span>Network</span><strong>Protocol v2 · realtime WebSocket · server authoritative</strong></div>
+    <div class="settings-note"><span>Voice</span><strong>Piper vi_VN-vais1000-medium Â· VAIS-1000 dataset CC BY 4.0 Â· no paid TTS service</strong></div>
+    <div class="settings-note"><span>Network</span><strong>Protocol v2 Â· realtime WebSocket Â· server authoritative</strong></div>
   </aside>
 
   <div id="toast" class="toast" role="status" aria-live="polite"></div>
   <div id="fx-layer" class="fx-layer" aria-hidden="true"></div>
   <div id="touch-controls" class="touch-controls" aria-label="Touch controls">
     <div id="touch-joystick" class="joystick" aria-label="Swim direction" data-no-steer><div class="joystick-ring"></div><div id="joystick-knob" class="joystick-knob"><span></span></div></div>
-    <div class="depth-buttons" data-no-steer><button id="touch-up" type="button" aria-label="Swim up"><span>↑</span><small>UP</small></button><button id="touch-down" type="button" aria-label="Swim down"><span>↓</span><small>DOWN</small></button></div>
+    <div class="depth-buttons" data-no-steer><button id="touch-up" type="button" aria-label="Swim up"><span>â†‘</span><small>UP</small></button><button id="touch-down" type="button" aria-label="Swim down"><span>â†“</span><small>DOWN</small></button></div>
   </div>
 
   <noscript>Abyss Eater requires JavaScript.</noscript>
