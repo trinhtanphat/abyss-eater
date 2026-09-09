@@ -1,4 +1,5 @@
 @import url('/integration.css');
+@import url('/hud-assets.css');
 
 /* Theme-specific presentation overrides live separately from the shared responsive shell. */
 .settings-controls { display: grid; gap: 4px; margin: 14px 0; }
