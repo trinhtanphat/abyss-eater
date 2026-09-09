@@ -33,7 +33,7 @@ jobs:
           trap 'kill "$server_pid" 2>/dev/null || true' EXIT
           ready=0
           for attempt in $(seq 1 20); do
-            if curl --fail --silent http://127.0.0.1:4173/review/abyssal-assets.html >/dev/null; then
+            if curl --fail --silent http://127.0.0.1:4173/review/abyssal-assets.html?ci=1 >/dev/null; then
               ready=1
               break
             fi
@@ -64,7 +64,7 @@ jobs:
             --window-size=1600,1000 \
             --virtual-time-budget=6000 \
             --screenshot="$PWD/artifacts/abyssal-assets.png" \
-            http://127.0.0.1:4173/review/abyssal-assets.html \
+            http://127.0.0.1:4173/review/abyssal-assets.html?ci=1 \
             > /tmp/abyss-review-chrome.log 2>&1
           browser_status=$?
           set -e
