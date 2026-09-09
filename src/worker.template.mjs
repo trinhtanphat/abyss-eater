@@ -254,6 +254,7 @@ export class GameRoom extends DurableObject {
       id: player.id,
       resumeKey: player.resumeKey,
       resumed,
+      inputSeq: player.seq,
       room,
       bounds: WORLD_BOUNDS,
       snapshot: this.snapshot(),
