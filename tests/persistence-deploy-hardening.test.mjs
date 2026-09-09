@@ -1,4 +1,4 @@
-import test from 'node:test';
+﻿import test from 'node:test';
 import assert from 'node:assert/strict';
 import { readFileSync, existsSync, rmSync } from 'node:fs';
 import { spawnSync } from 'node:child_process';
@@ -30,43 +30,21 @@ test('renderer adds PROFILE_DB while preserving account and GameRoom settings', 
   assert.deepEqual(config.d1_databases, [{ binding: 'PROFILE_DB', database_id: id, database_name: 'abyss-eater-profile', migrations_dir: '../migrations' }]);
 });
 
-test('production workflow renders config, verifies secret, migrates D1, then deploys', () => {
-  const workflow = readFileSync('.github/workflows/deploy-production.yml', 'utf8');
-  const packageJson = readFileSync('package.json', 'utf8');
-  for (const marker of [
-    'ABYSS_EATER_D1_DATABASE_ID',
-    'render-production-wrangler.mjs',
-    'SESSION_SIGNING_KEY',
-    'secret list',
-    'd1 migrations apply PROFILE_DB',
-    '--config dist/wrangler.production.jsonc',
-  ]) assert.ok(workflow.includes(marker) || packageJson.includes(marker), `missing deploy marker: ${marker}`);
-  const renderAt = workflow.indexOf('render-production-wrangler.mjs');
-  const migrateAt = workflow.indexOf('d1 migrations apply PROFILE_DB');
-  const deployAt = workflow.indexOf('Deploy authoritative game Worker');
-  assert.ok(renderAt >= 0 && migrateAt > renderAt && deployAt > migrateAt);
+test('manual production tooling stays explicit while GitHub Actions remains CI-only', () => {
+  assert.equal(existsSync('.github/workflows/deploy-production.yml'), false, 'GitHub must not own production delivery');
+  const pkg = JSON.parse(readFileSync('package.json', 'utf8'));
+  assert.match(pkg.scripts?.['render:production'] ?? '', /render-production-wrangler\.mjs/);
+  assert.match(pkg.scripts?.['deploy:game'] ?? '', /render:production/);
+  assert.match(pkg.scripts?.['deploy:game'] ?? '', /dist\/wrangler\.production\.jsonc/);
+  assert.match(pkg.scripts?.['deploy:gateway'] ?? '', /wrangler@4\.129\.1/);
 });
 
-test('source Wrangler contains no production D1 id or billable-resource provisioning', () => {
+test('source config and GitHub CI contain no production provisioning or mutation', () => {
   const wrangler = readFileSync('wrangler.jsonc', 'utf8');
-  const workflow = readFileSync('.github/workflows/deploy-production.yml', 'utf8');
+  const ci = readFileSync('.github/workflows/ci.yml', 'utf8');
   assert.equal(wrangler.includes('database_id'), false);
   assert.equal(wrangler.includes('PROFILE_DB'), false);
-  assert.equal(/d1\s+create/i.test(workflow), false);
-  assert.equal(/subscription\\s+create|plan\\s+upgrade|workers\\s+paid\\s+(enable|create)/i.test(workflow), false);
-});
-
-
-
-test('production smoke verifies persistence health and branded Carrier 3 API proxy', () => {
-  const workflow = readFileSync('.github/workflows/deploy-production.yml', 'utf8');
-  for (const marker of [
-    '\"persistence\":\"configured\"',
-    'base=https://abyss-eater.qs3d.site',
-    '$base/api/skins',
-    '$base/api/leaderboard?season=all-time&limit=5',
-    '\"ok\":true',
-  ]) {
-    assert.ok(workflow.includes(marker), `missing Carrier 3 production smoke marker: ${marker}`);
+  for (const forbidden of ['d1 create', 'd1 migrations apply', 'wrangler deploy', 'CLOUDFLARE_API_TOKEN', 'SESSION_SIGNING_KEY']) {
+    assert.equal(ci.includes(forbidden), false, `CI must stay validation-only: ${forbidden}`);
   }
 });

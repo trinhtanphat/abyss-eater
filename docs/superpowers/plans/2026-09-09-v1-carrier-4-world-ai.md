@@ -22,7 +22,7 @@
 - Free-tier exhaustion must fail/degrade rather than silently switching to a billable service.
 - Client decoration and biome effects are presentation only; collision shapes and rewards stay server-owned.
 - Existing fish evolution, cosmetic skins, reconnect semantics, TTS, accessibility controls and quality presets must remain compatible.
-- Production deployment remains fail-closed while Cloudflare credentials are absent; Carrier 4 may merge on CI evidence but is not labeled live until Carrier 7 qualification.
+- GitHub Actions remains CI-only. Carrier 4 may merge on CI evidence, while production delivery stays an explicit manual/connected-platform action and is not labeled live until separate production qualification.
 
 ---
 
@@ -600,7 +600,7 @@ Add:
 '/game/world-actors.js',
 ```
 
-and increment the service-worker shell cache by one version. Do not edit production deploy workflow; it now derives the expected cache marker dynamically.
+and increment the service-worker shell cache by one version. Do not add a GitHub production deploy workflow; the repository intentionally keeps GitHub automation validation-only.
 
 - [ ] **Step 8: Run client + visual + full gate and commit Task 5**
 
@@ -633,7 +633,7 @@ git commit -m "feat: present biome world hazards and pickups"
 
 **Interfaces:**
 - Consumes: Tasks 1-5 merged branch state.
-- Produces: CI-ready Carrier 4 PR with no production-live claim while Cloudflare credentials are absent.
+- Produces: CI-ready Carrier 4 PR with no production-live claim; GitHub Actions remains validation-only and production delivery stays outside this carrier.
 
 - [ ] **Step 1: Run the complete deterministic gate from a clean worktree**
 
@@ -670,4 +670,4 @@ Merge only when exact-head CI is green. Use an expected-head SHA guard; never by
 
 - [ ] **Step 4: Record production qualification honestly**
 
-Because the current Cloudflare credential gate is unresolved, Carrier 4 completion means **merged and CI-qualified**, not **production-live-qualified**. Do not manually bypass `.github/workflows/deploy-production.yml`; Carrier 7 resumes production deployment only with valid credentials and the free-plan proof succeeding before mutation.
+Carrier 4 completion means **merged and CI-qualified**, not **production-live-qualified**. Do not recreate a GitHub production deploy workflow. Any later production qualification must use an authorized manual/connected-platform path, preserve the no-paid-services constraint, and prove free-plan safety before mutation.
