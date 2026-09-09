@@ -8,6 +8,6 @@ Implementation follows the approved V1 Full A+B+C design and keeps each carrier 
 - Carrier 4: DONE — authoritative gameplay biomes, role-based wildlife/apex AI, jelly hazards and pearl/boost pickups.
 - Carrier 5: DONE — regional Quick Dive, Matchmaker/Party Durable Objects, constrained room chat, local mute and minimal reports.
 - Carrier 6: DONE — deterministic scale profiler and `JSON_KEEP` evidence at 9,926-byte p95 for the 20-player full snapshot.
-- Carrier 7: QUALIFICATION — exact-build evidence, read-only live probes, CI artifact capture, documentation, merge and post-merge qualification.
+- Carrier 7: DONE — exact-build evidence, read-only live probes, CI artifact capture, merged main qualification and published V1 release.
 
 GitHub Actions remains CI-only. Production delivery belongs to the connected Cloudflare deployment integration and explicit pinned manual tooling; no paid product is enabled by these plans.
