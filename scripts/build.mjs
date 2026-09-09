@@ -7,6 +7,7 @@ const assetFiles = {
   '/client-input.mjs': ['src/client-input.mjs', 'text/javascript; charset=utf-8'],
   '/client-capabilities.mjs': ['src/client-capabilities.mjs', 'text/javascript; charset=utf-8'],
   '/client-settings.mjs': ['src/client-settings.mjs', 'text/javascript; charset=utf-8'],
+  '/client-audio.mjs': ['src/client-audio.mjs', 'text/javascript; charset=utf-8'],
   '/styles.css': ['public/styles.css', 'text/css; charset=utf-8'],
   '/manifest.webmanifest': ['public/manifest.webmanifest', 'application/manifest+json; charset=utf-8'],
 };
