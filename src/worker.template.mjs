@@ -449,7 +449,7 @@ async function socialDoJson(stub, path, body) {
   const response = await stub.fetch(new Request(`https://social.internal${path}`, {
     method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify(body),
   }));
-  const value = await response.json().catch(() => null);
+  const value = await response.clone().json().catch(() => null);
   return { response, value };
 }
 async function handleReportApi(request, env) {
@@ -468,6 +468,14 @@ async function handleReportApi(request, env) {
     if (code.startsWith('report-')) return jsonApi({ ok: false, code }, 400);
     return persistenceUnavailable();
   }
+}
+
+function partyApiResponse(result, viewerProfileId) {
+  if (!result) return jsonApi({ ok: false, code: 'party_unavailable' }, 503);
+  if (result.value?.ok && Object.prototype.hasOwnProperty.call(result.value, 'party')) {
+    return jsonApi({ ...result.value, party: publicPartyState(result.value.party, viewerProfileId) }, result.response.status);
+  }
+  return result.response;
 }
 
 async function handleQuickDiveApi(request, env) {
@@ -493,7 +501,7 @@ async function handlePartyCreateApi(request, env) {
     const code = makePartyInviteCode();
     const result = await socialDoJson(partyStub(env, code), '/create', { code, member: resolved.member, now: Date.now() });
     if (!result) return jsonApi({ ok: false, code: 'party_unavailable' }, 503);
-    if (result.response.status !== 409) return result.response;
+    if (result.response.status !== 409) return partyApiResponse(result, resolved.auth.profile.id);
   }
   return jsonApi({ ok: false, code: 'party_code_collision' }, 503);
 }
@@ -513,15 +521,15 @@ async function handlePartyMemberApi(request, env, url) {
 
   if (url.pathname === '/api/party/join' && request.method === 'POST') {
     const result = await socialDoJson(stub, '/join', { member: resolved.member, now: Date.now() });
-    return result?.response || jsonApi({ ok: false, code: 'party_unavailable' }, 503);
+    return partyApiResponse(result, resolved.auth.profile.id);
   }
   if (url.pathname === '/api/party/status' && request.method === 'GET') {
     const result = await socialDoJson(stub, '/status', { profileId: resolved.auth.profile.id, now: Date.now() });
-    return result?.response || jsonApi({ ok: false, code: 'party_unavailable' }, 503);
+    return partyApiResponse(result, resolved.auth.profile.id);
   }
   if (url.pathname === '/api/party/leave' && request.method === 'POST') {
     const result = await socialDoJson(stub, '/leave', { profileId: resolved.auth.profile.id, now: Date.now() });
-    return result?.response || jsonApi({ ok: false, code: 'party_unavailable' }, 503);
+    return partyApiResponse(result, resolved.auth.profile.id);
   }
   if (url.pathname === '/api/party/quick' && request.method === 'POST') {
     const status = await socialDoJson(stub, '/status', { profileId: resolved.auth.profile.id, now: Date.now() });
@@ -539,7 +547,7 @@ async function handlePartyMemberApi(request, env, url) {
       profileId: resolved.auth.profile.id, room: placement.value.room, now: Date.now(),
     });
     if (!assigned?.value?.ok) return assigned?.response || jsonApi({ ok: false, code: 'party_unavailable' }, 503);
-    return jsonApi({ ok: true, room: placement.value.room, region, party: assigned.value.party });
+    return jsonApi({ ok: true, room: placement.value.room, region, party: publicPartyState(assigned.value.party, resolved.auth.profile.id) });
   }
 
   return jsonApi({ ok: false, code: 'method_not_allowed' }, 405);

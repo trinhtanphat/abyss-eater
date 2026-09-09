@@ -44,3 +44,14 @@ test('public Quick Dive rooms send bounded occupancy heartbeats only on join and
   assert.match(worker, /await this\.notifyMatchmakerOccupancy\(player\.matchRoom/);
   assert.equal(worker.includes('setInterval('), false);
 });
+
+
+test('public party APIs preserve reusable DO responses and project internal identities', async () => {
+  const worker = await readFile('src/worker.template.mjs', 'utf8');
+  assert.ok(worker.includes('response.clone().json()'), 'socialDoJson must parse a clone');
+  assert.ok(worker.includes('publicPartyState('), 'outer party APIs must project internal state');
+  const outerStart = worker.indexOf('async function handlePartyCreateApi');
+  const outerEnd = worker.indexOf('\nexport class GameRoom', outerStart);
+  const outer = worker.slice(outerStart, outerEnd);
+  assert.equal(outer.includes('party: assigned.value.party'), false);
+});

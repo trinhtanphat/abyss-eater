@@ -1,4 +1,4 @@
-﻿# Abyss Eater
+# Abyss Eater
 
 **Abyss Eater: Ocean Survival** is a browser-first 3D multiplayer fish-survival game. Start small, collect marine food, hunt smaller fish, grow in mass, and avoid predators that can eat you.
 
@@ -78,7 +78,7 @@ Game Worker (trinhtanphat6666)
               - bounded moderation report metadata
 ```
 
-The browser client is split into small presentation, scene, environment, fish, input, network, progression, state and UI modules under `public/`. Presentation code can change biome, quality, effects, audio, TTS, cosmetics and HUD behavior without changing the authoritative simulation contract.
+The browser client is split into small presentation, scene, environment, fish, input, network, progression, social, state and UI modules under `public/`. Presentation code can change biome, quality, effects, audio, TTS, cosmetics and HUD behavior without changing the authoritative simulation contract.
 
 The client renders at display refresh rate and sends movement intent at 10 Hz. Clients never send authoritative position, mass, score, collision results, shop prices or balances. Every gameplay WebSocket message carries protocol version `2`; the server rejects malformed, stale, incompatible or flood traffic before applying simulation work.
 
@@ -108,7 +108,7 @@ See `docs/runbooks/multiplayer-hardening.md` for the exact protocol, rate, recon
 
 `public/manifest.webmanifest` supplies standalone-install metadata and maskable-capable install icons. `public/sw.js` caches the same-origin application shell, progression/social modules, fish evolution/skin modules and local SVG assets, then falls back to the cached root page for offline navigation. Multiplayer itself still requires network access; Three.js and the optional Piper runtime remain pinned external dependencies.
 
-The six ocean biomes are presentation-only. `stylized` and `deep-sea` remain valid saved values, while the expanded catalog adds four newer biome ids. Fish cosmetics follow the same authority rule: server-verified purchased/selected cosmetics take priority; deterministic presentation palettes are fallback visuals and never affect gameplay stats.
+The six ocean presentation themes are client-only. `stylized` and `deep-sea` remain valid saved values, while the expanded catalog adds four newer theme ids. Separately, the server derives four gameplay depth biomes from authoritative player depth and owns their AI/hazard/pickup effects; the client only renders that state. Fish cosmetics follow the same authority rule: server-verified purchased/selected cosmetics take priority; deterministic presentation palettes are fallback visuals and never affect gameplay stats.
 
 Vietnamese TTS is opt-in and lazy-loaded. When enabled, the client uses the pinned Piper web runtime/voice path and falls back to native `vi-VN` speech synthesis when Piper is unavailable.
 
