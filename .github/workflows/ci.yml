@@ -29,3 +29,24 @@ jobs:
 
       - name: Syntax check production Worker
         run: node --check dist/worker.mjs
+
+      - name: Scale qualification
+        run: npm run profile:scale
+
+      - name: Record exact-build release evidence
+        run: node scripts/release-evidence.mjs
+
+      - name: Probe deployed main read-only
+        if: github.event_name == 'push' && github.ref == 'refs/heads/main'
+        run: npm run probe:live
+
+      - name: Upload qualification evidence
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: abyss-eater-qualification
+          path: |
+            artifacts/carrier6-scale-profile.json
+            artifacts/release-evidence.json
+            artifacts/live-probe.json
+          if-no-files-found: ignore
