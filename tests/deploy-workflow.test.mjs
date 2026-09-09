@@ -2,11 +2,10 @@ import test from 'node:test';
 import assert from 'node:assert/strict';
 import { readFile } from 'node:fs/promises';
 
-test('production deploy workflow is manual plus one-shot-on-workflow-file push', async () => {
+test('production deploy workflow is manual-only because Cloudflare deploys main changes', async () => {
   const workflow = await readFile('.github/workflows/deploy-production.yml', 'utf8');
   for (const marker of [
     'workflow_dispatch:',
-    "paths:\n      - '.github/workflows/deploy-production.yml'",
     'cancel-in-progress: false',
     'npm run check',
     'npm run deploy:game',
@@ -26,6 +25,7 @@ test('production deploy workflow is manual plus one-shot-on-workflow-file push',
   ]) {
     assert.ok(workflow.includes(marker), `missing deploy workflow guard: ${marker}`);
   }
+  assert.equal(workflow.includes('\n  push:'), false, 'GitHub must not auto-deploy on main pushes; Cloudflare owns that trigger');
   assert.equal(workflow.includes('schedule:'), false, 'production deploy must not run on a recurring schedule');
   assert.equal(workflow.includes('wrangler@latest'), false, 'production deploy must use the repository-pinned Wrangler command');
   assert.equal(workflow.includes('abyss-eater-shell-v5'), false, 'production verify must not pin a stale shell cache version');
