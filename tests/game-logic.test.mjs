@@ -34,13 +34,25 @@ test('advancePlayer clamps delta time and keeps movement inside world bounds', (
   assert.notEqual(next, player);
 });
 
-test('canEat requires a meaningful mass advantage and collision proximity', () => {
+test('canEat requires valid mass, a meaningful advantage and collision proximity', () => {
   const canEat = requireFn('canEat');
   const predator = { mass: 2, position: { x: 0, y: 0, z: 0 } };
   const prey = { mass: 1, position: { x: 1, y: 0, z: 0 } };
   assert.equal(canEat(predator, prey), true);
   assert.equal(canEat({ ...predator, mass: 1.1 }, prey), false);
   assert.equal(canEat(predator, { ...prey, position: { x: 50, y: 0, z: 0 } }), false);
+  assert.equal(canEat({ ...predator, mass: -5 }, { ...prey, mass: -10 }), false);
+  assert.equal(canEat({ ...predator, mass: Number.NaN }, prey), false);
+});
+
+test('resolveEatPair selects only the valid predator and is stable across argument order', () => {
+  const resolveEatPair = requireFn('resolveEatPair');
+  const big = { id: 'big', mass: 4, position: { x: 0, y: 0, z: 0 } };
+  const small = { id: 'small', mass: 1, position: { x: 1, y: 0, z: 0 } };
+  assert.equal(resolveEatPair(big, small), 'a');
+  assert.equal(resolveEatPair(small, big), 'b');
+  assert.equal(resolveEatPair({ ...big, mass: 1 }, small), null);
+  assert.equal(resolveEatPair(big, { ...small, position: { x: 50, y: 0, z: 0 } }), null);
 });
 
 test('collectFood grows mass and score only when food is actually reached', () => {

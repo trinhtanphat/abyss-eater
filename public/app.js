@@ -1,6 +1,7 @@
 import * as THREE from 'https://cdn.jsdelivr.net/npm/three@0.185.1/build/three.module.js';
 import { cameraRelativeDirection, updateLook } from '/client-input.mjs';
 
+const PROTOCOL_VERSION = 1;
 const gameRoot = document.querySelector('#game');
 const startScreen = document.querySelector('#start-screen');
 const playButton = document.querySelector('#play-button');
@@ -184,10 +185,15 @@ function sanitized(value, fallback, max) {
   return (String(value || '').replace(/[^\p{L}\p{N} _.-]/gu, '').replace(/\s+/g, ' ').trim() || fallback).slice(0, max);
 }
 
+function resumeStorageKey(room) {
+  return `abyss-eater-resume:${room}`;
+}
+
 function connect() {
   clearTimeout(reconnectTimer);
   const name = sanitized(nameInput.value, 'Little Fish', 20);
   const room = sanitized(roomInput.value, 'ocean-1', 24).toLowerCase();
+  const resumeKey = sessionStorage.getItem(resumeStorageKey(room));
   localStorage.setItem('abyss-eater-name', name);
   localStorage.setItem('abyss-eater-room', room);
   hudRoom.textContent = room;
@@ -197,17 +203,27 @@ function connect() {
   wsUrl.protocol = location.protocol === 'https:' ? 'wss:' : 'ws:';
   wsUrl.searchParams.set('name', name);
   wsUrl.searchParams.set('room', room);
+  if (resumeKey) wsUrl.searchParams.set('resume', resumeKey);
   socket = new WebSocket(wsUrl);
 
   socket.addEventListener('open', () => setStatus('Online', true));
   socket.addEventListener('message', (event) => {
     let message;
     try { message = JSON.parse(event.data); } catch { return; }
+    if (message.v !== PROTOCOL_VERSION) {
+      showToast('Upgrade required — reload the game');
+      socket?.close(1002, 'protocol mismatch');
+      return;
+    }
     if (message.type === 'welcome') {
       clientId = message.id;
+      if (Number.isSafeInteger(message.inputSeq) && message.inputSeq >= 0) inputSeq = message.inputSeq;
       hudRoom.textContent = message.room;
+      if (typeof message.resumeKey === 'string' && message.resumeKey) {
+        sessionStorage.setItem(resumeStorageKey(room), message.resumeKey);
+      }
       updateSnapshot(message.snapshot);
-      showToast('You entered the ocean');
+      showToast(message.resumed ? 'Reconnected to your fish' : 'You entered the ocean');
       return;
     }
     if (message.type === 'snapshot') {
@@ -245,13 +261,13 @@ function currentDirection() {
 
 function sendInput() {
   if (!socket || socket.readyState !== WebSocket.OPEN) return;
-  socket.send(JSON.stringify({ type: 'input', seq: ++inputSeq, dir: currentDirection() }));
+  socket.send(JSON.stringify({ type: 'input', v: PROTOCOL_VERSION, seq: ++inputSeq, dir: currentDirection() }));
 }
 
 function ping() {
   if (!socket || socket.readyState !== WebSocket.OPEN) return;
   pingSentAt = Date.now();
-  socket.send(JSON.stringify({ type: 'ping', t: pingSentAt }));
+  socket.send(JSON.stringify({ type: 'ping', v: PROTOCOL_VERSION, t: pingSentAt }));
 }
 
 addEventListener('keydown', (event) => {
