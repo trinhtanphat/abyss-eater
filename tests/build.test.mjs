@@ -20,6 +20,9 @@ test('production Worker bundle contains multiplayer room protocol and embedded a
     '"/app.js":',
     '"/styles.css":',
     '"/manifest.webmanifest":',
+    '"/sw.js":',
+    '"/icon-192.svg":',
+    '"/icon-512.svg":',
     'GAME_ROOM.getByName',
     'serializeAttachment',
   ]) {
@@ -58,18 +61,18 @@ test('embedded client exposes desktop mouse-look and camera-relative keyboard co
   }
 });
 
-test('embedded client negotiates protocol v1 and resumes the same room presence', () => {
+test('embedded client negotiates protocol v2 and resumes the same room presence', () => {
   const result = build();
   assert.equal(result.status, 0, `build must succeed:\n${result.stdout}\n${result.stderr}`);
   const worker = readFileSync('dist/worker.mjs', 'utf8');
   for (const marker of [
-    'const PROTOCOL_VERSION = 1;',
+    'const PROTOCOL_VERSION = 2;',
     'sessionStorage',
     "wsUrl.searchParams.set('resume'",
-    "v: PROTOCOL_VERSION",
-    "message.v !== PROTOCOL_VERSION",
-    "message.resumeKey",
-    "message.resumed",
+    'v: PROTOCOL_VERSION',
+    'message.v !== PROTOCOL_VERSION',
+    'message.resumeKey',
+    'message.resumed',
     'inputSeq: player.seq',
     'message.inputSeq',
     'Reconnected to your fish',
