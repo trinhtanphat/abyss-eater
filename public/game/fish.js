@@ -11,7 +11,10 @@ const PUPIL_GEOMETRY = new THREE.SphereGeometry(0.066, 10, 8);
 const MOUTH_GEOMETRY = new THREE.TorusGeometry(0.16, 0.025, 6, 16, Math.PI);
 const GILL_GEOMETRY = new THREE.TorusGeometry(0.28, 0.022, 6, 18, Math.PI * 1.2);
 const LATERAL_LINE_GEOMETRY = new THREE.BoxGeometry(1.45, 0.028, 0.028);
-const FOOD_GEOMETRY = new THREE.IcosahedronGeometry(0.34, 1);
+const FOOD_BODY_GEOMETRY = new THREE.SphereGeometry(0.29, 12, 9);
+const FOOD_FIN_GEOMETRY = new THREE.ConeGeometry(0.13, 0.38, 3);
+const FOOD_CORE_GEOMETRY = new THREE.IcosahedronGeometry(0.16, 1);
+const FOOD_TENDRIL_GEOMETRY = new THREE.CylinderGeometry(0.014, 0.008, 0.34, 5);
 const X_AXIS = new THREE.Vector3(1, 0, 0);
 const MOVE = new THREE.Vector3();
 const TARGET_SCALE = new THREE.Vector3();
@@ -296,9 +299,36 @@ export function createFoodMesh(theme) {
     roughness: 0.22,
     metalness: 0.04,
   });
-  const mesh = new THREE.Mesh(FOOD_GEOMETRY, material);
-  mesh.userData.foodMaterial = material;
-  return mesh;
+  const group = new THREE.Group();
+  group.name = 'lantern-plankton';
+
+  const body = new THREE.Mesh(FOOD_BODY_GEOMETRY, material);
+  body.scale.set(1.35, 0.82, 0.82);
+  group.add(body);
+
+  const core = new THREE.Mesh(FOOD_CORE_GEOMETRY, material);
+  core.position.x = 0.23;
+  core.scale.setScalar(0.76);
+  group.add(core);
+
+  for (const side of [-1, 1]) {
+    const fin = new THREE.Mesh(FOOD_FIN_GEOMETRY, material);
+    fin.position.set(-0.12, 0, side * 0.3);
+    fin.rotation.x = side * Math.PI / 2;
+    fin.rotation.z = -Math.PI / 2;
+    fin.scale.set(0.72, 0.86, 0.35);
+    group.add(fin);
+  }
+
+  for (let index = 0; index < 3; index += 1) {
+    const tendril = new THREE.Mesh(FOOD_TENDRIL_GEOMETRY, material);
+    tendril.position.set(-0.28 - index * 0.045, -0.2 + index * 0.18, (index - 1) * 0.12);
+    tendril.rotation.z = Math.PI / 2.8;
+    group.add(tendril);
+  }
+
+  group.userData.foodMaterial = material;
+  return group;
 }
 
 export function applyFoodTheme(mesh, theme) {
