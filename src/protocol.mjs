@@ -49,6 +49,11 @@ export function parseClientMessage(rawMessage) {
     };
   }
 
+  if (parsed.type === 'chat') {
+    if (typeof parsed.text !== 'string' || parsed.text.length > 160) return { ok: false, code: 'bad_chat' };
+    return { ok: true, message: { type: 'chat', v: PROTOCOL_VERSION, text: parsed.text } };
+  }
+
   if (parsed.type === 'ping') {
     if (!finiteNumber(parsed.t)) return { ok: false, code: 'bad_ping' };
     return { ok: true, message: { type: 'ping', v: PROTOCOL_VERSION, t: parsed.t } };

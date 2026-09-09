@@ -104,4 +104,5 @@ test('game wires Vietnamese TTS only to important events and advances the shell 
   assert.ok(sw.includes("const CACHE_NAME = 'abyss-eater-shell-v9';"));
   assert.ok(sw.includes("'/client-tts.mjs'"));
   assert.ok(sw.includes("'/client-progression.mjs'"));
+  assert.ok(sw.includes("'/client-social.mjs'"));
 });

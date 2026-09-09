@@ -10,6 +10,14 @@
       {
         "name": "GAME_ROOM",
         "class_name": "GameRoom"
+      },
+      {
+        "name": "MATCHMAKER",
+        "class_name": "Matchmaker"
+      },
+      {
+        "name": "PARTY",
+        "class_name": "Party"
       }
     ]
   },
@@ -18,6 +26,13 @@
       "tag": "v1",
       "new_sqlite_classes": [
         "GameRoom"
+      ]
+    },
+    {
+      "tag": "v2",
+      "new_sqlite_classes": [
+        "Matchmaker",
+        "Party"
       ]
     }
   ]

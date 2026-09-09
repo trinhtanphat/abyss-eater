@@ -34,9 +34,10 @@ function writeQuality(quality) {
   return next.quality;
 }
 
-export function createLobby({ onPlay = () => {}, onTheme = () => {}, onQuality = () => {}, onPointer = () => {}, onSettingsOpen = () => {}, onSettingsClose = () => {} } = {}) {
+export function createLobby({ onPlay = () => {}, onQuickDive = () => {}, onTheme = () => {}, onQuality = () => {}, onPointer = () => {}, onSettingsOpen = () => {}, onSettingsClose = () => {} } = {}) {
   const panel = document.querySelector('#start-screen');
   const playButton = document.querySelector('#play-button');
+  const quickDiveButton = document.querySelector('#quick-dive-button');
   const nameInput = document.querySelector('#player-name');
   const roomInput = document.querySelector('#room-name');
   const themeSelect = document.querySelector('#theme-select');
@@ -127,6 +128,13 @@ export function createLobby({ onPlay = () => {}, onTheme = () => {}, onQuality =
     hide();
     closeSettings();
     onPlay(value);
+  });
+
+  quickDiveButton?.addEventListener('click', () => {
+    const value = persist();
+    hide();
+    closeSettings();
+    onQuickDive(value);
   });
 
   themeSelect.addEventListener('change', () => applyThemeSelection(themeSelect.value));

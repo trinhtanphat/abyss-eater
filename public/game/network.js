@@ -1,5 +1,5 @@
 const PROTOCOL_VERSION = 2;
-const VERSIONED_MESSAGE_TYPES = new Set(['welcome', 'snapshot', 'pong', 'eaten', 'error']);
+const VERSIONED_MESSAGE_TYPES = new Set(['welcome', 'snapshot', 'pong', 'eaten', 'chat', 'error']);
 
 export function createNetworkClient({
   onStatus = () => {},
@@ -7,6 +7,7 @@ export function createNetworkClient({
   onSnapshot = () => {},
   onPong = () => {},
   onEaten = () => {},
+  onChat = () => {},
   onError = () => {},
   onProtocolMismatch = () => {},
 } = {}) {
@@ -98,6 +99,7 @@ export function createNetworkClient({
         return;
       }
       if (message.type === 'eaten') { onEaten(message); return; }
+      if (message.type === 'chat') { onChat(message); return; }
       if (message.type === 'error') onError(message);
     });
     socket.addEventListener('close', () => {
@@ -129,6 +131,14 @@ export function createNetworkClient({
     return true;
   }
 
+  function sendChat(text) {
+    if (!socket || socket.readyState !== WebSocket.OPEN || protocolBlocked) return false;
+    const value = String(text ?? '').trim().slice(0, 160);
+    if (!value) return false;
+    socket.send(JSON.stringify({ type: 'chat', v: PROTOCOL_VERSION, text: value }));
+    return true;
+  }
+
   function ping() {
     if (!socket || socket.readyState !== WebSocket.OPEN || protocolBlocked) return false;
     pingSentAt = Date.now();
@@ -140,6 +150,7 @@ export function createNetworkClient({
     connect,
     disconnect,
     sendInput,
+    sendChat,
     ping,
     get connected() { return socket?.readyState === WebSocket.OPEN; },
     get credentials() { return credentials ? { ...credentials } : null; },

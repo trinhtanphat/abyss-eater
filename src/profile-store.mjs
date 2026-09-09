@@ -349,3 +349,22 @@ export async function profileForSession(db, sessionId, nowMs = Date.now()) {
   `).bind(id, now).first();
   return mapProfile(row);
 }
+
+export async function createModerationReport(db, reporterProfileId, input = {}, nowMs = Date.now(), reportId = crypto.randomUUID()) {
+  assertDb(db);
+  const reporter = canonicalProfileId(reporterProfileId);
+  const target = String(input?.targetPlayerId ?? '').trim();
+  if (!/^[A-Za-z0-9._:-]{1,128}$/.test(target)) throw new Error('report-target-invalid');
+  const room = String(input?.room ?? '').normalize('NFKC').trim().toLowerCase().slice(0, 24);
+  const reason = String(input?.reason ?? '').trim().toLowerCase();
+  if (!['spam', 'abuse', 'harassment', 'cheating', 'other'].includes(reason)) throw new Error('report-reason-invalid');
+  const now = canonicalTime(nowMs);
+  const id = String(reportId ?? '').trim();
+  if (!id || id.length > 128) throw new Error('report-id-invalid');
+  const result = await db.prepare(`
+    INSERT INTO moderation_reports (id, reporter_profile_id, reported_player_id, room, reason, created_at)
+    VALUES (?, ?, ?, ?, ?, ?)
+  `).bind(id, reporter, target, room, reason, now).run();
+  if (result?.success === false) throw new Error('report-create-failed');
+  return { ok: true, id };
+}
