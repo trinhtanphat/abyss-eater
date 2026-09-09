@@ -30,8 +30,12 @@ export function createInputController({ canvas, joystick, joystickKnob, upButton
     return typeof Element !== 'undefined' && target instanceof Element && Boolean(target.closest(INTERACTIVE_SELECTOR));
   }
 
+  function settingsOpen() {
+    return document.body.classList.contains('settings-open');
+  }
+
   function onKeyDown(event) {
-    if (!enabled || isInteractiveTarget(event.target)) return;
+    if (!enabled || settingsOpen() || isInteractiveTarget(event.target)) return;
     if (BLOCKED_CODES.has(event.code)) event.preventDefault();
     keys.add(event.code);
   }
@@ -41,7 +45,7 @@ export function createInputController({ canvas, joystick, joystickKnob, upButton
   }
 
   function onPointerMove(event) {
-    if (!enabled || !pointerEnabled || event.pointerType === 'touch' || isInteractiveTarget(event.target)) return;
+    if (!enabled || settingsOpen() || !pointerEnabled || event.pointerType === 'touch' || isInteractiveTarget(event.target)) return;
     if (document.pointerLockElement === canvas) {
       const next = updateLook({ yaw: lookYaw, pitch: lookPitch }, event.movementX, event.movementY);
       lookYaw = next.yaw;
@@ -64,14 +68,14 @@ export function createInputController({ canvas, joystick, joystickKnob, upButton
   }
 
   function onCanvasClick(event) {
-    if (!enabled || !pointerEnabled || event.pointerType === 'touch' || !matchMedia('(pointer: fine)').matches) return;
+    if (!enabled || settingsOpen() || !pointerEnabled || event.pointerType === 'touch' || !matchMedia('(pointer: fine)').matches) return;
     if (document.pointerLockElement !== canvas) canvas?.requestPointerLock?.();
   }
 
   function onPointerLockChange() {
     if (!enabled) return;
     if (document.pointerLockElement === canvas) onHint('Mouse look active · Esc releases cursor');
-    else if (pointerEnabled && matchMedia('(pointer: fine)').matches) onHint('Mouse released · move to steer or click the ocean for mouse look');
+    else if (!settingsOpen() && pointerEnabled && matchMedia('(pointer: fine)').matches) onHint('Mouse released · move to steer or click the ocean for mouse look');
   }
 
   function updateStick(event) {
@@ -89,7 +93,7 @@ export function createInputController({ canvas, joystick, joystickKnob, upButton
   }
 
   function onStickDown(event) {
-    if (!enabled || stickPointerId !== null) return;
+    if (!enabled || settingsOpen() || stickPointerId !== null) return;
     event.preventDefault();
     stickPointerId = event.pointerId;
     joystick?.setPointerCapture?.(event.pointerId);
@@ -106,7 +110,7 @@ export function createInputController({ canvas, joystick, joystickKnob, upButton
 
   function bindVertical(button, key) {
     if (!button) return () => {};
-    const down = (event) => { if (enabled) { event.preventDefault(); vertical.add(key); } };
+    const down = (event) => { if (enabled && !settingsOpen()) { event.preventDefault(); vertical.add(key); } };
     const up = (event) => { event.preventDefault(); vertical.delete(key); };
     button.addEventListener('pointerdown', down);
     button.addEventListener('pointerup', up);
@@ -121,6 +125,7 @@ export function createInputController({ canvas, joystick, joystickKnob, upButton
   }
 
   function direction() {
+    if (settingsOpen()) return { x: 0, y: 0, z: 0 };
     let strafe = 0;
     let forward = 0;
     if (keys.has('KeyA') || keys.has('ArrowLeft')) strafe -= 1;
